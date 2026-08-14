@@ -1057,9 +1057,7 @@ export default function KatilimciPanel() {
     is_durumu: '',
     calistigi_kurum: '',
     pozisyon: '',
-    is_aciklamasi: '',
-    universite: '',
-    sinif: ''
+    is_aciklamasi: ''
   })
   const [profilePhotoFile, setProfilePhotoFile] = useState(null)
   const [profilePhotoPreview, setProfilePhotoPreview] = useState(null)
@@ -1076,9 +1074,7 @@ export default function KatilimciPanel() {
         is_durumu: katilimci.is_durumu || '',
         calistigi_kurum: katilimci.calistigi_kurum || '',
         pozisyon: katilimci.pozisyon || '',
-        is_aciklamasi: katilimci.is_aciklamasi || '',
-        universite: katilimci.universite || '',
-        sinif: katilimci.sinif || ''
+        is_aciklamasi: katilimci.is_aciklamasi || ''
       })
       if (katilimci.profil_fotografi_url) {
         setProfilePhotoPreview(katilimci.profil_fotografi_url)
@@ -2490,33 +2486,28 @@ export default function KatilimciPanel() {
                           </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
-                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Üniversite</label>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                                Üniversite (Kayıtlı)
+                              </label>
                               <input
                                 type="text"
-                                value={profileForm.universite}
-                                onChange={e => setProfileForm(f => ({ ...f, universite: e.target.value }))}
-                                placeholder="Örn: İstanbul Üniversitesi"
-                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all"
+                                readOnly
+                                value={katilimci?.universite || 'Belirtilmemiş'}
+                                className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 font-medium text-xs cursor-not-allowed"
                               />
+                              <span className="text-[10px] text-slate-400 block mt-1">Üniversite bilgisi başvuru kaydından alınır.</span>
                             </div>
                             <div>
-                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sınıf</label>
-                              <select
-                                value={profileForm.sinif}
-                                onChange={e => setProfileForm(f => ({ ...f, sinif: e.target.value }))}
-                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs text-slate-700 transition-all"
-                              >
-                                <option value="">Seçiniz</option>
-                                <option value="Hazırlık">Hazırlık</option>
-                                <option value="1">1. Sınıf</option>
-                                <option value="2">2. Sınıf</option>
-                                <option value="3">3. Sınıf</option>
-                                <option value="4">4. Sınıf</option>
-                                <option value="5">5. Sınıf</option>
-                                <option value="6">6. Sınıf</option>
-                                <option value="Mezun">Mezun</option>
-                                <option value="Yüksek Lisans / Doktora">Yüksek Lisans / Doktora</option>
-                              </select>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                                Sınıf (Kayıtlı)
+                              </label>
+                              <input
+                                type="text"
+                                readOnly
+                                value={katilimci?.sinif ? (katilimci.sinif === 'Mezun' ? 'Mezun' : `${katilimci.sinif}. Sınıf`) : 'Belirtilmemiş'}
+                                className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 font-medium text-xs cursor-not-allowed"
+                              />
+                              <span className="text-[10px] text-slate-400 block mt-1">Sınıf bilgisi başvuru kaydından alınır.</span>
                             </div>
                             <div>
                               <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Eğitim Durumu</label>
@@ -2530,6 +2521,7 @@ export default function KatilimciPanel() {
                                 <option value="Mezun">Mezun</option>
                                 <option value="Diğer">Diğer</option>
                               </select>
+                              <span className="text-[10px] text-slate-400 block mt-1">Mevcut öğrenim / mezuniyet durumu.</span>
                             </div>
                             <div className="sm:col-span-3">
                               <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">

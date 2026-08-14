@@ -533,9 +533,7 @@ export async function updateKatilimciProfilim(payload) {
     'pozisyon',
     'is_aciklamasi',
     'profil_fotografi_url',
-    'profil_fotografi_file_id',
-    'universite',
-    'sinif'
+    'profil_fotografi_file_id'
   ]
 
   const updates = {
