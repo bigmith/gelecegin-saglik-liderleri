@@ -431,58 +431,97 @@ function normalizeTeslim(t) {
   }
 }
 
+export function groupTeslimlerByTask(rawTeslimList) {
+  if (!Array.isArray(rawTeslimList) || rawTeslimList.length === 0) return []
+
+  const groups = new Map()
+
+  for (const item of rawTeslimList) {
+    const kId = item.katilimci_id ?? item.katilimci
+    const tId = item.takim_id ?? item.takim
+    const gId = item.gorev_id ?? item.gorev
+
+    const key = kId ? `kat_${Number(kId)}_${Number(gId)}` : `tak_${Number(tId)}_${Number(gId)}`
+
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key).push(item)
+  }
+
+  const result = []
+
+  for (const items of groups.values()) {
+    items.sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
+    const latestItem = items[items.length - 1]
+
+    const combinedMovements = []
+    for (const it of items) {
+      const norm = normalizeTeslim(it)
+      if (Array.isArray(norm.hareketler)) {
+        combinedMovements.push(...norm.hareketler)
+      }
+    }
+
+    const seenIds = new Set()
+    const uniqueMovements = combinedMovements.filter(h => {
+      const hKey = h.id ? String(h.id) : `${h.islem_tipi}_${h.olusturulma_tarihi || h.tarih}`
+      if (seenIds.has(hKey)) return false
+      seenIds.add(hKey)
+      return true
+    })
+
+    uniqueMovements.sort((a, b) => {
+      const tA = new Date(a.olusturulma_tarihi || a.tarih || 0).getTime()
+      const tB = new Date(b.olusturulma_tarihi || b.tarih || 0).getTime()
+      return tA - tB
+    })
+
+    const normLatest = normalizeTeslim(latestItem)
+    const gorevObj = (typeof latestItem.gorev === 'object' && latestItem.gorev !== null) ? latestItem.gorev : null
+
+    result.push({
+      ...normLatest,
+      katilimci: latestItem.katilimci_id || latestItem.katilimci,
+      katilimci_id: latestItem.katilimci_id || latestItem.katilimci,
+      takim: latestItem.takim_id || latestItem.takim,
+      takim_id: latestItem.takim_id || latestItem.takim,
+      katilimci_adi: latestItem.katilimci_adi || null,
+      takim_adi: latestItem.takim_adi || null,
+      gorev: latestItem.gorev_id || (gorevObj ? gorevObj.id : latestItem.gorev),
+      gorev_id: latestItem.gorev_id || (gorevObj ? gorevObj.id : latestItem.gorev),
+      gorev_adi: gorevObj?.gorev_adi || latestItem.gorev_adi || null,
+      hafta: gorevObj?.hafta || latestItem.hafta || null,
+      gorev_obj: gorevObj,
+      program_task_key: gorevObj?.program_task_key || latestItem.program_task_key || null,
+      program_week: gorevObj?.program_week || latestItem.program_week || null,
+      program_task_type: gorevObj?.program_task_type || latestItem.program_task_type || null,
+      material_url: gorevObj?.material_url || latestItem.material_url || null,
+      material_title: gorevObj?.material_title || latestItem.material_title || null,
+      material_type: gorevObj?.material_type || latestItem.material_type || null,
+      material_file_id: gorevObj?.material_file_id || latestItem.material_file_id || null,
+      brief_aciklama: gorevObj?.brief_aciklama || latestItem.brief_aciklama || null,
+      puan_kriterleri: gorevObj?.puan_kriterleri || latestItem.puan_kriterleri || null,
+      maksimum_puan: gorevObj?.maksimum_puan || latestItem.maksimum_puan || 100,
+      hareketler: uniqueMovements
+    })
+  }
+
+  result.sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
+  return result
+}
+
 export async function getTeslimler() {
   const { data, error } = await supabase
     .from('core_teslim')
     .select('*, gorev:core_gorev(*), hareketler:core_teslimhareketi(*)')
     .order('id', { ascending: false })
-  if (error) {
-    const { data: rawData, error: rawErr } = await supabase
-      .from('core_teslim')
-      .select('*, gorev:core_gorev(*)')
-      .order('id', { ascending: false })
-    if (rawErr) throw rawErr
-    return (rawData || []).map(t => {
-      const gorevObj = (typeof t.gorev === 'object' && t.gorev !== null) ? t.gorev : null
-      return {
-        ...normalizeTeslim(t),
-        katilimci: t.katilimci_id,
-        takim: t.takim_id,
-        gorev: t.gorev_id || (gorevObj ? gorevObj.id : t.gorev),
-        gorev_obj: gorevObj,
-        program_task_key: gorevObj?.program_task_key || t.program_task_key || null,
-        program_week: gorevObj?.program_week || t.program_week || null,
-        program_task_type: gorevObj?.program_task_type || t.program_task_type || null,
-        material_url: gorevObj?.material_url || t.material_url || null,
-        material_title: gorevObj?.material_title || t.material_title || null,
-        material_type: gorevObj?.material_type || t.material_type || null,
-        material_file_id: gorevObj?.material_file_id || t.material_file_id || null,
-        brief_aciklama: gorevObj?.brief_aciklama || t.brief_aciklama || null,
-        puan_kriterleri: gorevObj?.puan_kriterleri || t.puan_kriterleri || null,
-        maksimum_puan: gorevObj?.maksimum_puan || t.maksimum_puan || 100,
-      }
-    })
-  }
-  return (data || []).map(t => {
-    const gorevObj = (typeof t.gorev === 'object' && t.gorev !== null) ? t.gorev : null
-    return {
-      ...normalizeTeslim(t),
-      katilimci: t.katilimci_id,
-      takim: t.takim_id,
-      gorev: t.gorev_id || (gorevObj ? gorevObj.id : t.gorev),
-      gorev_obj: gorevObj,
-      program_task_key: gorevObj?.program_task_key || t.program_task_key || null,
-      program_week: gorevObj?.program_week || t.program_week || null,
-      program_task_type: gorevObj?.program_task_type || t.program_task_type || null,
-      material_url: gorevObj?.material_url || t.material_url || null,
-      material_title: gorevObj?.material_title || t.material_title || null,
-      material_type: gorevObj?.material_type || t.material_type || null,
-      material_file_id: gorevObj?.material_file_id || t.material_file_id || null,
-      brief_aciklama: gorevObj?.brief_aciklama || t.brief_aciklama || null,
-      puan_kriterleri: gorevObj?.puan_kriterleri || t.puan_kriterleri || null,
-      maksimum_puan: gorevObj?.maksimum_puan || t.maksimum_puan || 100,
-    }
-  })
+
+  const rawList = error
+    ? ((await supabase.from('core_teslim').select('*, gorev:core_gorev(*)').order('id', { ascending: false })).data || [])
+    : (data || [])
+
+  return groupTeslimlerByTask(rawList)
 }
 
 export async function submitTeslim(teslimData) {
@@ -831,29 +870,19 @@ export async function getKatilimciTeslimlerMe(katilimciId) {
   if (!katilimciId) return []
   const { data, error } = await supabase
     .from('core_teslim')
-    .select('*, hareketler:core_teslimhareketi(*)')
+    .select('*, gorev:core_gorev(*), hareketler:core_teslimhareketi(*)')
     .eq('katilimci_id', katilimciId)
     .order('id', { ascending: false })
   if (error) {
     const { data: rawData, error: rawErr } = await supabase
       .from('core_teslim')
-      .select('*')
+      .select('*, gorev:core_gorev(*)')
       .eq('katilimci_id', katilimciId)
       .order('id', { ascending: false })
     if (rawErr) throw rawErr
-    return (rawData || []).map(t => ({
-      ...normalizeTeslim(t),
-      katilimci: t.katilimci_id,
-      takim: t.takim_id,
-      gorev: t.gorev_id
-    }))
+    return groupTeslimlerByTask(rawData || [])
   }
-  return (data || []).map(t => ({
-    ...normalizeTeslim(t),
-    katilimci: t.katilimci_id,
-    takim: t.takim_id,
-    gorev: t.gorev_id
-  }))
+  return groupTeslimlerByTask(data || [])
 }
 
 // ─── MENTOR ÖZEL SORGULARI ───────────────────────────────────────────────────
@@ -924,79 +953,6 @@ export async function getMentorKatilimcilarim(mentorId) {
     return res.data
   }
   return []
-}
-
-function groupTeslimlerByTask(rawTeslimList) {
-  if (!Array.isArray(rawTeslimList) || rawTeslimList.length === 0) return []
-
-  const groups = new Map()
-
-  for (const item of rawTeslimList) {
-    const kId = item.katilimci_id ?? item.katilimci
-    const tId = item.takim_id ?? item.takim
-    const gId = item.gorev_id ?? item.gorev
-
-    const key = kId ? `kat_${Number(kId)}_${Number(gId)}` : `tak_${Number(tId)}_${Number(gId)}`
-
-    if (!groups.has(key)) {
-      groups.set(key, [])
-    }
-    groups.get(key).push(item)
-  }
-
-  const result = []
-
-  for (const items of groups.values()) {
-    items.sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
-    const latestItem = items[items.length - 1]
-
-    const combinedMovements = []
-    for (const it of items) {
-      const norm = normalizeTeslim(it)
-      if (Array.isArray(norm.hareketler)) {
-        combinedMovements.push(...norm.hareketler)
-      }
-    }
-
-    const seenIds = new Set()
-    const uniqueMovements = combinedMovements.filter(h => {
-      const hKey = h.id ? String(h.id) : `${h.islem_tipi}_${h.olusturulma_tarihi || h.tarih}`
-      if (seenIds.has(hKey)) return false
-      seenIds.add(hKey)
-      return true
-    })
-
-    uniqueMovements.sort((a, b) => {
-      const tA = new Date(a.olusturulma_tarihi || a.tarih || 0).getTime()
-      const tB = new Date(b.olusturulma_tarihi || b.tarih || 0).getTime()
-      return tA - tB
-    })
-
-    const normLatest = normalizeTeslim(latestItem)
-    const gorevObj = (typeof latestItem.gorev === 'object' && latestItem.gorev !== null) ? latestItem.gorev : null
-
-    result.push({
-      ...normLatest,
-      katilimci: latestItem.katilimci_id || latestItem.katilimci,
-      takim: latestItem.takim_id || latestItem.takim,
-      gorev: latestItem.gorev_id || (gorevObj ? gorevObj.id : latestItem.gorev),
-      gorev_obj: gorevObj,
-      program_task_key: gorevObj?.program_task_key || latestItem.program_task_key || null,
-      program_week: gorevObj?.program_week || latestItem.program_week || null,
-      program_task_type: gorevObj?.program_task_type || latestItem.program_task_type || null,
-      material_url: gorevObj?.material_url || latestItem.material_url || null,
-      material_title: gorevObj?.material_title || latestItem.material_title || null,
-      material_type: gorevObj?.material_type || latestItem.material_type || null,
-      material_file_id: gorevObj?.material_file_id || latestItem.material_file_id || null,
-      brief_aciklama: gorevObj?.brief_aciklama || latestItem.brief_aciklama || null,
-      puan_kriterleri: gorevObj?.puan_kriterleri || latestItem.puan_kriterleri || null,
-      maksimum_puan: gorevObj?.maksimum_puan || latestItem.maksimum_puan || 100,
-      hareketler: uniqueMovements
-    })
-  }
-
-  result.sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
-  return result
 }
 
 export async function getMentorTeslimler(mentorId) {

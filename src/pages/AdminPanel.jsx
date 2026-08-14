@@ -1625,7 +1625,7 @@ export default function AdminPanel() {
                                       disabled={isDel}
                                       onClick={() => {
                                         if (window.confirm(`"${gorev.gorev_adi}" görevini silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`))
-                                          gorevSil(gorev)
+                                      gorevSil(gorev)
                                       }}
                                       className="p-2 rounded-xl text-red-300 hover:text-red-600 hover:bg-red-50 transition-all disabled:opacity-40 flex-shrink-0 group"
                                     >
@@ -1655,49 +1655,204 @@ export default function AdminPanel() {
                                     )}
                                   </div>
 
-                                  {/* Görev Teslimleri & Timeline */}
+                                  {/* Görev Teslimleri & Katılımcı Takip Matrisi */}
                                   {(() => {
                                     const gid = String(gorev.id)
                                     const gorevTeslimleri = (Array.isArray(teslimler) ? teslimler : []).filter(t => {
                                       if (!t) return false
-                                      return (
-                                        String(t.gorev) === gid ||
-                                        String(t.gorev_id) === gid ||
-                                        (t.gorev && typeof t.gorev === 'object' && String(t.gorev.id) === gid)
-                                      )
+                                      const tGid = String(t.gorev || t.gorev_id || (t.gorev_obj && t.gorev_obj.id) || '')
+                                      return tGid === gid || (gorev.program_task_key && (t.program_task_key === gorev.program_task_key || t.gorev_obj?.program_task_key === gorev.program_task_key))
                                     })
-                                    return (
-                                      <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                                            <span>📦</span> Görev Teslimleri ({gorevTeslimleri.length})
-                                          </span>
-                                        </div>
-                                        {gorevTeslimleri.length === 0 ? (
-                                          <p className="text-xs text-gray-400 italic">Bu göreve henüz teslim yapılmamış.</p>
-                                        ) : (
-                                          <div className="space-y-3 mt-2">
-                                            {gorevTeslimleri.map(t => (
-                                              <div key={t.id} className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3.5 text-xs space-y-2">
-                                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                                  <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-gray-800">{String(t.katilimci_adi || t.takim_adi || 'Katılımcı')}</span>
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                                                      {String(t.durum_etiketi || t.durum || 'BEKLIYOR')}
-                                                    </span>
-                                                  </div>
-                                                  <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[11px]">
-                                                    {Number(t.alinan_puan) || 0} Puan
-                                                  </span>
-                                                </div>
-                                                <TeslimTimeline hareketler={t.hareketler || t.teslim_hareketleri || t.timeline} />
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })()}
+
+                                    // Target participants for this task
+                                    const targetKatilimcilar = (katilimcilar || []).filter(kat => {
+                                      if (gorev.hedef_katilimci_id || gorev.hedef_katilimci || gorev.katilimci_id || gorev.katilimci) {
+                                        return Number(kat.id) === Number(gorev.hedef_katilimci_id || gorev.hedef_katilimci || gorev.katilimci_id || gorev.katilimci)
+                                      }
+                                      if (gorev.hedef_takim_id || gorev.hedef_takim || gorev.takim_id || gorev.takim) {
+                                        return Number(kat.takim_id) === Number(gorev.hedef_takim_id || gorev.hedef_takim || gorev.takim_id || gorev.takim)
+                                      }
+                                      return true // GENEL task: all participants
+                                    })
+
+                                    const totalTargetCount = targetKatilimcilar.length
+                                    const teslimEdenCount = targetKatilimcilar.filter(k => gorevTeslimleri.some(t => Number(t.katilimci || t.katilimci_id) === Number(k.id))).length
+                                    const teslimEtmeyenCount = Math.max(0, totalTargetCount - teslimEdenCount)
+                                    const bekleyenCount = gorevTeslimleri.filter(t => t.durum === 'BEKLIYOR').length
+                                    const revizyonCount = gorevTeslimleri.filter(t => t.durum === 'REVIZYON_ISTENDI' || t.durum === 'REVIZE_EDILDI').length
+                                    const tamamlananCount = gorevTeslimleri.filter(t => t.durum === 'TAMAMLANDI').length
+
+                                     return (
+                                       <div className="mt-5 pt-4 border-t border-gray-100 space-y-3">
+                                         
+                                         {/* Özet İstatistik Çubuğu */}
+                                         <div className="flex items-center justify-between flex-wrap gap-2">
+                                           <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                                             <span>📦</span> Katılımcı Teslim Durumu ({teslimEdenCount}/{totalTargetCount} Teslim Edildi)
+                                           </span>
+                                           
+                                           <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-bold">
+                                             <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                               👥 Toplam: {totalTargetCount}
+                                             </span>
+                                             <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                               📥 Teslim: {teslimEdenCount}
+                                             </span>
+                                             <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
+                                               ⏳ Bekleyen: {teslimEtmeyenCount}
+                                             </span>
+                                             {bekleyenCount > 0 && (
+                                               <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+                                                 🔍 İnceleme: {bekleyenCount}
+                                               </span>
+                                             )}
+                                             {revizyonCount > 0 && (
+                                               <span className="px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 border border-orange-200">
+                                                 🔄 Revizyon: {revizyonCount}
+                                               </span>
+                                             )}
+                                             {tamamlananCount > 0 && (
+                                               <span className="px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 border border-teal-200">
+                                                 ✅ Puanlandı: {tamamlananCount}
+                                               </span>
+                                             )}
+                                           </div>
+                                         </div>
+
+                                         {/* Katılımcı Bazlı Matris Tablosu */}
+                                         <div className="bg-gray-50/70 border border-gray-200/70 rounded-2xl overflow-hidden">
+                                           {targetKatilimcilar.length === 0 ? (
+                                             <div className="p-4 text-center text-xs text-gray-400 italic">
+                                               Bu göreve atanmış katılımcı bulunamadı.
+                                             </div>
+                                           ) : (
+                                             <div className="divide-y divide-gray-200/60">
+                                               {targetKatilimcilar.map(kat => {
+                                                 const katDelivery = gorevTeslimleri.find(t => Number(t.katilimci || t.katilimci_id) === Number(kat.id))
+                                                 const takimObj = takimlar.find(tk => Number(tk.id) === Number(kat.takim_id))
+                                                 const takimAdi = kat.takim_adi || takimObj?.takim_adi || 'Takımsız'
+                                                 const hasSubmitted = Boolean(katDelivery)
+                                                 const dStatus = katDelivery?.durum || (hasSubmitted ? 'BEKLIYOR' : 'YOK')
+
+                                                 return (
+                                                   <div key={kat.id} className="p-3 sm:p-3.5 flex flex-col gap-2 hover:bg-white/80 transition-colors">
+                                                     <div className="flex items-center justify-between gap-3 flex-wrap text-xs">
+                                                       
+                                                       {/* Katılımcı Bilgisi */}
+                                                       <div className="flex items-center gap-2.5 min-w-[200px]">
+                                                         <div className="w-7 h-7 rounded-full bg-violet/10 text-violet font-bold text-[11px] flex items-center justify-center shrink-0">
+                                                           {(kat.ad_soyad || kat.ad || '?')[0].toUpperCase()}
+                                                         </div>
+                                                         <div>
+                                                           <p className="font-bold text-gray-800">{kat.ad_soyad || `${kat.ad || ''} ${kat.soyad || ''}`.trim() || `Katılımcı #${kat.id}`}</p>
+                                                           <p className="text-[10px] text-gray-400 font-mono">{kat.eposta || '—'}</p>
+                                                         </div>
+                                                       </div>
+
+                                                       {/* Takım */}
+                                                       <div className="shrink-0">
+                                                         <span className="px-2 py-0.5 rounded-md bg-white border border-gray-200 text-[10px] font-semibold text-gray-600">
+                                                           {takimAdi}
+                                                         </span>
+                                                       </div>
+
+                                                       {/* Teslim Durumu Rozeti */}
+                                                       <div className="shrink-0">
+                                                         {dStatus === 'TAMAMLANDI' && (
+                                                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10px]">
+                                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                             Tamamlandı
+                                                           </span>
+                                                         )}
+                                                         {dStatus === 'REVIZYON_ISTENDI' && (
+                                                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200 font-bold text-[10px]">
+                                                             <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                                                             Revizyon İstendi
+                                                           </span>
+                                                         )}
+                                                         {dStatus === 'REVIZE_EDILDI' && (
+                                                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 font-bold text-[10px]">
+                                                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                             Revize Edildi
+                                                           </span>
+                                                         )}
+                                                         {dStatus === 'BEKLIYOR' && (
+                                                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[10px]">
+                                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                                             İncelenmeyi Bekliyor
+                                                           </span>
+                                                         )}
+                                                         {dStatus === 'YOK' && (
+                                                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 font-medium text-[10px]">
+                                                             Henüz teslim yapmadı ⏳
+                                                           </span>
+                                                         )}
+                                                       </div>
+
+                                                       {/* Puan / Detay Butonu */}
+                                                       <div className="flex items-center gap-2 shrink-0">
+                                                         {hasSubmitted ? (
+                                                           <>
+                                                             <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 text-[10px]">
+                                                               {katDelivery.alinan_puan !== null && katDelivery.alinan_puan !== undefined
+                                                                 ? `${katDelivery.alinan_puan} / ${gorev.maksimum_puan || 100} P`
+                                                                 : `Maks: ${gorev.maksimum_puan || 100} P`}
+                                                             </span>
+
+                                                             {katDelivery.teslim_dosyasi_url || katDelivery.teslim_dosyasi ? (
+                                                               <a
+                                                                 href={katDelivery.teslim_dosyasi_url || katDelivery.teslim_dosyasi}
+                                                                 target="_blank"
+                                                                 rel="noreferrer"
+                                                                 className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] border border-indigo-200 transition-colors inline-flex items-center gap-1"
+                                                               >
+                                                                 <span>📎 Dosya</span>
+                                                               </a>
+                                                             ) : null}
+
+                                                             {katDelivery.teslim_linki ? (
+                                                               <a
+                                                                 href={katDelivery.teslim_linki}
+                                                                 target="_blank"
+                                                                 rel="noreferrer"
+                                                                 className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[10px] border border-purple-200 transition-colors inline-flex items-center gap-1"
+                                                               >
+                                                                 <span>🔗 Link</span>
+                                                               </a>
+                                                             ) : null}
+                                                           </>
+                                                         ) : (
+                                                           <span className="text-[10px] text-gray-400 italic">
+                                                             Teslim bekleniyor
+                                                           </span>
+                                                         )}
+                                                       </div>
+
+                                                     </div>
+
+                                                     {/* Teslim Varsa Timeline ve Notlar */}
+                                                     {hasSubmitted && katDelivery.hareketler && katDelivery.hareketler.length > 0 && (
+                                                       <div className="mt-1 pt-1.5 border-t border-gray-100">
+                                                         <details className="text-xs group">
+                                                           <summary className="cursor-pointer text-[10px] font-bold text-violet hover:underline inline-flex items-center gap-1">
+                                                             <span>📜 Katılımcı İşlem Geçmişi ({katDelivery.hareketler.length} hareket)</span>
+                                                           </summary>
+                                                           <div className="mt-2 pl-2">
+                                                             <TeslimTimeline hareketler={katDelivery.hareketler} />
+                                                           </div>
+                                                         </details>
+                                                       </div>
+                                                     )}
+                                                   </div>
+                                                 )
+                                               })}
+                                             </div>
+                                           )}
+                                         </div>
+
+                                       </div>
+                                     )
+                                   })()}
                                 </div>
                               </div>
                             </div>

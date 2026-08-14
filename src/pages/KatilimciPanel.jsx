@@ -1005,6 +1005,128 @@ function StatusBadge({ durum, degerlendirildi, revizyon }) {
   )
 }
 
+function TeslimTimeline({ hareketler }) {
+  const resolveUrl = (url) => {
+    if (!url || typeof url !== 'string') return null
+    if (url.startsWith('http://') || url.startsWith('https://')) return url
+    return null
+  }
+
+  const safeList = Array.isArray(hareketler)
+    ? hareketler
+    : Array.isArray(hareketler?.results)
+    ? hareketler.results
+    : []
+
+  if (safeList.length === 0) {
+    return (
+      <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center text-[11px] text-slate-400 italic">
+        Bu teslim için henüz işlem geçmişi bulunmuyor.
+      </div>
+    )
+  }
+
+  const sorted = [...safeList].sort((a, b) => {
+    const tA = a?.tarih || a?.olusturulma_tarihi ? new Date(a.tarih || a.olusturulma_tarihi).getTime() : 0
+    const tB = b?.tarih || b?.olusturulma_tarihi ? new Date(b.tarih || b.olusturulma_tarihi).getTime() : 0
+    return tA - tB
+  })
+
+  const ISLEM_CONFIG = {
+    ILK_TESLIM: { label: 'İlk Tesliminiz', icon: '🚀', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+    TESLIM_EDILDI: { label: 'Teslim Edildi', icon: '🚀', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+    REVIZYON_ISTENDI: { label: 'Mentor Revizyon İstedi', icon: '🔄', badge: 'bg-orange-50 text-orange-700 border-orange-200' },
+    REVIZE_TESLIM: { label: 'Revize Tesliminiz', icon: '📤', badge: 'bg-purple-50 text-purple-700 border-purple-200' },
+    NIHAI_DEGERLENDIRME: { label: 'Değerlendirme Tamamlandı', icon: '✅', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  }
+
+  return (
+    <div className="relative pl-3 space-y-2.5 my-2 before:absolute before:left-1.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200/80">
+      {sorted.map((h, idx) => {
+        if (!h || typeof h !== 'object') return null
+        const tipe = String(h.islem_tipi || '').toUpperCase()
+        const config = ISLEM_CONFIG[tipe] || {
+          label: String(h.islem_tipi_etiketi || h.islem_tipi || 'İşlem'),
+          icon: '📌',
+          badge: 'bg-slate-50 text-slate-700 border-slate-200'
+        }
+
+        const tarihStr = h.tarih || h.olusturulma_tarihi
+          ? new Date(h.tarih || h.olusturulma_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : '—'
+        const yapan = String(h.olusturan_adi || h.olusturan_user || 'Sistem')
+        const dosyaUrl = resolveUrl(
+          h.teslim_dosyasi_url ||
+          h.drive_file_url ||
+          h.file_url ||
+          (typeof h.teslim_dosyasi === 'string' ? h.teslim_dosyasi : null)
+        )
+        const teslimLinki = h.teslim_linki && typeof h.teslim_linki === 'string' ? h.teslim_linki : null
+        const aciklama = h.aciklama || h.revizyon_notu || h.not_metni
+        const mentorYorumu = h.mentor_yorumu
+
+        return (
+          <div key={h.id || idx} className="relative flex items-start gap-2 text-xs">
+            <div className="absolute -left-3 top-1.5 w-2 h-2 rounded-full bg-slate-400 ring-2 ring-white" />
+            <div className="bg-white border border-slate-100 rounded-xl p-3 w-full shadow-2xs space-y-1.5">
+              <div className="flex items-center justify-between flex-wrap gap-1 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${config.badge}`}>
+                    {config.icon} {config.label}
+                  </span>
+                  <span className="font-semibold text-slate-700">{yapan}</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">{tarihStr}</span>
+              </div>
+
+              {aciklama && (
+                <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                  {String(aciklama)}
+                </p>
+              )}
+
+              {mentorYorumu && (
+                <p className="text-[11px] text-emerald-800 bg-emerald-50/70 p-2 rounded-lg border border-emerald-100">
+                  <strong>Mentor Geri Bildirimi:</strong> "{String(mentorYorumu)}"
+                </p>
+              )}
+
+              {(typeof h.puan === 'number' || typeof h.puan === 'string') && h.puan !== null && (
+                <div className="inline-block bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-200 text-[10px]">
+                  Puan: {h.puan}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                {dosyaUrl && (
+                  <a
+                    href={dosyaUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-100 transition-colors"
+                  >
+                    <span>📎 Teslim Dosyası</span>
+                  </a>
+                )}
+                {teslimLinki && (
+                  <a
+                    href={teslimLinki}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-100 transition-colors"
+                  >
+                    <span>🔗 Teslim Linki</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function NavItem({ icon, label, active, onClick }) {
   return (
     <button
@@ -1205,7 +1327,10 @@ export default function KatilimciPanel() {
 
       // Görevler ile teslimleri eşleştir
       const veriler = rawGorevler.map(g => {
-        const matchedTeslim = teslimler.find(t => t.gorev === g.id || t.gorev?.id === g.id)
+        const matchedTeslim = teslimler.find(t => {
+          const tGid = Number(t.gorev || t.gorev_id || t.gorev_obj?.id)
+          return tGid === Number(g.id) || (g.program_task_key && (t.program_task_key === g.program_task_key || t.gorev_obj?.program_task_key === g.program_task_key))
+        })
         return {
           ...g,
           teslim: matchedTeslim || null
@@ -2368,6 +2493,20 @@ export default function KatilimciPanel() {
                                   </div>
                                 ) : null}
 
+                                {/* Teslim Hareketleri ve İşlem Geçmişi */}
+                                {teslim?.hareketler && teslim.hareketler.length > 0 && (
+                                  <div className="pt-2 border-t border-slate-100">
+                                    <details className="text-xs group" open={isRevisionRequested}>
+                                      <summary className="cursor-pointer font-bold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1.5 select-none">
+                                        <span>📜 Görev Teslim & Revizyon Geçmişiniz ({teslim.hareketler.length} hareket)</span>
+                                      </summary>
+                                      <div className="mt-3 pl-1">
+                                        <TeslimTimeline hareketler={teslim.hareketler} />
+                                      </div>
+                                    </details>
+                                  </div>
+                                )}
+
                                 {/* Buton */}
                                 <div className="flex justify-end pt-2 border-t border-slate-100">
                                   <button
@@ -2467,6 +2606,20 @@ export default function KatilimciPanel() {
                                 </p>
                               </div>
                             ) : null}
+
+                            {/* Teslim Hareketleri ve İşlem Geçmişi */}
+                            {teslim?.hareketler && teslim.hareketler.length > 0 && (
+                              <div className="bg-slate-50 rounded-xl p-4 mb-5 border border-slate-100">
+                                <details className="text-xs group" open={isRevisionRequested}>
+                                  <summary className="cursor-pointer font-bold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1.5 select-none">
+                                    <span>📜 Görev Teslim & Revizyon Geçmişiniz ({teslim.hareketler.length} hareket)</span>
+                                  </summary>
+                                  <div className="mt-3 pl-1">
+                                    <TeslimTimeline hareketler={teslim.hareketler} />
+                                  </div>
+                                </details>
+                              </div>
+                            )}
 
                             {/* Buton */}
                             <div className="flex justify-end pt-1">
