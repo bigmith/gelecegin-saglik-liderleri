@@ -232,6 +232,9 @@ export async function createGorev(gorevData) {
     program_task_key: gorevData.program_task_key || null,
     program_week: gorevData.program_week ? Number(gorevData.program_week) : null,
     program_task_type: gorevData.program_task_type || null,
+    material_url: gorevData.material_url || null,
+    material_title: gorevData.material_title || null,
+    material_type: gorevData.material_type || null,
   }
   const { data, error } = await supabase.from('core_gorev').insert([payload]).select().single()
   if (error) throw error
@@ -276,6 +279,9 @@ export async function activateProgramGorev(template, options = {}) {
     program_task_key: template.taskKey,
     program_week: Number(template.taskWeek) || 1,
     program_task_type: template.taskType || 'saha_gorevi',
+    material_url: options.material_url || null,
+    material_title: options.material_title || null,
+    material_type: options.material_type || null,
   }
 
   const { data, error } = await supabase.from('core_gorev').insert([payload]).select().single()
@@ -291,6 +297,17 @@ export async function activateProgramGorev(template, options = {}) {
   }
 
   return { created: true, gorev: data, message: `"${template.taskTitle}" görevi (${score} Puan) başarıyla aktif edildi!` }
+}
+
+export async function updateGorevMaterial(gorevId, { material_url, material_title, material_type }) {
+  const updates = {
+    material_url: (material_url || '').trim() || null,
+    material_title: (material_title || '').trim() || null,
+    material_type: material_type || 'PDF',
+  }
+  const { data, error } = await supabase.from('core_gorev').update(updates).eq('id', gorevId).select().single()
+  if (error) throw error
+  return data
 }
 
 export async function updateGorev(id, updates) {

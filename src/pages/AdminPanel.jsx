@@ -7,10 +7,9 @@ import {
   getGorevler,
   getMentorlar,
   getTeslimler,
-  createTakim,
-  deleteTakim,
   createGorev,
   activateProgramGorev,
+  updateGorevMaterial,
   deleteGorev,
   updateKatilimci,
   updateTakim,
@@ -399,6 +398,8 @@ export default function AdminPanel() {
     'week2-hook-ai-senaryo': '100',
     'week3-who-sandvic-final': '150'
   })
+  const [materialForms, setMaterialForms] = useState({})
+  const [savingMaterialId, setSavingMaterialId] = useState(null)
   const GOREV_BOSH = { hafta: '', gorev_adi: '', brief_aciklama: '', puan_kriterleri: '', son_teslim_tarihi: '', maksimum_puan: 100, gorev_tipi: 'GENEL', hedef_katilimci: '', hedef_takim: '' }
   const [gorevForm, setGorevForm]           = useState(GOREV_BOSH)
   // Mentor Sekmesi
@@ -625,6 +626,26 @@ export default function AdminPanel() {
     }
   }
 
+  /* ── Program Görevi Materyalini Kaydet (PROGRAM-UX-FIX-02) ── */
+  const handleSaveMaterial = async (gorevId) => {
+    const form = materialForms[gorevId] || {}
+    setSavingMaterialId(gorevId)
+    try {
+      await updateGorevMaterial(gorevId, {
+        material_title: form.material_title,
+        material_url: form.material_url,
+        material_type: form.material_type || 'PDF'
+      })
+      await fetchAll()
+      setToast({ msg: 'Eğitim materyali başarıyla güncellendi! 📄', type: 'success' })
+    } catch (e) {
+      console.error('Materyal kaydedilemedi:', e)
+      setToast({ msg: `Materyal kaydedilemedi: ${e.message}`, type: 'error' })
+    } finally {
+      setSavingMaterialId(null)
+    }
+  }
+
   /* ── Görev sil (Supabase Client) ── */
   const gorevSil = async (gorev) => {
     setDeletingGorev(gorev.id)
@@ -702,7 +723,7 @@ export default function AdminPanel() {
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans max-w-full overflow-x-hidden">
 
       {/* ══════════ SIDEBAR ══════════ */}
-      <aside className="w-full md:w-64 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r border-gray-100 shadow-soft flex flex-col md:sticky top-0 md:h-screen z-20">
+      <aside className="w-full md:w-64 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r border-gray-100 shadow-soft flex flex-col z-20">
         <div className="px-4 sm:px-6 py-4 sm:py-6 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-coral to-orange-400 flex items-center justify-center shadow-md shadow-orange-200">
@@ -1142,6 +1163,11 @@ export default function AdminPanel() {
                     const isAlreadyActive = Boolean(activeDbGorev)
                     const isActivating = activatingProgramTaskKey === template.taskKey
                     const currentScoreInput = programTaskScores[template.taskKey] ?? ''
+                    const currentMatForm = materialForms[activeDbGorev?.id] ?? {
+                      material_title: activeDbGorev?.material_title || '',
+                      material_url: activeDbGorev?.material_url || '',
+                      material_type: activeDbGorev?.material_type || 'PDF'
+                    }
 
                     return (
                       <div
@@ -1163,7 +1189,7 @@ export default function AdminPanel() {
                             {isAlreadyActive ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                Aktif Edildi
+                                Hafta Yayında / Aktif
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
@@ -1192,6 +1218,116 @@ export default function AdminPanel() {
                               <span><strong>Kriter:</strong> {template.evaluationHint}</span>
                             </div>
                           </div>
+
+                          {/* Aktif Görev İçin Materyal Yönetimi */}
+                          {isAlreadyActive && activeDbGorev && (
+                            <div className="bg-gradient-to-br from-violet-50/70 to-purple-50/50 rounded-2xl p-3.5 border border-violet/20 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm">📄</span>
+                                  <h5 className="text-xs font-bold text-gray-800">Eğitim Materyali</h5>
+                                </div>
+                                {activeDbGorev.material_url ? (
+                                  <a
+                                    href={activeDbGorev.material_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[10px] font-bold text-violet hover:text-purple-700 underline inline-flex items-center gap-1"
+                                  >
+                                    Aç ↗
+                                  </a>
+                                ) : (
+                                  <span className="text-[9px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                    Eklenmedi
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-2 text-xs">
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
+                                    Materyal Başlığı
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={currentMatForm.material_title}
+                                    onChange={(e) => setMaterialForms(prev => ({
+                                      ...prev,
+                                      [activeDbGorev.id]: {
+                                        ...currentMatForm,
+                                        material_title: e.target.value
+                                      }
+                                    }))}
+                                    placeholder="Örn: 1. Hafta Sunum Slaytı & Vaka Dosyası"
+                                    className="w-full px-2.5 py-1.5 text-xs text-gray-800 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="col-span-2">
+                                    <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
+                                      Materyal Linki (URL)
+                                    </label>
+                                    <input
+                                      type="url"
+                                      value={currentMatForm.material_url}
+                                      onChange={(e) => setMaterialForms(prev => ({
+                                        ...prev,
+                                        [activeDbGorev.id]: {
+                                          ...currentMatForm,
+                                          material_url: e.target.value
+                                        }
+                                      }))}
+                                      placeholder="https://..."
+                                      className="w-full px-2.5 py-1.5 text-xs text-gray-800 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
+                                      Tür
+                                    </label>
+                                    <select
+                                      value={currentMatForm.material_type}
+                                      onChange={(e) => setMaterialForms(prev => ({
+                                        ...prev,
+                                        [activeDbGorev.id]: {
+                                          ...currentMatForm,
+                                          material_type: e.target.value
+                                        }
+                                      }))}
+                                      className="w-full px-1.5 py-1.5 text-xs text-gray-800 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
+                                    >
+                                      <option value="PDF">PDF</option>
+                                      <option value="Video">Video</option>
+                                      <option value="Link">Link</option>
+                                      <option value="Diger">Diğer</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end pt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveMaterial(activeDbGorev.id)}
+                                    disabled={savingMaterialId === activeDbGorev.id}
+                                    className="px-3 py-1.5 rounded-lg bg-violet hover:bg-violet/90 text-white font-bold text-[11px] shadow-2xs hover:shadow transition-all flex items-center gap-1.5 disabled:opacity-50"
+                                  >
+                                    {savingMaterialId === activeDbGorev.id ? (
+                                      <>
+                                        <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Kaydediliyor…</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>💾</span>
+                                        <span>Materyali Kaydet</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Puan ve Buton Alanı */}

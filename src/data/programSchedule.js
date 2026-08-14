@@ -57,9 +57,6 @@ export const PROGRAM_WEEKS = [
       'Küçük Ara (10 dk)',
       'Bölüm 2 ve 3 (İki adet 30’ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
     ],
-    liveUrl: '',
-    recordingUrl: '',
-    materialUrl: '',
     days: [
       {
         dayName: 'Salı',
@@ -127,9 +124,6 @@ export const PROGRAM_WEEKS = [
       'Küçük Ara (10 dk)',
       'Bölüm 2 ve 3 (İki adet 30’ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
     ],
-    liveUrl: '',
-    recordingUrl: '',
-    materialUrl: '',
     days: [
       {
         dayName: 'Salı',
@@ -196,9 +190,6 @@ export const PROGRAM_WEEKS = [
       'Küçük Ara (10 dk)',
       'Bölüm 2 ve 3 (İki adet 30’ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
     ],
-    liveUrl: '',
-    recordingUrl: '',
-    materialUrl: '',
     days: [
       {
         dayName: 'Salı',

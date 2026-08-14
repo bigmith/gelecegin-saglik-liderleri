@@ -1534,7 +1534,7 @@ export default function KatilimciPanel() {
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-800 max-w-full overflow-x-hidden">
 
       {/* ══════════ SIDEBAR ══════════ */}
-      <aside className="w-full md:w-64 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r border-slate-100 shadow-sm flex flex-col md:sticky top-0 md:h-screen z-20">
+      <aside className="w-full md:w-64 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r border-slate-100 shadow-sm flex flex-col z-20">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center shadow-md shadow-orange-200">
@@ -1920,97 +1920,78 @@ export default function KatilimciPanel() {
                   </div>
 
                   {/* Haftalar Listesi */}
-                  <div className="space-y-8">
-                    {PROGRAM_WEEKS.map((weekData) => (
-                      <div
-                        key={weekData.week}
-                        className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden transition-all"
-                      >
-                        {/* Hafta Başlık & Linkler Barı */}
-                        <div className="bg-gradient-to-r from-orange-50/90 via-pink-50/70 to-purple-50/50 p-6 sm:p-7 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
-                          <div className="space-y-1.5 min-w-0">
-                            <div className="flex items-center gap-2.5 flex-wrap">
-                              <span className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-black px-3.5 py-1 rounded-full shadow-xs tracking-wide">
-                                {weekData.week}. HAFTA
-                              </span>
-                              <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">
-                                {weekData.title}
-                              </h3>
-                            </div>
+                  {(() => {
+                    const activeWeeks = PROGRAM_WEEKS.filter(weekData => {
+                      return (gorevler || []).some(g =>
+                        g.program_task_key === weekData.fieldTask.taskKey ||
+                        g.gorev_adi === weekData.fieldTask.title ||
+                        g.gorev_adi === weekData.fieldTask.taskTitle ||
+                        Number(g.program_week || g.hafta) === Number(weekData.week)
+                      )
+                    })
+
+                    if (activeWeeks.length === 0) {
+                      return (
+                        <div className="bg-white rounded-3xl p-12 text-center shadow-soft border border-slate-100 space-y-3">
+                          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl mx-auto shadow-2xs">
+                            📅
                           </div>
-
-                          {/* Eğitim Link Butonları */}
-                          <div className="flex flex-wrap items-center gap-2.5">
-                            {/* Canlı Yayın */}
-                            {weekData.liveUrl ? (
-                              <a
-                                href={weekData.liveUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs shadow-xs transition-all"
-                              >
-                                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                                <span>Canlı Yayına Katıl</span>
-                              </a>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed"
-                                title="Canlı yayın linki eğitim günü aktifleşecektir."
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                <span>Canlı Yayın: Yakında</span>
-                              </button>
-                            )}
-
-                            {/* Kayıt Linki */}
-                            {weekData.recordingUrl ? (
-                              <a
-                                href={weekData.recordingUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-all"
-                              >
-                                <span>📹</span>
-                                <span>Ders Kaydını İzle</span>
-                              </a>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed"
-                                title="Ders kayıtları oturum sonrası yüklenecektir."
-                              >
-                                <span>📹</span>
-                                <span>Kayıt: Yakında</span>
-                              </button>
-                            )}
-
-                            {/* Materyal Linki */}
-                            {weekData.materialUrl ? (
-                              <a
-                                href={weekData.materialUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all"
-                              >
-                                <span>📄</span>
-                                <span>Materyalleri Aç</span>
-                              </a>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed"
-                                title="Eğitim sunum ve dokümanları oturum öncesi yüklenecektir."
-                              >
-                                <span>📄</span>
-                                <span>Materyal: Yakında</span>
-                              </button>
-                            )}
-                          </div>
+                          <h3 className="text-base font-bold text-slate-800">Program Haftaları Henüz Açılmadı</h3>
+                          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                            Eğitim programı ve haftalık saha görevleri oturumlar başladıkça admin tarafından erişime açılacaktır. Açılan haftalar otomatik olarak bu alanda görünecektir.
+                          </p>
                         </div>
+                      )
+                    }
+
+                    return (
+                      <div className="space-y-8">
+                        {activeWeeks.map((weekData) => {
+                          const activeTask = (gorevler || []).find(g =>
+                            g.program_task_key === weekData.fieldTask.taskKey ||
+                            g.gorev_adi === weekData.fieldTask.title ||
+                            g.gorev_adi === weekData.fieldTask.taskTitle ||
+                            Number(g.program_week || g.hafta) === Number(weekData.week)
+                          )
+
+                          return (
+                            <div
+                              key={weekData.week}
+                              className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden transition-all"
+                            >
+                              {/* Hafta Başlık & Materyal Barı */}
+                              <div className="bg-gradient-to-r from-orange-50/90 via-pink-50/70 to-purple-50/50 p-6 sm:p-7 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
+                                <div className="space-y-1.5 min-w-0">
+                                  <div className="flex items-center gap-2.5 flex-wrap">
+                                    <span className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-black px-3.5 py-1 rounded-full shadow-xs tracking-wide">
+                                      {weekData.week}. HAFTA
+                                    </span>
+                                    <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">
+                                      {weekData.title}
+                                    </h3>
+                                  </div>
+                                </div>
+
+                                {/* Materyal Butonu / Durumu */}
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                  {activeTask?.material_url ? (
+                                    <a
+                                      href={activeTask.material_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all"
+                                    >
+                                      <span>📄</span>
+                                      <span>{activeTask.material_title || 'Eğitim Materyalini Aç'} ({activeTask.material_type || 'PDF'}) ↗</span>
+                                    </a>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80">
+                                      <span>📄</span>
+                                      <span>Materyal yakında eklenecek</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
 
                         <div className="p-6 sm:p-7 space-y-6">
                           {/* Haftanın Hedefi & Format */}
@@ -2188,10 +2169,13 @@ export default function KatilimciPanel() {
                           })()}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
-              )}
+              )
+            })()}
+          </div>
+        )}
 
               {/* ════════ TAB 2: GÖREVLERİM ════════ */}
               {activeTab === 'gorevler' && (
@@ -2209,7 +2193,7 @@ export default function KatilimciPanel() {
                       <p className="text-slate-400 font-medium">Henüz takımınıza atanmış bir görev bulunmuyor.</p>
                     </div>
                   ) : (
-                    <div className="space-y-5">
+                    <div className="space-y-6">
                       {gorevler.map((item) => {
                         const gorev = item
                         const teslim = item?.teslim
@@ -2222,6 +2206,156 @@ export default function KatilimciPanel() {
                         if (durumCode === 'REVIZYON_ISTENDI') buttonText = 'Revize Teslim Yükle 🔄'
                         else if (durumCode === 'BEKLIYOR' || durumCode === 'REVIZE_EDILDI') buttonText = 'Teslimi Güncelle'
                         else if (durumCode === 'TAMAMLANDI') buttonText = 'Detay & Geçmişi İncele'
+
+                        const isProgramTask = Boolean(gorev?.program_task_key || gorev?.program_week)
+                        const isFinalTask = gorev?.program_task_type === 'final_gorevi' || gorev?.gorev_adi?.toLowerCase().includes('final')
+
+                        if (isProgramTask) {
+                          return (
+                            <div
+                              key={gorev?.id || Math.random()}
+                              className="bg-white rounded-3xl border border-orange-200/90 shadow-soft overflow-hidden transition-all hover:shadow-card relative"
+                            >
+                              {/* Üst Renkli Çizgi */}
+                              <div className="h-1.5 bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600" />
+
+                              {/* Başlık ve Rozetler Barı */}
+                              <div className="p-6 sm:p-7 bg-gradient-to-r from-orange-50/60 via-pink-50/40 to-purple-50/30 border-b border-orange-100/70 flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                <div className="space-y-2 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider shadow-2xs ${
+                                      isFinalTask
+                                        ? 'bg-purple-600 text-white shadow-purple-200'
+                                        : 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-orange-200'
+                                    }`}>
+                                      {isFinalTask ? '🏆 Final Görevi' : `🚀 ${gorev.hafta || 1}. Hafta Saha Görevi`}
+                                    </span>
+                                    <span className="text-[11px] font-black text-amber-700 bg-amber-100/80 px-2.5 py-1 rounded-lg border border-amber-200">
+                                      ★ {gorev?.maksimum_puan ?? 100} Puan
+                                    </span>
+                                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 bg-white/80 px-2.5 py-1 rounded-lg border border-slate-200/80">
+                                      <Ic.Clock />
+                                      Son Teslim: {gorev?.son_teslim_tarihi ? new Date(gorev.son_teslim_tarihi).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                    </span>
+                                  </div>
+                                  <h3 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight">
+                                    {gorev?.gorev_adi || 'Program Görevi'}
+                                  </h3>
+                                </div>
+
+                                <div className="shrink-0 self-start">
+                                  <StatusBadge durum={durumCode} degerlendirildi={teslim?.degerlendirildi} revizyon={teslim?.revizyon_istendi} />
+                                </div>
+                              </div>
+
+                              <div className="p-6 sm:p-7 space-y-5">
+                                {/* Brief ve Açıklama */}
+                                <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100 space-y-2">
+                                  <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Görev Açıklaması</h4>
+                                  <p className="text-slate-700 leading-relaxed text-xs sm:text-sm whitespace-pre-line">
+                                    {gorev?.brief_aciklama || 'Açıklama bulunmuyor.'}
+                                  </p>
+                                </div>
+
+                                {/* Değerlendirme Kriterleri (Varsa) */}
+                                {gorev?.puan_kriterleri && (
+                                  <div className="bg-amber-50/50 rounded-2xl p-4 border border-amber-200/60">
+                                    <h4 className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                                      <span>🏆</span> Değerlendirme Esasları
+                                    </h4>
+                                    <p className="text-xs text-amber-900 leading-relaxed whitespace-pre-line">
+                                      {gorev.puan_kriterleri}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Materyal Linki (Varsa) */}
+                                {gorev?.material_url && (
+                                  <div className="bg-violet-50/60 rounded-2xl p-4 border border-violet/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-lg">📄</span>
+                                      <div>
+                                        <p className="text-xs font-bold text-gray-800">{gorev.material_title || 'Haftalık Eğitim & Vaka Materyali'}</p>
+                                        <p className="text-[10px] text-gray-500">Bu görevi hazırlarken eğitim materyalini referans alabilirsiniz.</p>
+                                      </div>
+                                    </div>
+                                    <a
+                                      href={gorev.material_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-violet hover:bg-violet/90 text-white font-bold text-xs shadow-2xs transition-all self-start sm:self-center"
+                                    >
+                                      <span>Materyali İncele</span>
+                                      <span>↗</span>
+                                    </a>
+                                  </div>
+                                )}
+
+                                {/* Yüklenen Dosya */}
+                                {(teslim?.teslim_dosyasi_url || teslim?.teslim_dosyasi || teslim?.teslim_linki) && (
+                                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                    <span className="font-semibold text-slate-500">Yüklenen Dosya:</span>
+                                    <a
+                                      href={teslim.teslim_dosyasi_url || teslim.teslim_dosyasi || teslim.teslim_linki}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-bold text-orange-600 hover:text-orange-700 hover:underline flex items-center gap-1.5"
+                                    >
+                                      📎 Dosyayı Görüntüle / İndir
+                                    </a>
+                                  </div>
+                                )}
+
+                                {/* Mentor Geri Bildirim veya Revizyon Notu Kartı */}
+                                {isCompleted ? (
+                                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-5 border border-emerald-100">
+                                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                                      <div className="flex flex-col items-center justify-center w-16 h-16 bg-white rounded-xl shadow-xs border border-emerald-100 shrink-0">
+                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5">Puan</span>
+                                        <span className="font-black text-2xl text-emerald-600 leading-none">
+                                          {teslim?.alinan_puan ?? '-'}
+                                        </span>
+                                      </div>
+                                      <div className="flex-1">
+                                        <h4 className="font-bold text-emerald-800 text-xs mb-1.5">Mentor Geri Bildirimi</h4>
+                                        <p className="text-xs text-emerald-700/80 leading-relaxed bg-white/60 rounded-lg p-3 border border-emerald-100/50">
+                                          {teslim?.mentor_yorumu || 'Mentor tarafından yazılı geri bildirim bırakılmamış.'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : isRevisionRequested ? (
+                                  <div className="bg-orange-50/80 rounded-2xl p-4 border border-orange-200/80">
+                                    <h4 className="font-bold text-orange-800 text-xs mb-1 flex items-center gap-1.5">
+                                      <Ic.Info c="w-4 h-4 text-orange-600" />
+                                      Mentor Revizyon İstedi:
+                                    </h4>
+                                    <p className="text-xs text-orange-800 bg-white/80 rounded-lg p-3 border border-orange-100">
+                                      {teslim?.mentor_yorumu || 'Mentor tarafından açıklama eklenmiş.'}
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                {/* Buton */}
+                                <div className="flex justify-end pt-2 border-t border-slate-100">
+                                  <button
+                                    onClick={() => openModal(gorev)}
+                                    className={`flex items-center justify-center gap-2 w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-xs shadow-md transition-all ${
+                                      isRevisionRequested
+                                        ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-orange-200 hover:shadow-lg'
+                                        : isCompleted
+                                          ? 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+                                          : 'bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white shadow-orange-200 hover:shadow-lg'
+                                    }`}
+                                  >
+                                    <Ic.Upload />
+                                    {buttonText}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        }
 
                         return (
                           <div key={gorev?.id || Math.random()} className="bg-white rounded-2xl p-6 shadow-soft border border-slate-100 transition-all hover:shadow-card relative overflow-hidden">
