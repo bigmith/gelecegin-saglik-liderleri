@@ -358,11 +358,11 @@ function ReportBodyRenderer({ body }) {
   return <div className="space-y-1">{elements}</div>
 }
 
-// Markdown metnini ## başlıklarına göre ayırıp kartlar halinde sunar
+// Markdown metnini # veya ## başlıklarına göre ayırıp kartlar halinde sunar
 const parseMarkdownSections = (text) => {
   if (!text || typeof text !== 'string') return []
   const cleanText = text.replace(/\r\n/g, '\n').trim()
-  const rawSections = cleanText.split(/^##\s+/m)
+  const rawSections = cleanText.split(/^##?\s+/m)
   const sections = []
 
   rawSections.forEach((sec, idx) => {
@@ -582,23 +582,27 @@ function ContentDNADashboardViewer({ reportText, aiModel, promptVersion, answers
 function SkorKartiSection({ section }) {
   const lines = (section.body || '').split('\n').map(l => l.trim()).filter(Boolean)
   const items = []
+  let currentItem = null
 
   lines.forEach(line => {
     const cleanLine = cleanMarkdownSymbols(line)
     if (!cleanLine || cleanLine.startsWith('_') || cleanLine.length < 3) return
-    const parts = cleanLine.split(/[:\-]/)
-    if (parts.length >= 2) {
+
+    const isMetricHeader = /^(Arketip Eşleşmesi|Marka Tutarlılığı|Kamera ve Prodüksiyon Hazırlığı|İçerik Üretim Kapasitesi|Kriz Yönetimi Dayanıklılığı|.*?[Ss]kor.*?)[:\-]/i.test(cleanLine) || cleanLine.includes('%')
+
+    if (isMetricHeader) {
+      if (currentItem) items.push(currentItem)
+      const parts = cleanLine.split(/[:\-]/)
       const label = parts[0].trim()
       const val = parts.slice(1).join(':').trim()
-      if (label && val) {
-        items.push({ label, val })
-      } else {
-        items.push({ label: 'Skor Kriteri', val: cleanLine })
-      }
+      currentItem = { label, val, desc: '' }
+    } else if (currentItem) {
+      currentItem.desc = currentItem.desc ? `${currentItem.desc} ${cleanLine}` : cleanLine
     } else {
-      items.push({ label: 'Kriter', val: cleanLine })
+      items.push({ label: 'Skor Kriteri', val: cleanLine, desc: '' })
     }
   })
+  if (currentItem) items.push(currentItem)
 
   return (
     <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-soft space-y-4">
@@ -608,16 +612,23 @@ function SkorKartiSection({ section }) {
         </div>
         <div>
           <h4 className="text-sm font-bold text-slate-800 tracking-tight">{section.title}</h4>
-          <p className="text-[11px] text-slate-400">Analiz skorlarınız ve performans göstergeleriniz</p>
+          <p className="text-[11px] text-slate-400">Analiz skorlarınız ve operasyonel performans göstergeleriniz</p>
         </div>
       </div>
 
       {items.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {items.map((item, i) => (
-            <div key={i} className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex flex-col justify-between space-y-1.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{item.label}</span>
-              <p className="text-xs font-black text-slate-800 leading-snug">{item.val}</p>
+            <div key={i} className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex flex-col justify-between space-y-2 hover:bg-white hover:border-amber-200/80 transition-all">
+              <div>
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">{item.label}</span>
+                <p className="text-sm font-black text-amber-800 mt-1">{item.val}</p>
+              </div>
+              {item.desc && (
+                <p className="text-[11px] text-slate-600 leading-relaxed bg-white/80 p-2.5 rounded-xl border border-slate-100">
+                  {item.desc}
+                </p>
+              )}
             </div>
           ))}
         </div>

@@ -155,6 +155,18 @@ function normalizeHeader(h: string): string {
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: clean_dna_tests (DNA Testlerini Temizleme)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'clean_dna_tests') {
+      const { error: dErr } = await adminClient.from('core_icerikdnatesti').delete().neq('id', 0)
+      if (dErr) {
+        console.error('clean_dna_tests error:', dErr)
+        return jsonRes(req, { ok: false, error: dErr.message }, 500)
+      }
+      return jsonRes(req, { ok: true, data: { success: true } })
+    }
+
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
 
@@ -499,8 +511,8 @@ function normalizeHeader(h: string): string {
 
     return jsonRes(req, { ok: false, error: 'Bilinmeyen action: ' + action }, 400)
 
-  } catch (err) {
+  } catch (err: any) {
     console.error('admin-actions error:', err)
-    return jsonRes(req, { ok: false, error: 'Sunucu hatası oluştu.' }, 500)
+    return jsonRes(req, { ok: false, error: err?.message || String(err) }, 500)
   }
 })
