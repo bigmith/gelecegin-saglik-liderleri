@@ -10,6 +10,7 @@ import {
   createTakim,
   deleteTakim,
   createGorev,
+  activateProgramGorev,
   deleteGorev,
   updateKatilimci,
   updateTakim,
@@ -30,6 +31,7 @@ import {
   getParticipantAvatarSrc,
   logoutUser
 } from '../services/supabaseService'
+import { PROGRAM_TASKS } from '../data/programSchedule'
 
 const DURUM_MAP = {
   ONAYLANDI:  { label: 'Onaylandı',  cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
@@ -391,6 +393,7 @@ export default function AdminPanel() {
   const [gorevModal, setGorevModal]         = useState(false)
   const [savingGorev, setSavingGorev]       = useState(false)
   const [deletingGorev, setDeletingGorev]   = useState(null)
+  const [activatingProgramTaskKey, setActivatingProgramTaskKey] = useState(null)
   const GOREV_BOSH = { hafta: '', gorev_adi: '', brief_aciklama: '', puan_kriterleri: '', son_teslim_tarihi: '', maksimum_puan: 100, gorev_tipi: 'GENEL', hedef_katilimci: '', hedef_takim: '' }
   const [gorevForm, setGorevForm]           = useState(GOREV_BOSH)
   // Mentor Sekmesi
@@ -588,6 +591,26 @@ export default function AdminPanel() {
       setToast({ msg: `"${gorev_adi.trim()}" görevi başarıyla oluşturuldu! 🎉`, type: 'success' })
     } catch (e) { setToast({ msg: `Görev oluşturulamadı: ${e.message}`, type: 'error' }) }
     finally { setSavingGorev(false) }
+  }
+
+  /* ── Hazır Program Görevini Aktif Et (PROGRAM-TASKS-01) ── */
+  const handleActivateProgramTask = async (taskTemplate) => {
+    if (activatingProgramTaskKey) return
+    setActivatingProgramTaskKey(taskTemplate.taskKey)
+    try {
+      const res = await activateProgramGorev(taskTemplate)
+      await fetchAll()
+      if (res.created) {
+        setToast({ msg: `"${taskTemplate.taskTitle}" görevi başarıyla aktif edildi ve katılımcılara açıldı! 🎉`, type: 'success' })
+      } else {
+        setToast({ msg: res.message || `"${taskTemplate.taskTitle}" zaten aktif.`, type: 'info' })
+      }
+    } catch (e) {
+      console.error('Program görevi aktif edilemedi:', e)
+      setToast({ msg: `Görev aktif edilemedi: ${e.message}`, type: 'error' })
+    } finally {
+      setActivatingProgramTaskKey(null)
+    }
   }
 
   /* ── Görev sil (Supabase Client) ── */
@@ -1067,7 +1090,7 @@ export default function AdminPanel() {
                 <div className="flex-1">
                   <h2 className="text-base font-bold text-gray-800">Görev Yönetimi</h2>
                   <p className="text-sm text-gray-400 mt-0.5">
-                    {loading ? 'Yükleniyor…' : `${gorevler.length} görev tanımlı · Haftalık program görevleri`}
+                    {loading ? 'Yükleniyor…' : `${gorevler.length} görev tanımlı · Haftalık program ve özel görevler`}
                   </p>
                 </div>
                 <button
@@ -1076,8 +1099,127 @@ export default function AdminPanel() {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet to-purple-500 text-white text-sm font-semibold shadow-md shadow-purple-200 hover:shadow-lg hover:scale-105 transition-all duration-200"
                 >
                   <Ic.Plus c="w-4 h-4" />
-                  Yeni Görev Ekle
+                  Özel Görev Ekle
                 </button>
+              </div>
+
+              {/* ═══════ HAZIR PROGRAM GÖREVLERİ (ŞABLONLAR) ═══════ */}
+              <div className="bg-gradient-to-br from-purple-900/5 via-violet-50/50 to-pink-50/40 rounded-3xl border border-violet/20 p-6 sm:p-7 shadow-soft space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-violet/10">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🚀</span>
+                      <h3 className="text-base font-extrabold text-gray-800">Program Görevleri</h3>
+                      <span className="text-[10px] font-bold bg-violet text-white px-2.5 py-0.5 rounded-full shadow-2xs">
+                        Müfredat Entegrasyonu
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Haftalık programdaki hazır saha ve final görevlerini buradan tek tıkla aktif edebilir ve katılımcılara açabilirsiniz.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  {PROGRAM_TASKS.map((template) => {
+                    const isAlreadyActive = (gorevler || []).some(g =>
+                      g.program_task_key === template.taskKey ||
+                      g.gorev_adi === template.taskTitle ||
+                      (Number(g.hafta) === Number(template.taskWeek) && g.gorev_adi?.toLowerCase().includes(template.taskTitle.toLowerCase()))
+                    )
+                    const isActivating = activatingProgramTaskKey === template.taskKey
+
+                    return (
+                      <div
+                        key={template.taskKey}
+                        className={`bg-white rounded-2xl p-5 border shadow-2xs flex flex-col justify-between transition-all duration-200 ${
+                          isAlreadyActive ? 'border-emerald-200 bg-emerald-50/20 shadow-xs' : 'border-gray-200/90 hover:border-violet/40 hover:shadow-card'
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          {/* Üst Hafta Rozeti & Durum */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider ${
+                              template.taskType === 'final_gorevi'
+                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                : 'bg-orange-100 text-orange-800 border border-orange-200'
+                            }`}>
+                              {template.taskWeek}. HAFTA · {template.typeLabel}
+                            </span>
+                            {isAlreadyActive ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                Aktif Edildi
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                Henüz Aktif Değil
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Başlık & Açıklama */}
+                          <div>
+                            <h4 className="font-bold text-gray-800 text-sm">{template.taskTitle}</h4>
+                            <p className="text-xs text-gray-600 mt-1 leading-relaxed line-clamp-3">
+                              {template.taskDescription}
+                            </p>
+                          </div>
+
+                          {/* Teslim & Değerlendirme İpuçları */}
+                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2 text-[11px]">
+                            <div className="flex items-start gap-1.5 text-slate-700">
+                              <span className="shrink-0 text-xs">📦</span>
+                              <span><strong>Teslim:</strong> {template.deliverableHint}</span>
+                            </div>
+                            <div className="flex items-start gap-1.5 text-slate-700">
+                              <span className="shrink-0 text-xs">🏆</span>
+                              <span><strong>Kriter:</strong> {template.evaluationHint}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Buton Alanı */}
+                        <div className="pt-4 mt-2 border-t border-gray-100 flex items-center justify-between gap-3">
+                          <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                            ★ {template.maksimumPuan} Puan
+                          </span>
+
+                          {isAlreadyActive ? (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200 cursor-default flex items-center gap-1.5"
+                            >
+                              <span>✓</span>
+                              <span>Aktif</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleActivateProgramTask(template)}
+                              disabled={isActivating}
+                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                              {isActivating ? (
+                                <>
+                                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Aktif Ediliyor…</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>🚀</span>
+                                  <span>Görevi Aktif Et</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Görev Kartları */}

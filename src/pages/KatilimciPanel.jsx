@@ -2104,35 +2104,88 @@ export default function KatilimciPanel() {
                           </div>
 
                           {/* Haftanın Saha / Final Görevi */}
-                          <div className="bg-gradient-to-r from-orange-50 via-pink-50 to-purple-50 border border-orange-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-start gap-4">
-                              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-pink-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
-                                {weekData.fieldTask.type.includes('Final') ? '🏆' : '🚀'}
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-[10px] font-extrabold text-orange-800 bg-orange-200/70 px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-orange-300/80">
-                                    {weekData.fieldTask.type}
-                                  </span>
-                                  <h4 className="text-sm font-black text-slate-800">
-                                    {weekData.fieldTask.title}
-                                  </h4>
-                                </div>
-                                <p className="text-xs text-slate-700 leading-relaxed">
-                                  {weekData.fieldTask.description}
-                                </p>
-                              </div>
-                            </div>
+                          {(() => {
+                            const isTaskActive = (gorevler || []).some(g =>
+                              g.program_task_key === weekData.fieldTask.taskKey ||
+                              g.gorev_adi === weekData.fieldTask.title ||
+                              g.gorev_adi === weekData.fieldTask.taskTitle ||
+                              (Number(g.hafta) === Number(weekData.week) && g.gorev_adi?.toLowerCase().includes((weekData.fieldTask.taskTitle || weekData.fieldTask.title || '').toLowerCase()))
+                            )
 
-                            <button
-                              type="button"
-                              onClick={() => setActiveTab('gorevler')}
-                              className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-bold text-xs shadow-sm hover:shadow transition-all self-start sm:self-center"
-                            >
-                              <span>Görev Teslim Alanı</span>
-                              <span>➔</span>
-                            </button>
-                          </div>
+                            return (
+                              <div className={`border rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                                isTaskActive
+                                  ? 'bg-gradient-to-r from-orange-50/90 via-pink-50/80 to-purple-50/70 border-orange-200/90 shadow-sm'
+                                  : 'bg-slate-50/70 border-slate-200/80'
+                              }`}>
+                                <div className="flex items-start gap-4">
+                                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${
+                                    isTaskActive
+                                      ? 'bg-gradient-to-br from-orange-400 to-pink-500 text-white'
+                                      : 'bg-slate-200 text-slate-500'
+                                  }`}>
+                                    {weekData.fieldTask.type.includes('Final') ? '🏆' : '🚀'}
+                                  </div>
+                                  <div className="space-y-1.5 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
+                                        isTaskActive
+                                          ? 'text-orange-800 bg-orange-200/70 border-orange-300/80'
+                                          : 'text-slate-600 bg-slate-200 border-slate-300'
+                                      }`}>
+                                        {weekData.fieldTask.type}
+                                      </span>
+                                      <h4 className="text-sm font-black text-slate-800">
+                                        {weekData.fieldTask.title}
+                                      </h4>
+                                      {isTaskActive ? (
+                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 inline-flex items-center gap-1">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                          Aktif Görev
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-medium text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full border border-slate-300 inline-flex items-center gap-1">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                          Henüz Açılmadı
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-slate-700 leading-relaxed">
+                                      {weekData.fieldTask.description}
+                                    </p>
+                                    {isTaskActive ? (
+                                      <p className="text-[11px] font-semibold text-emerald-800 flex items-center gap-1 mt-1">
+                                        <span>🟢</span> Bu görev aktif! Görevlerim sekmesinden detayları inceleyebilir ve teslim yükleyebilirsiniz.
+                                      </p>
+                                    ) : (
+                                      <p className="text-[11px] text-slate-500 italic mt-1">
+                                        ⏳ Bu görev henüz açılmadı. Canlı eğitim oturumu sonrasında aktif edilecektir.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {isTaskActive ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveTab('gorevler')}
+                                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-bold text-xs shadow-sm hover:shadow transition-all self-start sm:self-center"
+                                  >
+                                    <span>Göreve Git</span>
+                                    <span>➔</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed self-start sm:self-center"
+                                  >
+                                    <span>Yakında Açılacak</span>
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
                     ))}

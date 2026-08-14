@@ -1,6 +1,6 @@
 /**
  * Geleceğin Dijital Sağlık Liderleri
- * 3 Haftalık Eğitim & Uygulama Programı Statik Verisi
+ * 3 Haftalık Eğitim & Uygulama Programı Statik Verisi ve Görev Şablonları
  */
 
 export const PROGRAM_SUMMARY = {
@@ -8,6 +8,46 @@ export const PROGRAM_SUMMARY = {
   totalDays: 6,
   totalSessions: 18,
   totalTasks: 3
+}
+
+export const PROGRAM_TASKS = [
+  {
+    taskKey: 'week1-antibiyotik-cift-versiyon',
+    taskTitle: 'Çift Versiyonlu Antibiyotik Senaryosu',
+    taskWeek: 1,
+    taskType: 'saha_gorevi',
+    typeLabel: 'Haftanın Saha Görevi',
+    taskDescription: 'Antibiyotik direncini iki farklı kitle için yaz. Versiyon 1: Eğitimli kesime, veri ve otorite odaklı. Versiyon 2: Ortaokul-lise ve yaşlı kesime, jargonsuz, samimi ve hikayesel. Katılımcı istediği versiyonu çekip paylaşmakta özgürdür.',
+    deliverableHint: 'Bir senaryo metni veya video teslimi.',
+    evaluationHint: 'Hedef kitle uyumu, dil sadeliği, TİTCK uyumu ve anlatım netliği.',
+    maksimumPuan: 100,
+  },
+  {
+    taskKey: 'week2-hook-ai-senaryo',
+    taskTitle: 'Etkileşim Odaklı Kanca ve Yapay Zeka Senaryosu',
+    taskWeek: 2,
+    taskType: 'saha_gorevi',
+    typeLabel: 'Haftanın Saha Görevi',
+    taskDescription: 'İzleyiciyi ilk üç saniyede yakalayacak, etik kurallara uygun beş farklı yaratıcı giriş cümlesi yaz. Bu kancaları yapay zekaya vererek kendi üslubuna uygun bir taslak senaryo oluştur. Videonun sonuna izleyiciyi yoruma, kaydetmeye veya DM’den mesaj atmaya yönlendirecek güçlü bir eylem çağrısı ekle.',
+    deliverableHint: '5 hook, AI destekli senaryo taslağı ve CTA metni.',
+    evaluationHint: 'Kanca gücü, etik uyum, hedef kitleye uygunluk ve CTA netliği.',
+    maksimumPuan: 100,
+  },
+  {
+    taskKey: 'week3-who-sandvic-final',
+    taskTitle: 'WHO Sandviç Metodu ile Sağlık Miti Videosu',
+    taskWeek: 3,
+    taskType: 'final_gorevi',
+    typeLabel: 'Final Görevi',
+    taskDescription: 'Yaygın bir sağlık mitini, örneğin antibiyotiklerle ilgili bir miti, seçip Dünya Sağlık Örgütünün sandviç metoduna uygun şekilde altmış saniyelik dikey video hazırla ve kameraya çek.',
+    deliverableHint: '60 saniyelik dikey video.',
+    evaluationHint: 'Yanlış bilgiyle mücadele, WHO sandviç metoduna uyum, kamera anlatımı ve güven veren dil.',
+    maksimumPuan: 150,
+  }
+]
+
+export function getProgramTaskByKey(taskKey) {
+  return PROGRAM_TASKS.find(t => t.taskKey === taskKey) || null
 }
 
 export const PROGRAM_WEEKS = [
@@ -75,9 +115,10 @@ export const PROGRAM_WEEKS = [
       }
     ],
     fieldTask: {
-      type: 'Haftanın Saha Görevi',
-      title: 'Çift Versiyonlu Antibiyotik Senaryosu',
-      description: 'Antibiyotik direncini iki farklı kitle için yazmak. Versiyon 1: Eğitimli kesime, veri ve otorite odaklı. Versiyon 2: Ortaokul-lise ve yaşlı kesime, jargonsuz, samimi ve hikayesel. Katılımcı istediği versiyonu çekip paylaşmakta özgürdür.'
+      ...PROGRAM_TASKS[0],
+      type: PROGRAM_TASKS[0].typeLabel,
+      title: PROGRAM_TASKS[0].taskTitle,
+      description: PROGRAM_TASKS[0].taskDescription
     }
   },
   {
@@ -143,9 +184,10 @@ export const PROGRAM_WEEKS = [
       }
     ],
     fieldTask: {
-      type: 'Haftanın Saha Görevi',
-      title: 'Etkileşim Odaklı Kanca ve Yapay Zeka Senaryosu',
-      description: 'İzleyiciyi ilk üç saniyede yakalayacak, dikkat çekici ve etik kurallara uygun beş farklı yaratıcı giriş cümlesi yazmak. Bu kancaları yapay zekaya vererek katılımcının kendi üslubuna uygun bir taslak senaryo oluşturmak. Videonun sonuna izleyiciyi yoruma, kaydetmeye veya DM’den mesaj atmaya yönlendirecek güçlü bir eylem çağrısı kurgulamak.'
+      ...PROGRAM_TASKS[1],
+      type: PROGRAM_TASKS[1].typeLabel,
+      title: PROGRAM_TASKS[1].taskTitle,
+      description: PROGRAM_TASKS[1].taskDescription
     }
   },
   {
@@ -211,9 +253,10 @@ export const PROGRAM_WEEKS = [
       }
     ],
     fieldTask: {
-      type: 'Final Görevi',
-      title: 'WHO Sandviç Metodu ile Sağlık Miti Videosu',
-      description: 'Yaygın bir sağlık mitini, örneğin antibiyotiklerle ilgili bir miti, seçip Dünya Sağlık Örgütünün sandviç metoduna uygun şekilde altmış saniyelik dikey bir video hazırlamak ve kameraya çekmek.'
+      ...PROGRAM_TASKS[2],
+      type: PROGRAM_TASKS[2].typeLabel,
+      title: PROGRAM_TASKS[2].taskTitle,
+      description: PROGRAM_TASKS[2].taskDescription
     }
   }
 ]

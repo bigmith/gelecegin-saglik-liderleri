@@ -229,10 +229,61 @@ export async function createGorev(gorevData) {
     gorev_tipi: gorevData.gorev_tipi || 'GENEL',
     hedef_katilimci_id: gorevData.hedef_katilimci_id || null,
     hedef_takim_id: gorevData.hedef_takim_id || null,
+    program_task_key: gorevData.program_task_key || null,
+    program_week: gorevData.program_week ? Number(gorevData.program_week) : null,
+    program_task_type: gorevData.program_task_type || null,
   }
   const { data, error } = await supabase.from('core_gorev').insert([payload]).select().single()
   if (error) throw error
   return data
+}
+
+export async function activateProgramGorev(template) {
+  if (!template || !template.taskKey) {
+    throw new Error('Geçersiz görev şablonu.')
+  }
+
+  // 1. Duplicate kontrolü: program_task_key veya görev adı ile ara
+  const { data: existingList, error: checkError } = await supabase
+    .from('core_gorev')
+    .select('*')
+    .or(`program_task_key.eq.${template.taskKey},gorev_adi.eq."${template.taskTitle}"`)
+
+  if (!checkError && existingList && existingList.length > 0) {
+    return { created: false, gorev: existingList[0], message: 'Bu görev zaten aktif edilmiş.' }
+  }
+
+  // 2. Varsayılan son teslim tarihi (hafta planına göre)
+  const defaultDueDate = new Date(Date.now() + ((Number(template.taskWeek) || 1) * 7 + 7) * 24 * 60 * 60 * 1000).toISOString()
+
+  const payload = {
+    hafta: Number(template.taskWeek) || 1,
+    gorev_adi: template.taskTitle,
+    brief_aciklama: `${template.taskDescription}\n\n📦 Teslim Beklentisi:\n${template.deliverableHint || 'Belirtilmedi.'}`,
+    puan_kriterleri: `🏆 Değerlendirme Kriterleri:\n${template.evaluationHint || 'Genel değerlendirme kriterleri geçerlidir.'}`,
+    son_teslim_tarihi: defaultDueDate,
+    maksimum_puan: template.maksimumPuan || (template.taskType === 'final_gorevi' ? 150 : 100),
+    gorev_tipi: 'GENEL',
+    hedef_katilimci_id: null,
+    hedef_takim_id: null,
+    program_task_key: template.taskKey,
+    program_week: Number(template.taskWeek) || 1,
+    program_task_type: template.taskType || 'saha_gorevi',
+  }
+
+  const { data, error } = await supabase.from('core_gorev').insert([payload]).select().single()
+  if (error) {
+    // Unique violation durumunda mevcut kaydı döndür
+    if (error.code === '23505') {
+      const { data: fallbackList } = await supabase.from('core_gorev').select('*').eq('program_task_key', template.taskKey)
+      if (fallbackList && fallbackList.length > 0) {
+        return { created: false, gorev: fallbackList[0], message: 'Bu görev zaten aktif edilmiş.' }
+      }
+    }
+    throw error
+  }
+
+  return { created: true, gorev: data, message: `"${template.taskTitle}" görevi başarıyla aktif edildi!` }
 }
 
 export async function updateGorev(id, updates) {
