@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   getKatilimciMe,
+  getKatilimciProfilim,
+  updateKatilimciProfilim,
+  uploadKatilimciProfilFotografi,
   getGorevler,
   getKatilimciTeslimlerMe,
   getKatilimciDnaMe,
@@ -1045,6 +1048,99 @@ export default function KatilimciPanel() {
   const [performans, setPerformans] = useState(null)
   const [performansError, setPerformansError] = useState(null)
 
+  // Profil Form States
+  const [profileForm, setProfileForm] = useState({
+    telefon: '',
+    adres: '',
+    okul_bilgisi: '',
+    egitim_durumu: '',
+    is_durumu: '',
+    calistigi_kurum: '',
+    pozisyon: '',
+    is_aciklamasi: '',
+    universite: '',
+    sinif: ''
+  })
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null)
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState(null)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  useEffect(() => {
+    if (katilimci) {
+      setProfileForm({
+        telefon: katilimci.telefon || '',
+        adres: katilimci.adres || '',
+        okul_bilgisi: katilimci.okul_bilgisi || '',
+        egitim_durumu: katilimci.egitim_durumu || '',
+        is_durumu: katilimci.is_durumu || '',
+        calistigi_kurum: katilimci.calistigi_kurum || '',
+        pozisyon: katilimci.pozisyon || '',
+        is_aciklamasi: katilimci.is_aciklamasi || '',
+        universite: katilimci.universite || '',
+        sinif: katilimci.sinif || ''
+      })
+      if (katilimci.profil_fotografi_url) {
+        setProfilePhotoPreview(katilimci.profil_fotografi_url)
+      }
+    }
+  }, [katilimci])
+
+  const handlePhotoSelect = async (e) => {
+    const selected = e.target.files?.[0]
+    if (!selected) return
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
+    if (!allowedTypes.includes(selected.type.toLowerCase())) {
+      setToast({ type: 'error', message: 'Geçersiz dosya türü. Lütfen JPEG, PNG veya WEBP görsel seçin.' })
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+
+    if (selected.size > 5 * 1024 * 1024) {
+      setToast({ type: 'error', message: 'Fotoğraf boyutu en fazla 5 MB olabilir.' })
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
+
+    setProfilePhotoFile(selected)
+    const localPreviewUrl = URL.createObjectURL(selected)
+    setProfilePhotoPreview(localPreviewUrl)
+
+    setUploadingPhoto(true)
+    try {
+      const res = await uploadKatilimciProfilFotografi(selected)
+      setToast({ type: 'success', message: 'Profil fotoğrafınız başarıyla güncellendi!' })
+      setTimeout(() => setToast(null), 4000)
+      const meData = await getKatilimciMe()
+      if (meData?.katilimci) setKatilimci(meData.katilimci)
+    } catch (err) {
+      console.error('Fotoğraf yükleme hatası:', err)
+      setToast({ type: 'error', message: err.message || 'Fotoğraf yüklenirken hata oluştu.' })
+      setTimeout(() => setToast(null), 4000)
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault()
+    setSavingProfile(true)
+    try {
+      await updateKatilimciProfilim(profileForm)
+      setToast({ type: 'success', message: 'Profil bilgileriniz başarıyla güncellendi!' })
+      setTimeout(() => setToast(null), 4000)
+      const meData = await getKatilimciMe()
+      if (meData?.katilimci) setKatilimci(meData.katilimci)
+    } catch (err) {
+      console.error('Profil güncelleme hatası:', err)
+      setToast({ type: 'error', message: err.message || 'Profil güncellenirken hata oluştu.' })
+      setTimeout(() => setToast(null), 4000)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
   const fetchDna = async () => {
     setDnaLoading(true)
     setDnaError(null)
@@ -1446,9 +1542,17 @@ export default function KatilimciPanel() {
 
         <div className="hidden md:block px-4 py-4 border-t border-slate-100 space-y-2">
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50">
-            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs">
-              {displayName[0]?.toUpperCase()}
-            </div>
+            {profilePhotoPreview || katilimci?.profil_fotografi_url ? (
+              <img
+                src={profilePhotoPreview || katilimci?.profil_fotografi_url}
+                alt={displayName}
+                className="w-8 h-8 rounded-full object-cover ring-2 ring-orange-200 shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs shrink-0">
+                {displayName[0]?.toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0">
               <p className="text-xs font-bold text-slate-700 truncate">{displayName}</p>
               <p className="text-[10px] text-slate-400 truncate">{takim?.takim_adi || 'Takımsız'}</p>
@@ -2172,193 +2276,490 @@ export default function KatilimciPanel() {
               )}
 
               {/* ════════ TAB 4: PROFİL / TAKIM ════════ */}
-              {activeTab === 'profil' && (
-                <div className="space-y-6">
+              {activeTab === 'profil' && (() => {
+                const requiredOrKeyFields = ['telefon', 'adres', 'okul_bilgisi', 'egitim_durumu', 'is_durumu']
+                const isProfileIncomplete = requiredOrKeyFields.some(f => !katilimci?.[f] || !String(katilimci[f]).trim())
 
-                  {/* Sayfa Başlığı */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-800">Profil & Takım Bilgileri</h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Kişisel profiliniz, katıldığınız takım ve bireysel performans istatistikleriniz</p>
-                    </div>
-                  </div>
+                return (
+                  <div className="space-y-6">
 
-                  {/* 1. ÜST PROFİL ÖZETİ KARTI */}
-                  <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100 shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-6">
-
-                    {/* Sol: Avatar + Katılımcı Detayları */}
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 via-pink-500 to-purple-600 text-white font-black text-2xl flex items-center justify-center shadow-md shrink-0">
-                        {((katilimci?.ad_soyad || displayName)[0] || 'K').toUpperCase()}
-                      </div>
-                      <div className="space-y-1.5 min-w-0">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <h3 className="text-lg font-black text-slate-800 tracking-tight">
-                            {katilimci?.ad_soyad || displayName}
-                          </h3>
-                          <span className="font-bold text-[10px] text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 uppercase tracking-wider">
-                            {katilimci?.program_katilim_durumu || 'AKTİF'} Katılımcı
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-slate-500 font-medium">
-                          <span className="flex items-center gap-1 font-mono text-[11px]">
-                            ✉️ {katilimci?.eposta || '—'}
-                          </span>
-                          <span className="hidden sm:inline text-slate-300">•</span>
-                          <span className="flex items-center gap-1">
-                            🎓 {katilimci?.universite || 'Üniversite Belirtilmemiş'}
-                          </span>
-                          <span className="hidden sm:inline text-slate-300">•</span>
-                          <span className="flex items-center gap-1">
-                            📚 {katilimci?.sinif ? `${katilimci.sinif}. Sınıf` : 'Sınıf Belirtilmemiş'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Sağ: Öne Çıkan Bireysel Puan Rozeti */}
-                    <div className="flex items-center gap-3 bg-gradient-to-br from-amber-50 to-orange-50/70 border border-amber-200/80 rounded-2xl p-4 shrink-0 shadow-2xs self-start md:self-auto">
-                      <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xl shadow-xs">
-                        ⭐
-                      </div>
+                    {/* Sayfa Başlığı */}
+                    <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Bireysel Puanım</span>
-                        <span className="text-2xl font-black text-amber-900 tabular-nums">
-                          {Number(performans?.bireysel_puan) || 0} <span className="text-xs font-bold text-amber-600">Puan</span>
-                        </span>
+                        <h2 className="text-base font-bold text-slate-800">Profil & Katılımcı Bilgilerim</h2>
+                        <p className="text-xs text-slate-400 mt-0.5">Kişisel bilgileriniz, iletişim, eğitim, iş durumu ve takım detaylarınız</p>
                       </div>
                     </div>
 
-                  </div>
+                    {/* Dostça Eksik Bilgi Uyarısı (Panel Kilitlenmez) */}
+                    {isProfileIncomplete && (
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
+                        <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5 shadow-xs">
+                          💡
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs font-bold text-amber-900">Profil Bilgilerinizi Tamamlayınız</h4>
+                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                            Program iletişimi, mentor eşleştirmeleri, sertifika düzenleme ve olası materyal gönderimleri için lütfen aşağıdaki formu eksiksiz doldurunuz.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
-                  {/* 2. TAKIM BİLGİLERİ KARTI */}
-                  <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-soft space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center font-bold">
-                          <Ic.Trophy c="w-5 h-5" />
+                    {/* 1. ÜST PROFİL KARTI + FOTOĞRAF YÖNETİMİ */}
+                    <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100 shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-6">
+
+                      {/* Sol: Avatar / Fotoğraf + Katılımcı Detayları */}
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
+                        
+                        {/* Fotoğraf / Avatar Container */}
+                        <div className="relative group shrink-0">
+                          {profilePhotoPreview || katilimci?.profil_fotografi_url ? (
+                            <img
+                              src={profilePhotoPreview || katilimci?.profil_fotografi_url}
+                              alt={katilimci?.ad_soyad || displayName}
+                              className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover ring-4 ring-orange-100 shadow-md"
+                            />
+                          ) : (
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-orange-400 via-pink-500 to-purple-600 text-white font-black text-3xl flex items-center justify-center shadow-md">
+                              {((katilimci?.ad_soyad || displayName)[0] || 'K').toUpperCase()}
+                            </div>
+                          )}
+
+                          {/* Fotoğraf Yükleme Butonu */}
+                          <label
+                            htmlFor="profile-photo-input"
+                            title="Profil fotoğrafını güncelle"
+                            className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-white text-slate-700 border border-slate-200 flex items-center justify-center cursor-pointer shadow-md hover:bg-orange-50 hover:text-orange-600 transition-all group-hover:scale-110"
+                          >
+                            {uploadingPhoto ? (
+                              <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <span className="text-xs">📷</span>
+                            )}
+                          </label>
+                          <input
+                            id="profile-photo-input"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/jpg"
+                            onChange={handlePhotoSelect}
+                            disabled={uploadingPhoto}
+                            className="hidden"
+                          />
+                        </div>
+
+                        <div className="space-y-2 min-w-0">
+                          <div className="flex items-center gap-2.5 flex-wrap justify-center sm:justify-start">
+                            <h3 className="text-lg font-black text-slate-800 tracking-tight">
+                              {katilimci?.ad_soyad || displayName}
+                            </h3>
+                            <span className="font-bold text-[10px] text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 uppercase tracking-wider">
+                              {katilimci?.program_katilim_durumu || 'AKTİF'} Katılımcı
+                            </span>
+                            {katilimci?.takim_adi && (
+                              <span className="font-bold text-[10px] text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">
+                                🏆 {katilimci.takim_adi}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-slate-500 font-medium justify-center sm:justify-start">
+                            <span className="flex items-center gap-1 font-mono text-[11px]">
+                              ✉️ {katilimci?.eposta || '—'}
+                            </span>
+                            <span className="hidden sm:inline text-slate-300">•</span>
+                            <span className="flex items-center gap-1">
+                              📞 {katilimci?.telefon || profileForm.telefon || 'Telefon belirtilmemiş'}
+                            </span>
+                            <span className="hidden sm:inline text-slate-300">•</span>
+                            <span className="flex items-center gap-1">
+                              🎓 {katilimci?.universite || 'Üniversite belirtilmemiş'}
+                            </span>
+                          </div>
+
+                          <div className="pt-1 flex items-center gap-2 justify-center sm:justify-start">
+                            <label
+                              htmlFor="profile-photo-input"
+                              className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 hover:underline cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <span>{uploadingPhoto ? 'Fotoğraf yükleniyor...' : 'Profil fotoğrafını değiştir'}</span>
+                            </label>
+                            {katilimci?.profil_guncelleme_tarihi && (
+                              <span className="text-[10px] text-slate-400">
+                                (Son günc: {new Date(katilimci.profil_guncelleme_tarihi).toLocaleDateString('tr-TR')})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Sağ: Bireysel Puan Rozeti */}
+                      <div className="flex items-center gap-3 bg-gradient-to-br from-amber-50 to-orange-50/70 border border-amber-200/80 rounded-2xl p-4 shrink-0 shadow-2xs self-center md:self-auto">
+                        <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xl shadow-xs">
+                          ⭐
                         </div>
                         <div>
-                          <h3 className="font-bold text-slate-800 text-sm">Takım & Program Katılımı</h3>
-                          <p className="text-[11px] text-slate-400">Atandığınız takım ve program kabul durumunuz</p>
+                          <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Bireysel Puanım</span>
+                          <span className="text-2xl font-black text-amber-900 tabular-nums">
+                            {Number(performans?.bireysel_puan) || 0} <span className="text-xs font-bold text-amber-600">Puan</span>
+                          </span>
                         </div>
                       </div>
-                      {takim && (
-                        <span className="font-extrabold text-xs text-pink-600 bg-pink-50 px-3 py-1 rounded-full border border-pink-100">
-                          🏆 {takim.toplam_puan || 0} Takım Puanı
-                        </span>
+
+                    </div>
+
+                    {/* 2. DETAYLI PROFİL FORMU */}
+                    <form onSubmit={handleProfileSubmit} className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-soft space-y-6">
+                      
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-base shadow-2xs">
+                            📝
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Profil Bilgilerini Düzenle</h3>
+                            <p className="text-[11px] text-slate-400">Bilgilerinizi güncel tutup "Değişiklikleri Kaydet" butonuna basınız</p>
+                          </div>
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={savingProfile}
+                          className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-400 to-pink-500 text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50"
+                        >
+                          {savingProfile ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Kaydediliyor…
+                            </>
+                          ) : (
+                            <>
+                              <Ic.Check c="w-4 h-4" />
+                              Değişiklikleri Kaydet
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Form Alanları Grid */}
+                      <div className="space-y-6 text-xs">
+
+                        {/* BÖLÜM A: İletişim & Adres */}
+                        <div className="space-y-3">
+                          <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                            <span>📞</span> İletişim & Adres Bilgileri
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Telefon Numarası</label>
+                              <input
+                                type="tel"
+                                value={profileForm.telefon}
+                                onChange={e => setProfileForm(f => ({ ...f, telefon: e.target.value }))}
+                                placeholder="05XX XXX XX XX"
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">E-Posta (Salt Okunur)</label>
+                              <input
+                                type="email"
+                                readOnly
+                                value={katilimci?.eposta || ''}
+                                className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-mono text-xs cursor-not-allowed"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                                İkamet & Gönderim Adresi (Opsiyonel)
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={profileForm.adres}
+                                onChange={e => setProfileForm(f => ({ ...f, adres: e.target.value }))}
+                                placeholder="Sertifika, materyal ve resmi evrak gönderimi için açık adresiniz..."
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 resize-none transition-all"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* BÖLÜM B: Eğitim & Okul Bilgileri */}
+                        <div className="space-y-3 pt-2 border-t border-slate-100">
+                          <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                            <span>🎓</span> Eğitim & Okul Bilgileri
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Üniversite</label>
+                              <input
+                                type="text"
+                                value={profileForm.universite}
+                                onChange={e => setProfileForm(f => ({ ...f, universite: e.target.value }))}
+                                placeholder="Örn: İstanbul Üniversitesi"
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sınıf</label>
+                              <select
+                                value={profileForm.sinif}
+                                onChange={e => setProfileForm(f => ({ ...f, sinif: e.target.value }))}
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs text-slate-700 transition-all"
+                              >
+                                <option value="">Seçiniz</option>
+                                <option value="Hazırlık">Hazırlık</option>
+                                <option value="1">1. Sınıf</option>
+                                <option value="2">2. Sınıf</option>
+                                <option value="3">3. Sınıf</option>
+                                <option value="4">4. Sınıf</option>
+                                <option value="5">5. Sınıf</option>
+                                <option value="6">6. Sınıf</option>
+                                <option value="Mezun">Mezun</option>
+                                <option value="Yüksek Lisans / Doktora">Yüksek Lisans / Doktora</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Eğitim Durumu</label>
+                              <select
+                                value={profileForm.egitim_durumu}
+                                onChange={e => setProfileForm(f => ({ ...f, egitim_durumu: e.target.value }))}
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs text-slate-700 transition-all"
+                              >
+                                <option value="">Seçiniz</option>
+                                <option value="Okuyor">Okuyor</option>
+                                <option value="Mezun">Mezun</option>
+                                <option value="Diğer">Diğer</option>
+                              </select>
+                            </div>
+                            <div className="sm:col-span-3">
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                                Okul Tam Bilgileri (Fakülte, Bölüm vb.)
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={profileForm.okul_bilgisi}
+                                onChange={e => setProfileForm(f => ({ ...f, okul_bilgisi: e.target.value }))}
+                                placeholder="Fakülte, anabilim dalı, uzmanlık alanı veya okulunuzla ilgili detaylı bilgiler..."
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 resize-none transition-all"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* BÖLÜM C: İş & Kariyer Durumu */}
+                        <div className="space-y-3 pt-2 border-t border-slate-100">
+                          <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                            <span>💼</span> İş & Kariyer Durumu
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">İş Durumu</label>
+                              <select
+                                value={profileForm.is_durumu}
+                                onChange={e => setProfileForm(f => ({ ...f, is_durumu: e.target.value }))}
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs text-slate-700 transition-all"
+                              >
+                                <option value="">Seçiniz</option>
+                                <option value="Çalışmıyor">Çalışmıyor</option>
+                                <option value="Çalışıyor">Çalışıyor</option>
+                                <option value="Staj yapıyor">Staj yapıyor</option>
+                                <option value="Diğer">Diğer</option>
+                              </select>
+                            </div>
+
+                            {(profileForm.is_durumu === 'Çalışıyor' || profileForm.is_durumu === 'Staj yapıyor' || profileForm.is_durumu === 'Diğer') && (
+                              <>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Çalıştığı Kurum</label>
+                                  <input
+                                    type="text"
+                                    value={profileForm.calistigi_kurum}
+                                    onChange={e => setProfileForm(f => ({ ...f, calistigi_kurum: e.target.value }))}
+                                    placeholder="Hastane, eczane, klinik veya kurum adı..."
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all animate-fade-in"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Pozisyon / Ünvan</label>
+                                  <input
+                                    type="text"
+                                    value={profileForm.pozisyon}
+                                    onChange={e => setProfileForm(f => ({ ...f, pozisyon: e.target.value }))}
+                                    placeholder="Örn: Eczacı, Hekim, Stajyer..."
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all animate-fade-in"
+                                  />
+                                </div>
+                              </>
+                            )}
+
+                            <div className="sm:col-span-3">
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                                İş & Sorumluluk Açıklaması (Opsiyonel)
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={profileForm.is_aciklamasi}
+                                onChange={e => setProfileForm(f => ({ ...f, is_aciklamasi: e.target.value }))}
+                                placeholder="Mesleki faaliyetleriniz, çalışma alanlarınız veya iş detaylarınız..."
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 resize-none transition-all"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* Mobil & Masaüstü Kaydet Butonu */}
+                      <div className="pt-4 border-t border-slate-100 flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={savingProfile}
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-gradient-to-r from-orange-400 to-pink-500 text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50"
+                        >
+                          {savingProfile ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Kaydediliyor…
+                            </>
+                          ) : (
+                            <>
+                              <Ic.Check c="w-4 h-4" />
+                              Değişiklikleri Kaydet
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                    </form>
+
+                    {/* 3. TAKIM BİLGİLERİ KARTI */}
+                    <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-soft space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center font-bold">
+                            <Ic.Trophy c="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Takım & Program Katılımı</h3>
+                            <p className="text-[11px] text-slate-400">Atandığınız takım ve program kabul durumunuz</p>
+                          </div>
+                        </div>
+                        {takim && (
+                          <span className="font-extrabold text-xs text-pink-600 bg-pink-50 px-3 py-1 rounded-full border border-pink-100">
+                            🏆 {takim.toplam_puan || 0} Takım Puanı
+                          </span>
+                        )}
+                      </div>
+
+                      {takim ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                          <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Takım Adı</span>
+                            <span className="font-bold text-slate-800 text-sm block truncate">{takim.takim_adi}</span>
+                          </div>
+
+                          <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Takım Toplam Puanı</span>
+                            <span className="font-bold text-slate-800 text-sm block tabular-nums">{takim.toplam_puan || 0} Puan</span>
+                          </div>
+
+                          <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Program Kabul Durumu</span>
+                            <span className="font-bold text-emerald-700 text-sm block">
+                              {katilimci?.kabul_durumu ? '✅ Kabul Edildi' : '⏳ Değerlendirmede'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 text-center text-xs text-slate-500 italic">
+                          Takım bilgisi bekleniyor. Henüz bir takıma atanmamış olabilirsiniz.
+                        </div>
                       )}
                     </div>
 
-                    {takim ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                        <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 space-y-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Takım Adı</span>
-                          <span className="font-bold text-slate-800 text-sm block truncate">{takim.takim_adi}</span>
+                    {/* 4. PERFORMANS KIRILIMI KARTLARI */}
+                    <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-soft space-y-5">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base">
+                            📊
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Performans & Puan Kırılımı</h3>
+                            <p className="text-[11px] text-slate-400">Gelişim skorlarınızın kategorilere göre dökümü</p>
+                          </div>
                         </div>
+                      </div>
 
-                        <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 space-y-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Takım Toplam Puanı</span>
-                          <span className="font-bold text-slate-800 text-sm block tabular-nums">{takim.toplam_puan || 0} Puan</span>
-                        </div>
+                      {/* 4 Küçük Performans Kartı Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
-                        <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 space-y-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Program Kabul Durumu</span>
-                          <span className="font-bold text-emerald-700 text-sm block">
-                            {katilimci?.kabul_durumu ? '✅ Kabul Edildi' : '⏳ Değerlendirmede'}
+                        <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Görev Puanı</span>
+                            <span className="text-base">📝</span>
+                          </div>
+                          <span className="text-2xl font-black text-blue-900 block tabular-nums">
+                            {Number(performans?.gorev_puani) || 0}
                           </span>
+                          <span className="text-[10px] text-blue-600/80 font-medium block">Tamamlanan görev & ödevler</span>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 text-center text-xs text-slate-500 italic">
-                        Takım bilgisi bekleniyor. Henüz bir takıma atanmamış olabilirsiniz.
-                      </div>
-                    )}
-                  </div>
 
-                  {/* 3. PERFORMANS KIRILIMI KARTLARI */}
-                  <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-soft space-y-5">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base">
-                          📊
+                        <div className="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-4 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Toplantı Katılımı</span>
+                            <span className="text-base">🎙️</span>
+                          </div>
+                          <span className="text-2xl font-black text-emerald-900 block tabular-nums">
+                            {Number(performans?.toplanti_katilim_puani) || 0}
+                          </span>
+                          <span className="text-[10px] text-emerald-600/80 font-medium block">Canlı oturum & toplantılar</span>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-slate-800 text-sm">Performans & Puan Kırılımı</h3>
-                          <p className="text-[11px] text-slate-400">Gelişim skorlarınızın kategorilere göre dökümü</p>
+
+                        <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-4 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Etkileşim Bonusu</span>
+                            <span className="text-base">🚀</span>
+                          </div>
+                          <span className="text-2xl font-black text-purple-900 block tabular-nums">
+                            {Number(performans?.etkilesim_bonus_puani) || 0}
+                          </span>
+                          <span className="text-[10px] text-purple-600/80 font-medium block">Sosyal medya & topluluk katkısı</span>
                         </div>
+
+                        <div className="bg-slate-100/80 border border-slate-200 rounded-2xl p-4 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Manuel Puan</span>
+                            <span className="text-base">🎁</span>
+                          </div>
+                          <span className="text-2xl font-black text-slate-900 block tabular-nums">
+                            {Number(performans?.manuel_puan) || 0}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-medium block">Admin özel takdir puanı</span>
+                        </div>
+
                       </div>
+
+                      {/* 4. KATILIMCIYA GÖRÜNEN NOT */}
+                      {performans?.katilimciya_gorunen_not && String(performans.katilimciya_gorunen_not).trim() ? (
+                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl p-5 space-y-1.5">
+                          <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>👁️</span> Değerlendirme Notunuz
+                          </h4>
+                          <p className="text-xs text-emerald-950 leading-relaxed bg-white/80 p-3.5 rounded-xl border border-emerald-100 italic">
+                            "{performans.katilimciya_gorunen_not}"
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-4 text-center text-xs text-slate-400 italic">
+                          Henüz size özel bir değerlendirme notu eklenmemiş.
+                        </div>
+                      )}
                     </div>
 
-                    {/* 4 Küçük Performans Kartı Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-
-                      <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Görev Puanı</span>
-                          <span className="text-base">📝</span>
-                        </div>
-                        <span className="text-2xl font-black text-blue-900 block tabular-nums">
-                          {Number(performans?.gorev_puani) || 0}
-                        </span>
-                        <span className="text-[10px] text-blue-600/80 font-medium block">Tamamlanan görev & ödevler</span>
-                      </div>
-
-                      <div className="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-4 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Toplantı Katılımı</span>
-                          <span className="text-base">🎙️</span>
-                        </div>
-                        <span className="text-2xl font-black text-emerald-900 block tabular-nums">
-                          {Number(performans?.toplanti_katilim_puani) || 0}
-                        </span>
-                        <span className="text-[10px] text-emerald-600/80 font-medium block">Canlı oturum & toplantılar</span>
-                      </div>
-
-                      <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-4 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Etkileşim Bonusu</span>
-                          <span className="text-base">🚀</span>
-                        </div>
-                        <span className="text-2xl font-black text-purple-900 block tabular-nums">
-                          {Number(performans?.etkilesim_bonus_puani) || 0}
-                        </span>
-                        <span className="text-[10px] text-purple-600/80 font-medium block">Sosyal medya & topluluk katkısı</span>
-                      </div>
-
-                      <div className="bg-slate-100/80 border border-slate-200 rounded-2xl p-4 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Manuel Puan</span>
-                          <span className="text-base">🎁</span>
-                        </div>
-                        <span className="text-2xl font-black text-slate-900 block tabular-nums">
-                          {Number(performans?.manuel_puan) || 0}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-medium block">Admin özel takdir puanı</span>
-                      </div>
-
-                    </div>
-
-                    {/* 4. KATILIMCIYA GÖRÜNEN NOT */}
-                    {performans?.katilimciya_gorunen_not && String(performans.katilimciya_gorunen_not).trim() ? (
-                      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl p-5 space-y-1.5">
-                        <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <span>👁️</span> Değerlendirme Notunuz
-                        </h4>
-                        <p className="text-xs text-emerald-950 leading-relaxed bg-white/80 p-3.5 rounded-xl border border-emerald-100 italic">
-                          "{performans.katilimciya_gorunen_not}"
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-4 text-center text-xs text-slate-400 italic">
-                        Henüz size özel bir değerlendirme notu eklenmemiş.
-                      </div>
-                    )}
                   </div>
-
-                </div>
-              )}
+                )
+              })()}
 
             </>
           )}

@@ -25,6 +25,7 @@ import {
   addAdminSosyalMedya,
   deleteAdminSosyalMedya,
   importCandidatesCsvText,
+  getAdminKatilimciDetay,
   logoutUser
 } from '../services/supabaseService'
 
@@ -2861,8 +2862,9 @@ function PerformansSection({ token, setToast }) {
     try {
       const baseItem = baseRow || (performansList || []).find(p => Number(p.katilimci_id || p.katilimci || p.id) === Number(katilimciId)) || null
 
-      const [item, tList, sList, tesList] = await Promise.all([
+      const [item, kDetay, tList, sList, tesList] = await Promise.all([
         baseItem || (performansList || []).find(p => Number(p.katilimci_id || p.katilimci || p.id) === Number(katilimciId)) || null,
+        getAdminKatilimciDetay(katilimciId).catch(() => null),
         getAdminKatilimciToplantilari(katilimciId).catch(() => []),
         getAdminKatilimciSosyalMedya(katilimciId).catch(() => []),
         getAdminKatilimciTeslimleri(katilimciId).catch(() => [])
@@ -2870,7 +2872,7 @@ function PerformansSection({ token, setToast }) {
 
       const perfItem = item || {
         katilimci_id: katilimciId,
-        ad_soyad: baseItem?.ad_soyad || 'Katılımcı',
+        ad_soyad: kDetay?.ad_soyad || baseItem?.ad_soyad || 'Katılımcı',
         gorev_puani: 0,
         toplanti_katilim_puani: 0,
         etkilesim_bonus_puani: 0,
@@ -2882,10 +2884,22 @@ function PerformansSection({ token, setToast }) {
 
       const katilimciInfo = {
         id: katilimciId,
-        ad_soyad: perfItem.ad_soyad || baseItem?.ad_soyad || baseItem?.katilimci_ad_soyad || `${baseItem?.ad || ''} ${baseItem?.soyad || ''}`.trim() || 'Katılımcı',
-        eposta: perfItem.eposta || baseItem?.eposta || '',
-        universite: perfItem.universite || baseItem?.universite || '',
-        takim_adi: perfItem.takim_adi || baseItem?.takim_adi || 'Takımsız',
+        ad_soyad: kDetay?.ad_soyad || perfItem.ad_soyad || baseItem?.ad_soyad || `${baseItem?.ad || ''} ${baseItem?.soyad || ''}`.trim() || 'Katılımcı',
+        eposta: kDetay?.eposta || perfItem.eposta || baseItem?.eposta || '',
+        telefon: kDetay?.telefon || perfItem.telefon || baseItem?.telefon || '',
+        universite: kDetay?.universite || perfItem.universite || baseItem?.universite || '',
+        sinif: kDetay?.sinif || perfItem.sinif || baseItem?.sinif || '',
+        adres: kDetay?.adres || perfItem.adres || baseItem?.adres || '',
+        okul_bilgisi: kDetay?.okul_bilgisi || perfItem.okul_bilgisi || baseItem?.okul_bilgisi || '',
+        egitim_durumu: kDetay?.egitim_durumu || perfItem.egitim_durumu || baseItem?.egitim_durumu || '',
+        is_durumu: kDetay?.is_durumu || perfItem.is_durumu || baseItem?.is_durumu || '',
+        calistigi_kurum: kDetay?.calistigi_kurum || perfItem.calistigi_kurum || baseItem?.calistigi_kurum || '',
+        pozisyon: kDetay?.pozisyon || perfItem.pozisyon || baseItem?.pozisyon || '',
+        is_aciklamasi: kDetay?.is_aciklamasi || perfItem.is_aciklamasi || baseItem?.is_aciklamasi || '',
+        profil_fotografi_url: kDetay?.profil_fotografi_url || perfItem.profil_fotografi_url || baseItem?.profil_fotografi_url || '',
+        profil_fotografi_file_id: kDetay?.profil_fotografi_file_id || perfItem.profil_fotografi_file_id || baseItem?.profil_fotografi_file_id || '',
+        profil_guncelleme_tarihi: kDetay?.profil_guncelleme_tarihi || perfItem.profil_guncelleme_tarihi || baseItem?.profil_guncelleme_tarihi || null,
+        takim_adi: kDetay?.takim_adi || perfItem.takim_adi || baseItem?.takim_adi || 'Takımsız',
         program_katilim_durumu: 'AKTIF'
       }
 
@@ -3112,9 +3126,17 @@ function PerformansSection({ token, setToast }) {
                         <td className="px-4 py-3.5 text-gray-400 font-mono text-xs">{idx + 1}</td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-orange-100 flex items-center justify-center flex-shrink-0 text-amber-800 font-bold text-xs">
-                              {kAdi[0].toUpperCase()}
-                            </div>
+                            {item.profil_fotografi_url ? (
+                              <img
+                                src={item.profil_fotografi_url}
+                                alt={kAdi}
+                                className="w-7 h-7 rounded-full object-cover ring-1 ring-amber-300 flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-orange-100 flex items-center justify-center flex-shrink-0 text-amber-800 font-bold text-xs">
+                                {kAdi[0].toUpperCase()}
+                              </div>
+                            )}
                             <span className="font-medium text-gray-800 whitespace-nowrap">{kAdi}</span>
                           </div>
                         </td>
@@ -3180,9 +3202,25 @@ function PerformansSection({ token, setToast }) {
 
                   return (
                     <>
-                      <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-base shadow-2xs flex-shrink-0">
-                        {kInitial}
-                      </div>
+                      {katilimciObj.profil_fotografi_url ? (
+                        <a
+                          href={katilimciObj.profil_fotografi_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Fotoğrafı tam boyutta aç"
+                          className="shrink-0 group relative"
+                        >
+                          <img
+                            src={katilimciObj.profil_fotografi_url}
+                            alt={kName}
+                            className="w-10 h-10 rounded-xl object-cover ring-2 ring-amber-300 shadow-2xs group-hover:scale-105 transition-all"
+                          />
+                        </a>
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-base shadow-2xs flex-shrink-0">
+                          {kInitial}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <h3 className="font-bold text-gray-800 text-base leading-snug truncate">{kName}</h3>
                         <p className="text-xs text-gray-500 truncate">
@@ -3214,6 +3252,7 @@ function PerformansSection({ token, setToast }) {
             <div className="flex border-b border-gray-100 bg-gray-50/60 px-6 gap-1 overflow-x-auto">
               {[
                 { key: 'puanlar', label: '⭐ Puan Düzenle & Notlar' },
+                { key: 'profil', label: '👤 Profil Detayları' },
                 { key: 'toplanti', label: `📅 Toplantılar (${toplantiKatilimlari.length})` },
                 { key: 'sosyal', label: `📱 Sosyal Medya (${sosyalMedyaList.length})` },
                 { key: 'teslimler', label: `📋 Teslimler (${teslimlerList.length})` },
@@ -3331,6 +3370,144 @@ function PerformansSection({ token, setToast }) {
                         {savingScore ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Ic.Check c="w-4 h-4" />}
                         Manuel Puan & Notları Kaydet
                       </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. TAB: PROFİL DETAYLARI */}
+              {!detailLoading && activeTab === 'profil' && (
+                <div className="space-y-6">
+                  {/* Profil Başlık & Fotoğraf */}
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50/60 border border-amber-200/80 rounded-2xl p-5 flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                    {katilimciObj.profil_fotografi_url ? (
+                      <a
+                        href={katilimciObj.profil_fotografi_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Orijinal fotoğrafı görüntüle"
+                        className="group relative shrink-0"
+                      >
+                        <img
+                          src={katilimciObj.profil_fotografi_url}
+                          alt={katilimciObj.ad_soyad}
+                          className="w-20 h-20 rounded-2xl object-cover ring-2 ring-amber-300 shadow-md group-hover:scale-105 transition-all"
+                        />
+                        <span className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold transition-opacity">
+                          Büyüt ↗
+                        </span>
+                      </a>
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center font-black text-2xl shadow-sm shrink-0">
+                        {(katilimciObj.ad_soyad || '?')[0]?.toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="space-y-1 text-center sm:text-left min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+                        <h4 className="font-extrabold text-gray-800 text-base">{katilimciObj.ad_soyad}</h4>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                          Katılımcı #{katilimciObj.id}
+                        </span>
+                        {katilimciObj.takim_adi && (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                            🏆 {katilimciObj.takim_adi}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 font-mono">{katilimciObj.eposta || '—'}</p>
+                      <p className="text-xs text-gray-600">
+                        {katilimciObj.telefon ? `📞 ${katilimciObj.telefon}` : <span className="text-gray-400 italic">Telefon belirtilmemiş</span>}
+                      </p>
+                      {katilimciObj.profil_guncelleme_tarihi && (
+                        <p className="text-[10px] text-gray-400 pt-1">
+                          Son Profil Güncellemesi: {new Date(katilimciObj.profil_guncelleme_tarihi).toLocaleString('tr-TR')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* İletişim & Adres Detayları */}
+                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5 space-y-3">
+                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>📍</span> İletişim & Gönderim Adresi
+                    </h4>
+                    <div className="bg-white border border-gray-100 rounded-xl p-3.5 text-xs text-gray-700 leading-relaxed">
+                      {katilimciObj.adres && String(katilimciObj.adres).trim() ? (
+                        <p className="whitespace-pre-line">{katilimciObj.adres}</p>
+                      ) : (
+                        <p className="text-gray-400 italic">Adres bilgisi henüz katılımcı tarafından girilmedi.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Eğitim & Okul Detayları */}
+                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5 space-y-3">
+                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🎓</span> Eğitim & Okul Bilgileri
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Üniversite</span>
+                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.universite || '—'}</span>
+                      </div>
+                      <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Sınıf</span>
+                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.sinif || '—'}</span>
+                      </div>
+                      <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Eğitim Durumu</span>
+                        <span className="font-semibold text-gray-800 text-xs">
+                          {katilimciObj.egitim_durumu ? (
+                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-100">
+                              {katilimciObj.egitim_durumu}
+                            </span>
+                          ) : '—'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-100 rounded-xl p-3.5 text-xs text-gray-700">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Okul & Bölüm Tam Bilgileri</span>
+                      {katilimciObj.okul_bilgisi && String(katilimciObj.okul_bilgisi).trim() ? (
+                        <p className="whitespace-pre-line text-xs">{katilimciObj.okul_bilgisi}</p>
+                      ) : (
+                        <p className="text-gray-400 italic">Detaylı okul bilgisi girilmedi.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* İş & Kariyer Detayları */}
+                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5 space-y-3">
+                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>💼</span> İş & Kariyer Durumu
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">İş Durumu</span>
+                        <span className="font-semibold text-gray-800 text-xs">
+                          {katilimciObj.is_durumu ? (
+                            <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-bold border border-purple-100">
+                              {katilimciObj.is_durumu}
+                            </span>
+                          ) : '—'}
+                        </span>
+                      </div>
+                      <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Çalıştığı Kurum</span>
+                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.calistigi_kurum || '—'}</span>
+                      </div>
+                      <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Pozisyon / Ünvan</span>
+                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.pozisyon || '—'}</span>
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-100 rounded-xl p-3.5 text-xs text-gray-700">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">İş & Sorumluluk Açıklaması</span>
+                      {katilimciObj.is_aciklamasi && String(katilimciObj.is_aciklamasi).trim() ? (
+                        <p className="whitespace-pre-line text-xs">{katilimciObj.is_aciklamasi}</p>
+                      ) : (
+                        <p className="text-gray-400 italic">İş açıklaması girilmedi.</p>
+                      )}
                     </div>
                   </div>
                 </div>
