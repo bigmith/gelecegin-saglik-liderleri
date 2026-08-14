@@ -513,7 +513,7 @@ export async function getKatilimciProfilim() {
   }
 }
 
-export async function updateKatilimciProfilim(payload) {
+export async function updateKatilimciProfilim(payload = {}) {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   if (sessionError || !session?.user) throw new Error('Oturum geçersiz.')
 
@@ -523,6 +523,7 @@ export async function updateKatilimciProfilim(payload) {
     throw new Error('Güncellenecek katılımcı profili bulunamadı.')
   }
 
+  // Strict allowlist: ONLY fields that actually exist as columns on public.core_katilimci
   const allowedFields = [
     'telefon',
     'adres',
@@ -536,19 +537,20 @@ export async function updateKatilimciProfilim(payload) {
     'profil_fotografi_file_id'
   ]
 
-  const updates = {
+  // Construct defensive clean update payload
+  const updatePayload = {
     profil_guncelleme_tarihi: new Date().toISOString()
   }
 
   for (const field of allowedFields) {
-    if (payload[field] !== undefined) {
-      updates[field] = payload[field] === '' ? null : payload[field]
+    if (payload && Object.prototype.hasOwnProperty.call(payload, field) && payload[field] !== undefined) {
+      updatePayload[field] = payload[field] === '' ? null : payload[field]
     }
   }
 
   const { data, error } = await supabase
     .from('core_katilimci')
-    .update(updates)
+    .update(updatePayload)
     .eq('id', katilimci.id)
     .select()
     .single()
@@ -561,11 +563,11 @@ export async function updateKatilimciProfilim(payload) {
   // Also sync avatar_url / telefon to profiles if provided
   try {
     const profileUpdates = { updated_at: new Date().toISOString() }
-    if (updates.profil_fotografi_url !== undefined) {
-      profileUpdates.avatar_url = updates.profil_fotografi_url
+    if (updatePayload.profil_fotografi_url !== undefined) {
+      profileUpdates.avatar_url = updatePayload.profil_fotografi_url
     }
-    if (updates.telefon !== undefined) {
-      profileUpdates.telefon = updates.telefon
+    if (updatePayload.telefon !== undefined) {
+      profileUpdates.telefon = updatePayload.telefon
     }
     await supabase.from('profiles').update(profileUpdates).eq('id', session.user.id)
   } catch (pErr) {

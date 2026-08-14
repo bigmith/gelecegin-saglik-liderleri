@@ -1123,7 +1123,16 @@ export default function KatilimciPanel() {
     e.preventDefault()
     setSavingProfile(true)
     try {
-      await updateKatilimciProfilim(profileForm)
+      await updateKatilimciProfilim({
+        telefon: profileForm.telefon,
+        adres: profileForm.adres,
+        okul_bilgisi: profileForm.okul_bilgisi,
+        egitim_durumu: profileForm.egitim_durumu,
+        is_durumu: profileForm.is_durumu,
+        calistigi_kurum: profileForm.calistigi_kurum,
+        pozisyon: profileForm.pozisyon,
+        is_aciklamasi: profileForm.is_aciklamasi
+      })
       setToast({ type: 'success', message: 'Profil bilgileriniz başarıyla güncellendi!' })
       setTimeout(() => setToast(null), 4000)
       const meData = await getKatilimciMe()
