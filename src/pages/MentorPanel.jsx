@@ -8,6 +8,12 @@ import {
   getGorevler,
   requestRevision,
   evaluateDelivery,
+  getParticipantNotes,
+  createParticipantNote,
+  updateParticipantNote,
+  deleteParticipantNote,
+  getParticipantAvatarSrc,
+  getDriveThumbnailUrl,
   logoutUser
 } from '../services/supabaseService'
 
@@ -17,12 +23,12 @@ const Ic = {
   Team:      ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M8.25 6.75a3.75 3.75 0 117.5 0 3.75 3.75 0 01-7.5 0zM15.75 9.75a3 3 0 116 0 3 3 0 01-6 0zM2.25 9.75a3 3 0 116 0 3 3 0 01-6 0zM6.31 15.117A6.745 6.745 0 0112 12a6.745 6.745 0 016.709 7.498.75.75 0 01-.372.568A12.696 12.696 0 0112 21.75c-2.305 0-4.47-.612-6.337-1.684a.75.75 0 01-.372-.568 6.787 6.787 0 011.019-4.38z" clipRule="evenodd" /><path d="M5.082 14.254a8.287 8.287 0 00-1.308 5.135 9.687 9.687 0 01-1.764-.44l-.115-.04a.563.563 0 01-.373-.487l-.01-.121a3.75 3.75 0 013.57-4.047zM20.226 19.389a8.287 8.287 0 00-1.308-5.135 3.75 3.75 0 013.57 4.047l-.01.121a.563.563 0 01-.373.486l-.115.04c-.567.2-1.156.349-1.764.441z" /></svg>,
   Users:     ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path d="M4.5 6.375a4.125 4.125 0 118.25 0 4.125 4.125 0 01-8.25 0zM14.25 8.625a3.375 3.375 0 116.75 0 3.375 3.375 0 01-6.75 0zM1.5 19.125a7.125 7.125 0 0114.25 0v.003l-.001.119a.75.75 0 01-.363.63 13.067 13.067 0 01-6.761 1.873c-2.472 0-4.786-.684-6.76-1.873a.75.75 0 01-.364-.63l-.001-.122zM17.25 19.128l-.001.144a2.25 2.25 0 01-.233.96 10.088 10.088 0 005.06-1.01.75.75 0 00.42-.643 4.875 4.875 0 00-6.957-4.611 8.586 8.586 0 011.71 5.157v.003z" /></svg>,
   Task:      ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M7.502 6h7.128A3.375 3.375 0 0118 9.375v9.375a3 3 0 003-3V6.108c0-1.505-1.125-2.811-2.664-2.94a48.972 48.972 0 00-.673-.05A3 3 0 0015 1.5h-1.5a3 3 0 00-2.663 1.618c-.225.015-.45.032-.673.05C8.662 3.295 7.554 4.542 7.502 6zM13.5 3A1.5 1.5 0 0012 4.5h4.5A1.5 1.5 0 0015 3h-1.5z" clipRule="evenodd" /><path fillRule="evenodd" d="M3 9.375C3 8.339 3.84 7.5 4.875 7.5h9.75c1.036 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875h-9.75A1.875 1.875 0 013 20.625V9.375zm9.586 4.594a.75.75 0 00-1.172-.938l-2.476 3.096-.908-.907a.75.75 0 00-1.06 1.06l1.5 1.5a.75.75 0 001.116-.062l3-3.75z" clipRule="evenodd" /></svg>,
+  Notes:     ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={c}><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>,
   Logout:    ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M7.5 3.75A1.5 1.5 0 006 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3h-6a3 3 0 01-3-3V5.25a3 3 0 013-3h6a3 3 0 013 3V9A.75.75 0 0115 9V5.25a1.5 1.5 0 00-1.5-1.5h-6zm10.72 4.72a.75.75 0 011.06 0l3 3a.75.75 0 010 1.06l-3 3a.75.75 0 11-1.06-1.06l1.72-1.72H9a.75.75 0 010-1.5h10.94l-1.72-1.72a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>,
   Close:     ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>,
   Check:     ({ c = 'w-4 h-4' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" /></svg>,
   Eye:       ({ c = 'w-4 h-4' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" /><path fillRule="evenodd" d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 010-1.113zM17.25 12a5.25 5.25 0 11-10.5 0 5.25 5.25 0 0110.5 0z" clipRule="evenodd" /></svg>,
   Refresh:   ({ c = 'w-4 h-4' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-3.183a.75.75 0 100 1.5h4.992a.75.75 0 00.75-.75V4.356a.75.75 0 00-1.5 0v3.18l-1.9-1.9A9 9 0 003.306 9.67a.75.75 0 101.45.388zm15.408 3.352a.75.75 0 00-.919.53 7.5 7.5 0 01-12.548 3.364l-1.902-1.903h3.183a.75.75 0 000-1.5H2.984a.75.75 0 00-.75.75v4.992a.75.75 0 001.5 0v-3.18l1.9 1.9a9 9 0 0015.059-4.035.75.75 0 00-.53-.918z" clipRule="evenodd" /></svg>,
-  Trophy:    ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={c}><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" /></svg>,
   Star:      ({ c = 'w-4 h-4' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" /></svg>,
 }
 
@@ -94,10 +100,15 @@ export default function MentorPanel() {
   const [takimlar, setTakimlar] = useState([])
   const [katilimcilar, setKatilimcilar] = useState([])
   const [teslimler, setTeslimler] = useState([])
+  const [gorevler, setGorevler] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Modal states
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterTeamId, setFilterTeamId] = useState('all')
+
+  // Teslim Modalı
   const [selectedTeslim, setSelectedTeslim] = useState(null)
   const [modalTab, setModalTab] = useState('eval') // 'eval' | 'revision'
   const [puan, setPuan] = useState('')
@@ -105,6 +116,17 @@ export default function MentorPanel() {
   const [revizyonNotu, setRevizyonNotu] = useState('')
   const [saving, setSaving] = useState(false)
   const [modalError, setModalError] = useState(null)
+
+  // Katılımcı Profil Modalı
+  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null)
+
+  // Özel Mentor Notları Modalı
+  const [selectedParticipantNotes, setSelectedParticipantNotes] = useState(null)
+  const [notesList, setNotesList] = useState([])
+  const [notesLoading, setNotesLoading] = useState(false)
+  const [noteForm, setNoteForm] = useState({ id: null, not_metni: '', kategori: 'Genel', onem_derecesi: 'Normal' })
+  const [noteSaving, setNoteSaving] = useState(false)
+  const [noteError, setNoteError] = useState(null)
 
   const fetchAll = async () => {
     setLoading(true)
@@ -155,6 +177,7 @@ export default function MentorPanel() {
       setTakimlar(tData)
       setKatilimcilar(kData)
       setTeslimler(mappedTeslimler)
+      setGorevler(gData)
 
     } catch (err) {
       console.error('Mentor verileri çekilemedi:', err)
@@ -172,48 +195,12 @@ export default function MentorPanel() {
     fetchAll()
   }, [])
 
-  const fetchTeslimler = async () => {
-    try {
-      const mentorId = mentorInfo?.id
-      const [tesData, gData, kData, tData] = await Promise.all([
-        getMentorTeslimler(mentorId),
-        getGorevler().catch(() => []),
-        getMentorKatilimcilarim(mentorId).catch(() => []),
-        getMentorTakimlarim(mentorId).catch(() => [])
-      ])
-      const mappedTeslimler = tesData.map(t => {
-        const kMatch = kData.find(k => k.id === t.katilimci || k.id === t.katilimci_id)
-        const gMatch = gData.find(g => g.id === t.gorev || g.id === t.gorev_id)
-        const tMatch = tData.find(tk => tk.id === t.takim || tk.id === t.takim_id)
-        return {
-          ...t,
-          katilimci_adi: t.katilimci_adi || kMatch?.ad_soyad || 'Katılımcı',
-          gorev_adi: t.gorev_adi || gMatch?.gorev_adi || `Görev #${t.gorev_id || t.gorev}`,
-          takim_adi: t.takim_adi || tMatch?.takim_adi || '',
-          program_task_key: gMatch?.program_task_key || t.program_task_key || null,
-          program_week: gMatch?.program_week || t.program_week || null,
-          program_task_type: gMatch?.program_task_type || t.program_task_type || null,
-          material_url: gMatch?.material_url || t.material_url || null,
-          material_title: gMatch?.material_title || t.material_title || null,
-          material_type: gMatch?.material_type || t.material_type || null,
-          material_file_id: gMatch?.material_file_id || t.material_file_id || null,
-          brief_aciklama: gMatch?.brief_aciklama || t.brief_aciklama || null,
-          puan_kriterleri: gMatch?.puan_kriterleri || t.puan_kriterleri || null,
-          maksimum_puan: gMatch?.maksimum_puan || t.maksimum_puan || 100,
-          gorev_obj: gMatch || t.gorev_obj || null,
-        }
-      })
-      setTeslimler(mappedTeslimler)
-    } catch (error) {
-      console.error('Teslimler çekilemedi:', error)
-    }
-  }
-
   const handleLogout = async () => {
     await logoutUser()
     navigate('/login', { replace: true })
   }
 
+  // ─── TESLİM MODALI ──────────────────────────────────────────────────────────
   const openModal = (teslim) => {
     setSelectedTeslim(teslim)
     setModalTab('eval')
@@ -275,11 +262,97 @@ export default function MentorPanel() {
     }
   }
 
+  // ─── MENTOR ÖZEL NOTLARI MODALI ─────────────────────────────────────────────
+  const openNotesModal = async (katilimci) => {
+    setSelectedParticipantNotes(katilimci)
+    setNoteForm({ id: null, not_metni: '', kategori: 'Genel', onem_derecesi: 'Normal' })
+    setNoteError(null)
+    setNotesLoading(true)
+    try {
+      const res = await getParticipantNotes(katilimci.id)
+      setNotesList(res || [])
+    } catch (err) {
+      console.error('Notlar çekilemedi:', err)
+      setNoteError('Notlar yüklenirken bir hata oluştu.')
+    } finally {
+      setNotesLoading(false)
+    }
+  }
+
+  const handleSaveNote = async () => {
+    if (!selectedParticipantNotes || !noteForm.not_metni.trim()) {
+      setNoteError('Lütfen bir not metni giriniz.')
+      return
+    }
+    setNoteSaving(true)
+    setNoteError(null)
+    try {
+      if (noteForm.id) {
+        await updateParticipantNote({
+          note_id: noteForm.id,
+          not_metni: noteForm.not_metni,
+          kategori: noteForm.kategori,
+          onem_derecesi: noteForm.onem_derecesi
+        })
+      } else {
+        await createParticipantNote({
+          katilimci_id: selectedParticipantNotes.id,
+          not_metni: noteForm.not_metni,
+          kategori: noteForm.kategori,
+          onem_derecesi: noteForm.onem_derecesi,
+          mentor_id: mentorInfo?.id
+        })
+      }
+
+      // Not listesini tazele
+      const res = await getParticipantNotes(selectedParticipantNotes.id)
+      setNotesList(res || [])
+      setNoteForm({ id: null, not_metni: '', kategori: 'Genel', onem_derecesi: 'Normal' })
+    } catch (err) {
+      console.error('Not kaydedilemedi:', err)
+      setNoteError(err.message || 'Not kaydedilemedi.')
+    } finally {
+      setNoteSaving(false)
+    }
+  }
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Bu mentor notunu silmek istediğinize emin misiniz?')) return
+    try {
+      await deleteParticipantNote(noteId)
+      setNotesList(prev => prev.filter(n => n.id !== noteId))
+      if (noteForm.id === noteId) {
+        setNoteForm({ id: null, not_metni: '', kategori: 'Genel', onem_derecesi: 'Normal' })
+      }
+    } catch (err) {
+      console.error('Not silinemedi:', err)
+      alert(`Not silinemedi: ${err.message}`)
+    }
+  }
+
+  const handleEditNote = (note) => {
+    setNoteForm({
+      id: note.id,
+      not_metni: note.not_metni,
+      kategori: note.kategori || 'Genel',
+      onem_derecesi: note.onem_derecesi || 'Normal'
+    })
+    setNoteError(null)
+  }
+
   const displayName = mentorInfo?.ad_soyad || username
   const bekleyenTeslimler = teslimler.filter(t => t.durum === 'BEKLIYOR' || (!t.durum && !t.degerlendirildi))
   const revizeEdilenler = teslimler.filter(t => t.durum === 'REVIZE_EDILDI')
   const revizyonİstenenler = teslimler.filter(t => t.durum === 'REVIZYON_ISTENDI' || (!t.durum && t.revizyon_istendi))
   const tamamlananTeslimler = teslimler.filter(t => t.durum === 'TAMAMLANDI' || (!t.durum && t.degerlendirildi))
+
+  // Katılımcı filtreleme
+  const filteredKatilimcilar = katilimcilar.filter(k => {
+    const q = searchQuery.toLowerCase().trim()
+    const nameMatch = (k.ad_soyad || '').toLowerCase().includes(q) || (k.eposta || '').toLowerCase().includes(q) || (k.universite || '').toLowerCase().includes(q)
+    const teamMatch = filterTeamId === 'all' || Number(k.takim_id) === Number(filterTeamId)
+    return (!q || nameMatch) && teamMatch
+  })
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-800 max-w-full overflow-x-hidden">
@@ -304,7 +377,8 @@ export default function MentorPanel() {
             { key: 'genel',          label: 'Genel Bakış',   icon: <Ic.Dashboard /> },
             { key: 'takimlarim',     label: 'Takımlarım',    icon: <Ic.Team />, count: takimlar.length },
             { key: 'katilimcilarim', label: 'Katılımcılarım', icon: <Ic.Users />, count: katilimcilar.length },
-            { key: 'teslimler',      label: 'Teslimler',     icon: <Ic.Task />, count: bekleyenTeslimler.length + revizeEdilenler.length },
+            { key: 'gorevler',       label: 'Aktif Görevler', icon: <Ic.Task />, count: gorevler.length },
+            { key: 'teslimler',      label: 'Görev Teslimleri', icon: <Ic.Check />, count: bekleyenTeslimler.length + revizeEdilenler.length },
           ].map(({ key, ...rest }) => (
             <NavItem key={key} {...rest} active={activeTab === key} onClick={() => setActiveTab(key)} />
           ))}
@@ -334,9 +408,10 @@ export default function MentorPanel() {
           <div>
             <h1 className="text-lg font-bold text-slate-800">
               {activeTab === 'genel'          && '📊 Mentor Genel Bakış'}
-              {activeTab === 'takimlarim'     && '🏆 Atanmış Takımlarım'}
-              {activeTab === 'katilimcilarim' && '👥 Takım Katılımcıları'}
-              {activeTab === 'teslimler'      && '📋 Görev Teslimleri & Değerlendirme'}
+              {activeTab === 'takimlarim'     && '🏆 Atanmış Takımlarım & Mentorluk'}
+              {activeTab === 'katilimcilarim' && '👥 Takım Katılımcıları & Profiller'}
+              {activeTab === 'gorevler'       && '📋 Program & Saha Görevleri'}
+              {activeTab === 'teslimler'      && '📥 Görev Teslimleri & Değerlendirme'}
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
               Geleceğin Dijital Sağlık Liderleri • Marka Mutfağı
@@ -408,7 +483,7 @@ export default function MentorPanel() {
                   </div>
 
                   {/* Özet Stat Kartları Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Takımlarım</p>
@@ -419,25 +494,19 @@ export default function MentorPanel() {
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Katılımcılarım</p>
                       <p className="text-2xl font-black text-violet tabular-nums">{katilimcilar.length}</p>
-                      <p className="text-[11px] text-slate-400 mt-1">Toplam Üye</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Toplam Katılımcı</p>
                     </div>
 
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft">
-                      <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-1">Bekleyen</p>
-                      <p className="text-2xl font-black text-amber-600 tabular-nums">{bekleyenTeslimler.length}</p>
-                      <p className="text-[11px] text-slate-400 mt-1">İlk Teslim Bekleyen</p>
+                      <p className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-1">Aktif Görevler</p>
+                      <p className="text-2xl font-black text-purple-600 tabular-nums">{gorevler.length}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Tanımlı Görev</p>
                     </div>
 
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft">
-                      <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Revize Edilen</p>
-                      <p className="text-2xl font-black text-blue-600 tabular-nums">{revizeEdilenler.length}</p>
-                      <p className="text-[11px] text-slate-400 mt-1">Tekrar Yüklenen</p>
-                    </div>
-
-                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft">
-                      <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wider mb-1">Revizyon</p>
-                      <p className="text-2xl font-black text-orange-600 tabular-nums">{revizyonİstenenler.length}</p>
-                      <p className="text-[11px] text-slate-400 mt-1">Revizyon İstendi</p>
+                      <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-1">Bekleyen Teslim</p>
+                      <p className="text-2xl font-black text-amber-600 tabular-nums">{bekleyenTeslimler.length + revizeEdilenler.length}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">İnceleme Bekliyor</p>
                     </div>
 
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft">
@@ -449,9 +518,9 @@ export default function MentorPanel() {
                   </div>
 
                   {/* Hızlı Yönlendirme Kartları */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     
-                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft space-y-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                           🏆
@@ -469,14 +538,14 @@ export default function MentorPanel() {
                       </button>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft space-y-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-violet/10 text-violet flex items-center justify-center font-bold">
                           👥
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-800 text-sm">Katılımcılarım</h3>
-                          <p className="text-xs text-slate-400">{katilimcilar.length} katılımcı takımlarınızda</p>
+                          <p className="text-xs text-slate-400">{katilimcilar.length} katılımcı & profil</p>
                         </div>
                       </div>
                       <button
@@ -487,10 +556,28 @@ export default function MentorPanel() {
                       </button>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                          📋
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-sm">Aktif Görevler</h3>
+                          <p className="text-xs text-slate-400">{gorevler.length} saha & final görevi</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('gorevler')}
+                        className="w-full px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition-all text-center"
+                      >
+                        Görevleri Gör →
+                      </button>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-soft space-y-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-                          📋
+                          📥
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-800 text-sm">Görev Teslimleri</h3>
@@ -532,50 +619,111 @@ export default function MentorPanel() {
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
                       {takimlar.map(takim => {
                         const uyeler = katilimcilar.filter(k => k.takim_id && Number(k.takim_id) === Number(takim.id))
+                        const takimTeslimleri = teslimler.filter(t => Number(t.takim || t.takim_id) === Number(takim.id))
+                        const takimTamamlanan = takimTeslimleri.filter(t => t.durum === 'TAMAMLANDI')
+
                         return (
-                          <div key={takim.id} className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6 space-y-4 hover:shadow-card transition-all">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-100 to-violet/20 flex items-center justify-center font-black text-indigo-600 text-lg shadow-xs">
-                                  {(takim.takim_adi || 'T')[0].toUpperCase()}
+                          <div key={takim.id} className="bg-white rounded-3xl shadow-soft border border-slate-100 p-6 space-y-5 hover:shadow-card transition-all flex flex-col justify-between">
+                            <div className="space-y-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet text-white flex items-center justify-center font-black text-xl shadow-md shadow-indigo-100">
+                                    {(takim.takim_adi || 'T')[0].toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <h3 className="font-extrabold text-slate-800 text-base">{takim.takim_adi}</h3>
+                                    <p className="text-xs text-slate-500 font-medium truncate max-w-[200px]">{takim.buyuk_gorev_basligi || 'Büyük Görev Tanımlanmadı'}</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <h3 className="font-bold text-slate-800 text-base">{takim.takim_adi}</h3>
-                                  <p className="text-xs text-slate-400 truncate max-w-[180px]">{takim.buyuk_gorev_basligi || 'Büyük Görev Tanımlanmadı'}</p>
+                                <div className="text-right">
+                                  <div className="flex items-center gap-1 text-amber-500 justify-end">
+                                    <Ic.Star />
+                                    <span className="font-extrabold text-slate-800 text-sm">{takim.toplam_puan || 0}</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-400">toplam puan</p>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <div className="flex items-center gap-1 text-amber-500 justify-end">
-                                  <Ic.Star />
-                                  <span className="font-bold text-slate-700 text-sm">{takim.toplam_puan || 0}</span>
+
+                              {/* İstatistik Çubukları */}
+                              <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-2xl p-3 border border-slate-100 text-center">
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Üyeler</span>
+                                  <span className="text-sm font-black text-indigo-600">{uyeler.length}</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400">toplam puan</p>
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Teslimler</span>
+                                  <span className="text-sm font-black text-violet">{takimTeslimleri.length}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Puanlanan</span>
+                                  <span className="text-sm font-black text-emerald-600">{takimTamamlanan.length}</span>
+                                </div>
+                              </div>
+
+                              {/* Takım Üyeleri Listesi & Hızlı Aksiyonlar */}
+                              <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Takım Katılımcıları ({uyeler.length})</p>
+                                {uyeler.length === 0 ? (
+                                  <p className="text-xs text-slate-400 italic py-1">Henüz üye atanmamış.</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {uyeler.map(u => {
+                                      const avatarSrc = getParticipantAvatarSrc(u, 100)
+                                      return (
+                                        <div key={u.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                                          <div className="flex items-center gap-2.5 min-w-0">
+                                            {avatarSrc ? (
+                                              <img
+                                                src={avatarSrc}
+                                                alt={u.ad_soyad}
+                                                className="w-7 h-7 rounded-full object-cover border border-indigo-200 shrink-0"
+                                                onError={(e) => { e.currentTarget.style.display = 'none' }}
+                                              />
+                                            ) : (
+                                              <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-[10px] shrink-0">
+                                                {(u.ad_soyad || '?')[0].toUpperCase()}
+                                              </div>
+                                            )}
+                                            <div className="min-w-0">
+                                              <p className="font-bold text-slate-800 truncate">{u.ad_soyad}</p>
+                                              <p className="text-[10px] text-slate-400 truncate">{u.universite || 'Üniversite belirtilmedi'}</p>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                              onClick={() => setSelectedParticipantProfile(u)}
+                                              title="Profil Detayını İncele"
+                                              className="px-2 py-1 rounded-lg bg-white hover:bg-indigo-50 text-indigo-600 border border-slate-200 text-[10px] font-bold transition-colors"
+                                            >
+                                              👤 Profil
+                                            </button>
+                                            <button
+                                              onClick={() => openNotesModal(u)}
+                                              title="Özel Mentor Notları"
+                                              className="px-2 py-1 rounded-lg bg-white hover:bg-violet-50 text-violet border border-slate-200 text-[10px] font-bold transition-colors"
+                                            >
+                                              📝 Notlar
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
-                            {/* Takım Üyeleri */}
-                            <div className="pt-3 border-t border-slate-100 space-y-2">
-                              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Takım Üyeleri ({uyeler.length})</p>
-                              {uyeler.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic py-1">Henüz üye atanmamış.</p>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {uyeler.map(u => (
-                                    <div key={u.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-[10px]">
-                                          {(u.aday_ad_soyad || u.ad_soyad || u.aday_adi || '?')[0].toUpperCase()}
-                                        </div>
-                                        <span className="font-medium text-slate-700">{u.aday_ad_soyad || u.ad_soyad || u.aday_adi}</span>
-                                      </div>
-                                      <span className="text-[10px] text-slate-400">{u.universite || u.aday_universite || '—'}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                            <div className="pt-3 border-t border-slate-100">
+                              <button
+                                onClick={() => setActiveTab('gorevler')}
+                                className="w-full py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <span>📋 Bu Takımın Görevlerini Gör</span>
+                                <span>➔</span>
+                              </button>
                             </div>
                           </div>
                         )
@@ -590,65 +738,124 @@ export default function MentorPanel() {
               {activeTab === 'katilimcilarim' && (
                 <div className="space-y-6">
                   
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h2 className="text-base font-bold text-slate-800">Takımlarınızdaki Katılımcılar</h2>
                       <p className="text-xs text-slate-400 mt-0.5">{katilimcilar.length} kayıtlı katılımcı</p>
                     </div>
+
+                    {/* Arama ve Takım Filtresi */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="İsim, üniversite veya e-posta ara..."
+                        className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-56"
+                      />
+                      <select
+                        value={filterTeamId}
+                        onChange={(e) => setFilterTeamId(e.target.value)}
+                        className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      >
+                        <option value="all">Tüm Takımlar ({katilimcilar.length})</option>
+                        {takimlar.map(t => (
+                          <option key={t.id} value={t.id}>{t.takim_adi}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  {katilimcilar.length === 0 ? (
+                  {filteredKatilimcilar.length === 0 ? (
                     <div className="bg-white rounded-2xl p-12 text-center shadow-soft border border-slate-100 space-y-3">
                       <div className="w-16 h-16 bg-violet/10 text-violet rounded-2xl flex items-center justify-center mx-auto">
                         <Ic.Users c="w-8 h-8" />
                       </div>
-                      <h3 className="text-base font-bold text-slate-800">Henüz Katılımcınız Bulunmuyor</h3>
+                      <h3 className="text-base font-bold text-slate-800">Katılımcı Bulunamadı</h3>
                       <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                        Mentoru olduğunuz takımlara katılımcılar atandıkça burada listelenecektir.
+                        Arama kriterlerinize uygun katılımcı bulunamadı.
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-2xl shadow-soft border border-slate-100 overflow-hidden">
+                    <div className="bg-white rounded-3xl shadow-soft border border-slate-100 overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
-                              {['#', 'Ad Soyad', 'E-posta', 'Takım', 'Üniversite', 'Sınıf', 'Durum'].map(h => (
-                                <th key={h} className="text-left px-5 py-3.5 font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                              {['Katılımcı', 'Takım', 'İletişim', 'Eğitim & Sınıf', 'Durum', 'İşlemler'].map(h => (
+                                <th key={h} className="text-left px-5 py-3.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
-                            {katilimcilar.map((k, idx) => (
-                              <tr key={k.id} className="border-t border-slate-100 hover:bg-slate-50/80 transition-colors">
-                                <td className="px-5 py-3.5 text-slate-400 font-mono">{idx + 1}</td>
-                                <td className="px-5 py-3.5">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-100 to-violet/20 text-indigo-700 font-bold flex items-center justify-center flex-shrink-0">
-                                      {(k.aday_ad_soyad || k.ad_soyad || '?')[0].toUpperCase()}
+                            {filteredKatilimcilar.map((k) => {
+                              const avatarSrc = getParticipantAvatarSrc(k, 100)
+                              return (
+                                <tr key={k.id} className="border-t border-slate-100 hover:bg-slate-50/80 transition-colors">
+                                  <td className="px-5 py-3.5">
+                                    <div className="flex items-center gap-3">
+                                      {avatarSrc ? (
+                                        <img
+                                          src={avatarSrc}
+                                          alt={k.ad_soyad}
+                                          className="w-9 h-9 rounded-full object-cover border border-indigo-200 shrink-0"
+                                          onError={(e) => { e.currentTarget.style.display = 'none' }}
+                                        />
+                                      ) : (
+                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-100 to-violet/20 text-indigo-700 font-bold flex items-center justify-center flex-shrink-0 text-xs">
+                                          {(k.ad_soyad || '?')[0].toUpperCase()}
+                                        </div>
+                                      )}
+                                      <div>
+                                        <p className="font-bold text-slate-800 whitespace-nowrap">{k.ad_soyad}</p>
+                                        <p className="text-[11px] text-slate-400 font-mono">{k.eposta || '—'}</p>
+                                      </div>
                                     </div>
-                                    <span className="font-bold text-slate-800 whitespace-nowrap">{k.aday_ad_soyad || k.ad_soyad}</span>
-                                  </div>
-                                </td>
-                                <td className="px-5 py-3.5 text-slate-500 font-mono whitespace-nowrap">{k.eposta || '—'}</td>
-                                <td className="px-5 py-3.5 whitespace-nowrap">
-                                  <span className="font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
-                                    {k.takim_adi || 'Atanmadı'}
-                                  </span>
-                                </td>
-                                <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">{k.universite || '—'}</td>
-                                <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">{k.sinif || '—'}</td>
-                                <td className="px-5 py-3.5 whitespace-nowrap">
-                                  <span className={`px-2.5 py-0.5 rounded-full font-semibold ${
-                                    k.program_katilim_durumu === 'AKTIF'
-                                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                      : 'bg-slate-100 text-slate-500 border border-slate-200'
-                                  }`}>
-                                    {k.program_katilim_durumu || 'AKTİF'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
+                                  </td>
+                                  <td className="px-5 py-3.5 whitespace-nowrap">
+                                    <span className="font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg">
+                                      {k.takim_adi || 'Atanmadı'}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">
+                                    {k.telefon ? (
+                                      <span className="font-medium text-slate-700">{k.telefon}</span>
+                                    ) : (
+                                      <span className="text-slate-400 italic">Telefon yok</span>
+                                    )}
+                                  </td>
+                                  <td className="px-5 py-3.5 whitespace-nowrap">
+                                    <p className="font-medium text-slate-800">{k.universite || '—'}</p>
+                                    <p className="text-[11px] text-slate-400">{k.sinif ? `${k.sinif}. Sınıf` : k.egitim_durumu || ''}</p>
+                                  </td>
+                                  <td className="px-5 py-3.5 whitespace-nowrap">
+                                    <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] ${
+                                      k.program_katilim_durumu === 'AKTIF'
+                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                    }`}>
+                                      {k.program_katilim_durumu || 'AKTİF'}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3.5 whitespace-nowrap">
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => setSelectedParticipantProfile(k)}
+                                        className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors inline-flex items-center gap-1"
+                                      >
+                                        <span>👤 Profil</span>
+                                      </button>
+                                      <button
+                                        onClick={() => openNotesModal(k)}
+                                        className="px-3 py-1.5 rounded-xl bg-violet/10 hover:bg-violet/20 text-violet font-bold text-xs transition-colors inline-flex items-center gap-1"
+                                      >
+                                        <span>📝 Notlar</span>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -658,7 +865,158 @@ export default function MentorPanel() {
                 </div>
               )}
 
-              {/* ════════ TAB 4: TESLİMLER ════════ */}
+              {/* ════════ TAB 4: AKTİF GÖREVLER (TESLİMDEN BAĞIMSIZ) ════════ */}
+              {activeTab === 'gorevler' && (
+                <div className="space-y-6">
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-800">Program & Saha Görevleri</h2>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {gorevler.length} aktif görev tanımlı (Katılımcı teslimi yüklemese bile incelenebilir)
+                      </p>
+                    </div>
+                  </div>
+
+                  {gorevler.length === 0 ? (
+                    <div className="bg-white rounded-2xl p-12 text-center shadow-soft border border-slate-100 space-y-3">
+                      <div className="w-16 h-16 bg-purple-50 text-purple-400 rounded-2xl flex items-center justify-center mx-auto">
+                        <Ic.Task c="w-8 h-8" />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-800">Henüz Aktif Görev Bulunmuyor</h3>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                        Admin tarafından haftalık saha görevleri veya final görevleri aktif edildikçe burada listelenecektir.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                      {gorevler.map((gorev) => {
+                        const isProgramTask = Boolean(gorev.program_task_key || gorev.program_week)
+                        const isFinalTask = gorev.program_task_type === 'final_gorevi' || (gorev.gorev_adi || '').toLowerCase().includes('final')
+                        const programWeek = gorev.program_week || gorev.hafta
+
+                        // Bu göreve yapılmış teslimler
+                        const gorevTeslimleri = teslimler.filter(t => Number(t.gorev || t.gorev_id) === Number(gorev.id) || (gorev.program_task_key && t.program_task_key === gorev.program_task_key))
+                        const submitsCount = gorevTeslimleri.length
+
+                        return (
+                          <div
+                            key={gorev.id}
+                            className={`bg-white rounded-3xl p-6 shadow-soft border space-y-5 relative overflow-hidden transition-all ${
+                              isProgramTask ? 'border-orange-200/90 hover:shadow-card' : 'border-slate-100'
+                            }`}
+                          >
+                            {isProgramTask && (
+                              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-orange-400 via-pink-500 to-purple-600" />
+                            )}
+
+                            {/* Üst Bilgi Rozetleri */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {isProgramTask ? (
+                                  <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider border ${
+                                    isFinalTask
+                                      ? 'bg-purple-100 text-purple-800 border-purple-200'
+                                      : 'bg-orange-100 text-orange-800 border-orange-200'
+                                  }`}>
+                                    {isFinalTask ? '🏆 Final Görevi' : `🚀 ${programWeek}. Hafta Saha Görevi`}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 uppercase">
+                                    Genel Görev
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+                                  ★ {gorev.maksimum_puan || 100} Puan
+                                </span>
+                              </div>
+                              {gorev.son_teslim_tarihi && (
+                                <span className="text-[11px] font-semibold text-slate-400">
+                                  Son Teslim: {new Date(gorev.son_teslim_tarihi).toLocaleDateString('tr-TR')}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Görev Başlığı & Açıklaması */}
+                            <div className="space-y-1.5">
+                              <h3 className="font-extrabold text-slate-800 text-base leading-snug">
+                                {gorev.gorev_adi}
+                              </h3>
+                              {gorev.brief_aciklama && (
+                                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                                  <span className="font-bold text-slate-800 block mb-1">📦 Görev Açıklaması & Teslim Beklentisi:</span>
+                                  {gorev.brief_aciklama}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Değerlendirme Kriterleri */}
+                            {gorev.puan_kriterleri && (
+                              <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200/70 text-xs text-amber-950 leading-relaxed whitespace-pre-line">
+                                <span className="font-bold text-amber-900 block mb-1">🏆 Değerlendirme Esasları:</span>
+                                {gorev.puan_kriterleri}
+                              </div>
+                            )}
+
+                            {/* Materyal Linki Varsa */}
+                            {gorev.material_url && (
+                              <div className="bg-purple-50/80 p-3.5 rounded-2xl border border-purple-200/80 flex items-center justify-between gap-3 flex-wrap">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">📄</span>
+                                  <div>
+                                    <p className="text-xs font-bold text-purple-950">
+                                      Eğitim Materyali: {gorev.material_title || 'Materyal Dosyası'}
+                                    </p>
+                                    <p className="text-[10px] text-purple-700">
+                                      Tür: {gorev.material_type || 'PDF'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <a
+                                  href={gorev.material_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1 shadow-2xs"
+                                >
+                                  <span>Materyali Aç</span>
+                                  <span>↗</span>
+                                </a>
+                              </div>
+                            )}
+
+                            {/* Teslim Durumu & Aksiyon */}
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+                              <div className="text-xs">
+                                <span className="text-slate-400 font-medium">Takım Teslimleri: </span>
+                                <span className={`font-bold ${submitsCount > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                  {submitsCount > 0 ? `📥 ${submitsCount} Teslim Alındı` : '⏳ Henüz teslim yok'}
+                                </span>
+                              </div>
+
+                              {submitsCount > 0 ? (
+                                <button
+                                  onClick={() => setActiveTab('teslimler')}
+                                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet text-white font-bold text-xs shadow-2xs hover:shadow transition-all flex items-center gap-1"
+                                >
+                                  <span>Teslimleri İncele</span>
+                                  <span>➔</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                                  Teslim Bekleniyor
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* ════════ TAB 5: GÖREV TESLİMLERİ ════════ */}
               {activeTab === 'teslimler' && (
                 <div className="space-y-6">
                   
@@ -769,7 +1127,333 @@ export default function MentorPanel() {
         </div>
       </main>
 
-      {/* ══════════ TESLİM DEĞERLENDİRME VE TIMELINE MODALI ══════════ */}
+      {/* ══════════ MODAL 1: KATILIMCI DETAYLI PROFİL MODALI ══════════ */}
+      {selectedParticipantProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedParticipantProfile(null)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-white z-10">
+              <div className="flex items-center gap-3.5">
+                {getParticipantAvatarSrc(selectedParticipantProfile, 200) ? (
+                  <img
+                    src={getParticipantAvatarSrc(selectedParticipantProfile, 200)}
+                    alt={selectedParticipantProfile.ad_soyad}
+                    className="w-12 h-12 rounded-2xl object-cover border-2 border-indigo-200 shadow-xs shrink-0"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet text-white font-extrabold flex items-center justify-center text-lg shadow-md shrink-0">
+                    {(selectedParticipantProfile.ad_soyad || '?')[0].toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-lg font-black text-slate-800">{selectedParticipantProfile.ad_soyad}</h2>
+                  <p className="text-xs font-semibold text-indigo-600">
+                    {selectedParticipantProfile.takim_adi ? `${selectedParticipantProfile.takim_adi} Üyesi` : 'Katılımcı'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedParticipantProfile(null)} className="p-2 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 transition-colors">
+                <Ic.Close />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 bg-slate-50/50 text-xs">
+              
+              {/* İletişim & Kişisel */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs space-y-3">
+                <h4 className="text-[11px] font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>👤</span> İletişim ve Temel Bilgiler
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">E-posta</span>
+                    <p className="font-semibold text-slate-700 font-mono mt-0.5">{selectedParticipantProfile.eposta || '—'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Telefon</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">{selectedParticipantProfile.telefon || 'Henüz doldurulmadı'}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Adres</span>
+                    <p className="font-medium text-slate-700 mt-0.5">{selectedParticipantProfile.adres || 'Henüz doldurulmadı'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Eğitim Bilgileri */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs space-y-3">
+                <h4 className="text-[11px] font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🎓</span> Eğitim Bilgileri
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Üniversite / Kurum</span>
+                    <p className="font-bold text-slate-800 mt-0.5">{selectedParticipantProfile.universite || '—'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Sınıf / Seviye</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">{selectedParticipantProfile.sinif ? `${selectedParticipantProfile.sinif}. Sınıf` : '—'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Eğitim Durumu</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">{selectedParticipantProfile.egitim_durumu || 'Henüz doldurulmadı'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Okul / Bölüm Detayı</span>
+                    <p className="font-medium text-slate-700 mt-0.5">{selectedParticipantProfile.okul_bilgisi || '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Kariyer & İş Bilgileri */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs space-y-3">
+                <h4 className="text-[11px] font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>💼</span> Kariyer & İş Bilgileri
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">İş Durumu</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">{selectedParticipantProfile.is_durumu || 'Henüz doldurulmadı'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Çalıştığı Kurum</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">{selectedParticipantProfile.calistigi_kurum || '—'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Pozisyon / Rol</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">{selectedParticipantProfile.pozisyon || '—'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Profil Güncelleme</span>
+                    <p className="font-mono text-slate-500 text-[11px] mt-0.5">
+                      {selectedParticipantProfile.profil_guncelleme_tarihi ? new Date(selectedParticipantProfile.profil_guncelleme_tarihi).toLocaleDateString('tr-TR') : '—'}
+                    </p>
+                  </div>
+                  {selectedParticipantProfile.is_aciklamasi && (
+                    <div className="sm:col-span-2">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">İş & Sorumluluk Açıklaması</span>
+                      <p className="text-slate-700 bg-slate-50 p-2.5 rounded-xl mt-0.5 leading-relaxed">
+                        {selectedParticipantProfile.is_aciklamasi}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between z-10">
+              <button
+                onClick={() => {
+                  const target = selectedParticipantProfile
+                  setSelectedParticipantProfile(null)
+                  openNotesModal(target)
+                }}
+                className="px-4 py-2 rounded-xl bg-violet/10 hover:bg-violet/20 text-violet font-bold text-xs transition-colors inline-flex items-center gap-1.5"
+              >
+                <span>📝 Bu Katılımcı İçin Özel Notlar</span>
+              </button>
+              <button 
+                onClick={() => setSelectedParticipantProfile(null)}
+                className="px-5 py-2 rounded-xl font-semibold text-xs text-slate-500 hover:bg-slate-100 transition-colors"
+              >
+                Kapat
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ══════════ MODAL 2: ÖZEL MENTOR NOTLARI MODALI ══════════ */}
+      {selectedParticipantNotes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedParticipantNotes(null)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-white z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-violet/10 text-violet flex items-center justify-center font-black">
+                  📝
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">
+                    {selectedParticipantNotes.ad_soyad} • Özel Mentor Notları
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {selectedParticipantNotes.takim_adi ? `${selectedParticipantNotes.takim_adi} Takımı` : 'Katılımcı Notları'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedParticipantNotes(null)} className="p-2 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 transition-colors">
+                <Ic.Close />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 bg-slate-50/50">
+              
+              {/* Gizlilik Uyarısı */}
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-2xs">
+                <span>🔒</span>
+                <span>Bu notlar yalnızca size (mentora) özeldir. Katılımcı veya diğer mentorlar tarafından görülemez.</span>
+              </div>
+
+              {/* Hata Mesajı */}
+              {noteError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-between">
+                  <span>⚠️ {noteError}</span>
+                  <button onClick={() => setNoteError(null)} className="text-red-500 hover:text-red-700">✕</button>
+                </div>
+              )}
+
+              {/* Not Ekleme / Düzenleme Formu */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-800">
+                    {noteForm.id ? '✏️ Notu Düzenle' : '➕ Yeni Mentor Notu Ekle'}
+                  </h4>
+                  {noteForm.id && (
+                    <button
+                      onClick={() => setNoteForm({ id: null, not_metni: '', kategori: 'Genel', onem_derecesi: 'Normal' })}
+                      className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 underline"
+                    >
+                      Yeni Not Moduna Dön
+                    </button>
+                  )}
+                </div>
+
+                <textarea
+                  rows={3}
+                  value={noteForm.not_metni}
+                  onChange={(e) => setNoteForm(prev => ({ ...prev, not_metni: e.target.value }))}
+                  placeholder="Katılımcının gelişimi, takım içi iletişimi, güçlü yönleri veya dikkat edilmesi gereken noktaları yazın..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet text-xs text-slate-700 leading-relaxed resize-none"
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kategori</label>
+                    <select
+                      value={noteForm.kategori}
+                      onChange={(e) => setNoteForm(prev => ({ ...prev, kategori: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
+                    >
+                      <option value="Genel">Genel Değerlendirme</option>
+                      <option value="Teknik Gelişim">Teknik Gelişim</option>
+                      <option value="İletişim & Takım">İletişim & Takım Çalışması</option>
+                      <option value="Görev & Proje">Görev & Proje Takibi</option>
+                      <option value="Toplantı Gözlemi">Toplantı Gözlemi</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Önem Seviyesi</label>
+                    <select
+                      value={noteForm.onem_derecesi}
+                      onChange={(e) => setNoteForm(prev => ({ ...prev, onem_derecesi: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
+                    >
+                      <option value="Normal">Normal</option>
+                      <option value="Düşük">Düşük</option>
+                      <option value="Yüksek">Yüksek</option>
+                      <option value="Kritik">Kritik</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={noteSaving}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-2xs hover:shadow transition-all disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {noteSaving ? 'Kaydediliyor...' : noteForm.id ? 'Değişiklikleri Kaydet ✓' : 'Notu Kaydet 💾'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Geçmiş Notlar Listesi */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <span>📋</span> Kayıtlı Notlar ({notesList.length})
+                </h4>
+
+                {notesLoading ? (
+                  <div className="p-8 text-center text-xs text-slate-400">Notlar yükleniyor...</div>
+                ) : notesList.length === 0 ? (
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-xs text-slate-400">
+                    Henüz bu katılımcı için özel bir mentor notu eklenmemiş.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {notesList.map((n) => (
+                      <div key={n.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-violet/10 text-violet font-bold text-[10px]">
+                              {n.kategori || 'Genel'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                              n.onem_derecesi === 'Kritik' ? 'bg-red-100 text-red-700' :
+                              n.onem_derecesi === 'Yüksek' ? 'bg-orange-100 text-orange-700' :
+                              n.onem_derecesi === 'Düşük' ? 'bg-slate-100 text-slate-600' :
+                              'bg-indigo-100 text-indigo-700'
+                            }`}>
+                              {n.onem_derecesi || 'Normal'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {n.olusturulma_tarihi ? new Date(n.olusturulma_tarihi).toLocaleDateString('tr-TR') : ''}
+                            </span>
+                            <button
+                              onClick={() => handleEditNote(n)}
+                              title="Düzenle"
+                              className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDeleteNote(n.id)}
+                              title="Sil"
+                              className="text-slate-400 hover:text-red-600 p-1 rounded transition-colors"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
+                          {n.not_metni}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end z-10">
+              <button 
+                onClick={() => setSelectedParticipantNotes(null)}
+                className="px-5 py-2 rounded-xl font-semibold text-xs text-slate-500 hover:bg-slate-100 transition-colors"
+              >
+                Kapat
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ══════════ MODAL 3: TESLİM DEĞERLENDİRME VE TIMELINE MODALI ══════════ */}
       {selectedTeslim && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-0">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedTeslim(null)} />

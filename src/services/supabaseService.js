@@ -1083,6 +1083,37 @@ export async function evaluateDelivery(teslim_id, alinan_puan, mentor_yorumu) {
   return res.data
 }
 
+export async function getParticipantNotes(katilimciId) {
+  const res = await callMentorAction('get_participant_notes', { katilimci_id: katilimciId })
+  return res.data || []
+}
+
+export async function createParticipantNote({ katilimci_id, not_metni, kategori, onem_derecesi, mentor_id }) {
+  const res = await callMentorAction('create_participant_note', {
+    katilimci_id,
+    not_metni,
+    kategori,
+    onem_derecesi,
+    mentor_id
+  })
+  return res.data
+}
+
+export async function updateParticipantNote({ note_id, not_metni, kategori, onem_derecesi }) {
+  const res = await callMentorAction('update_participant_note', {
+    note_id,
+    not_metni,
+    kategori,
+    onem_derecesi
+  })
+  return res.data
+}
+
+export async function deleteParticipantNote(noteId) {
+  const res = await callMentorAction('delete_participant_note', { note_id: noteId })
+  return res.data
+}
+
 export async function getAdminPerformansList() {
   const { data: katData, error: katErr } = await supabase
     .from('core_katilimci')

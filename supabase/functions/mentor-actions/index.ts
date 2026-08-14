@@ -468,12 +468,167 @@ serve(async (req) => {
           soyad: adayObj.soyad || k.soyad || '',
           ad_soyad: finalAdSoyad,
           eposta: finalEposta,
+          telefon: k.telefon || profileObj.telefon || adayObj.telefon || '',
           universite: finalUniversite,
-          sinif: k.sinif || ''
+          sinif: k.sinif || adayObj.sinif || '',
+          adres: k.adres || '',
+          okul_bilgisi: k.okul_bilgisi || '',
+          egitim_durumu: k.egitim_durumu || '',
+          is_durumu: k.is_durumu || '',
+          calistigi_kurum: k.calistigi_kurum || '',
+          pozisyon: k.pozisyon || '',
+          is_aciklamasi: k.is_aciklamasi || '',
+          profil_fotografi_url: k.profil_fotografi_url || profileObj.avatar_url || '',
+          profil_fotografi_file_id: k.profil_fotografi_file_id || '',
+          profil_guncelleme_tarihi: k.profil_guncelleme_tarihi || null,
+          program_katilim_durumu: k.program_katilim_durumu || 'AKTİF'
         }
       })
 
       return jsonRes(req, { ok: true, data: result })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: get_participant_notes (Katılımcı Özel Mentor Notlarını Getir)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'get_participant_notes') {
+      const { katilimci_id } = payload
+      if (!katilimci_id) return jsonRes(req, { ok: false, error: 'katilimci_id zorunludur.' }, 400)
+
+      let callerMentorId = profile.core_mentor_id
+      if (!callerMentorId && profile.role === 'mentor') {
+        const { data: mData } = await adminClient.from('core_mentor').select('id').eq('user_id', user.id).maybeSingle()
+        if (mData) callerMentorId = mData.id
+      }
+
+      // Yetki kontrolü: Mentor sadece kendi takımındaki katılımcının notunu okur
+      if (profile.role !== 'admin') {
+        if (!callerMentorId) return jsonRes(req, { ok: false, error: 'Mentor eşleştirmesi bulunamadı.' }, 403)
+        const { data: katilimci } = await adminClient.from('core_katilimci').select('takim_id').eq('id', katilimci_id).maybeSingle()
+        if (!katilimci || !katilimci.takim_id) return jsonRes(req, { ok: false, error: 'Katılımcı bulunamadı veya takımı yok.' }, 404)
+
+        const { data: takim } = await adminClient.from('core_takim').select('mentor_id').eq('id', katilimci.takim_id).maybeSingle()
+        if (!takim || Number(takim.mentor_id) !== Number(callerMentorId)) {
+          return jsonRes(req, { ok: false, error: 'Bu katılımcının notlarına erişim yetkiniz yok.' }, 403)
+        }
+      }
+
+      let noteQuery = adminClient.from('core_mentornotu').select('*').eq('katilimci_id', katilimci_id).order('id', { ascending: false })
+      if (profile.role !== 'admin' && callerMentorId) {
+        noteQuery = noteQuery.eq('mentor_id', callerMentorId)
+      }
+
+      const { data: notes, error: notesErr } = await noteQuery
+      if (notesErr) return jsonRes(req, { ok: false, error: notesErr.message }, 500)
+
+      return jsonRes(req, { ok: true, data: notes || [] })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: create_participant_note (Katılımcıya Yeni Özel Mentor Notu Ekle)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'create_participant_note') {
+      const { katilimci_id, not_metni, kategori, onem_derecesi } = payload
+      if (!katilimci_id) return jsonRes(req, { ok: false, error: 'katilimci_id zorunludur.' }, 400)
+      if (!not_metni || !not_metni.trim()) return jsonRes(req, { ok: false, error: 'Not metni boş bırakılamaz.' }, 400)
+
+      let callerMentorId = profile.core_mentor_id
+      if (!callerMentorId && profile.role === 'mentor') {
+        const { data: mData } = await adminClient.from('core_mentor').select('id').eq('user_id', user.id).maybeSingle()
+        if (mData) callerMentorId = mData.id
+      }
+
+      if (profile.role === 'admin' && payload?.mentor_id) {
+        callerMentorId = Number(payload.mentor_id)
+      }
+
+      if (!callerMentorId) {
+        return jsonRes(req, { ok: false, error: 'Mentor kimliği belirlenemedi.' }, 403)
+      }
+
+      // Yetki kontrolü
+      if (profile.role !== 'admin') {
+        const { data: katilimci } = await adminClient.from('core_katilimci').select('takim_id').eq('id', katilimci_id).maybeSingle()
+        if (!katilimci || !katilimci.takim_id) return jsonRes(req, { ok: false, error: 'Katılımcı bulunamadı veya takımı yok.' }, 404)
+
+        const { data: takim } = await adminClient.from('core_takim').select('mentor_id').eq('id', katilimci.takim_id).maybeSingle()
+        if (!takim || Number(takim.mentor_id) !== Number(callerMentorId)) {
+          return jsonRes(req, { ok: false, error: 'Bu katılımcıya not ekleme yetkiniz yok.' }, 403)
+        }
+      }
+
+      const now = new Date().toISOString()
+      const { data: newNote, error: insertErr } = await adminClient.from('core_mentornotu').insert([{
+        mentor_id: callerMentorId,
+        katilimci_id: katilimci_id,
+        not_metni: not_metni.trim(),
+        kategori: (kategori || 'Genel').trim(),
+        onem_derecesi: (onem_derecesi || 'Normal').trim(),
+        olusturulma_tarihi: now,
+        guncellenme_tarihi: now
+      }]).select().single()
+
+      if (insertErr) return jsonRes(req, { ok: false, error: insertErr.message }, 500)
+      return jsonRes(req, { ok: true, data: newNote })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: update_participant_note (Özel Mentor Notunu Güncelle)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'update_participant_note') {
+      const { note_id, not_metni, kategori, onem_derecesi } = payload
+      if (!note_id) return jsonRes(req, { ok: false, error: 'note_id zorunludur.' }, 400)
+      if (!not_metni || !not_metni.trim()) return jsonRes(req, { ok: false, error: 'Not metni boş bırakılamaz.' }, 400)
+
+      let callerMentorId = profile.core_mentor_id
+      if (!callerMentorId && profile.role === 'mentor') {
+        const { data: mData } = await adminClient.from('core_mentor').select('id').eq('user_id', user.id).maybeSingle()
+        if (mData) callerMentorId = mData.id
+      }
+
+      const { data: note, error: noteErr } = await adminClient.from('core_mentornotu').select('*').eq('id', note_id).maybeSingle()
+      if (noteErr || !note) return jsonRes(req, { ok: false, error: 'Not bulunamadı.' }, 404)
+
+      if (profile.role !== 'admin' && Number(note.mentor_id) !== Number(callerMentorId)) {
+        return jsonRes(req, { ok: false, error: 'Bu notu güncelleme yetkiniz yok.' }, 403)
+      }
+
+      const now = new Date().toISOString()
+      const { data: updatedNote, error: updateErr } = await adminClient.from('core_mentornotu').update({
+        not_metni: not_metni.trim(),
+        kategori: (kategori || note.kategori || 'Genel').trim(),
+        onem_derecesi: (onem_derecesi || note.onem_derecesi || 'Normal').trim(),
+        guncellenme_tarihi: now
+      }).eq('id', note_id).select().single()
+
+      if (updateErr) return jsonRes(req, { ok: false, error: updateErr.message }, 500)
+      return jsonRes(req, { ok: true, data: updatedNote })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: delete_participant_note (Özel Mentor Notunu Sil)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'delete_participant_note') {
+      const { note_id } = payload
+      if (!note_id) return jsonRes(req, { ok: false, error: 'note_id zorunludur.' }, 400)
+
+      let callerMentorId = profile.core_mentor_id
+      if (!callerMentorId && profile.role === 'mentor') {
+        const { data: mData } = await adminClient.from('core_mentor').select('id').eq('user_id', user.id).maybeSingle()
+        if (mData) callerMentorId = mData.id
+      }
+
+      const { data: note, error: noteErr } = await adminClient.from('core_mentornotu').select('*').eq('id', note_id).maybeSingle()
+      if (noteErr || !note) return jsonRes(req, { ok: false, error: 'Not bulunamadı.' }, 404)
+
+      if (profile.role !== 'admin' && Number(note.mentor_id) !== Number(callerMentorId)) {
+        return jsonRes(req, { ok: false, error: 'Bu notu silme yetkiniz yok.' }, 403)
+      }
+
+      const { error: delErr } = await adminClient.from('core_mentornotu').delete().eq('id', note_id)
+      if (delErr) return jsonRes(req, { ok: false, error: delErr.message }, 500)
+
+      return jsonRes(req, { ok: true, data: { id: note_id } })
     }
 
     return jsonRes(req, { ok: false, error: `Bilinmeyen action: ${action}` }, 400)
