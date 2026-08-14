@@ -33,10 +33,13 @@ ON public.core_katilimci FOR UPDATE
 USING (
   public.is_admin()
   OR id = public.current_katilimci_id()
-  OR (user_id IS NOT NULL AND user_id = auth.uid())
 )
 WITH CHECK (
   public.is_admin()
   OR id = public.current_katilimci_id()
-  OR (user_id IS NOT NULL AND user_id = auth.uid())
 );
+
+-- 5. PostgREST schema cache yenileme bildirimi
+NOTIFY pgrst, 'reload schema';
+
+
