@@ -10,6 +10,7 @@ import {
   createGorev,
   activateProgramGorev,
   updateGorevMaterial,
+  uploadProgramMaterialFile,
   deleteGorev,
   updateKatilimci,
   updateTakim,
@@ -626,18 +627,66 @@ export default function AdminPanel() {
     }
   }
 
-  /* ── Program Görevi Materyalini Kaydet (PROGRAM-UX-FIX-02) ── */
-  const handleSaveMaterial = async (gorevId) => {
+  /* ── Program Görevi Materyalini Kaydet (PROGRAM-MATERIALS-UX-01) ── */
+  const handleSaveMaterial = async (activeDbGorev, template) => {
+    const gorevId = activeDbGorev.id
     const form = materialForms[gorevId] || {}
     setSavingMaterialId(gorevId)
+
     try {
+      let finalUrl = form.material_url || activeDbGorev.material_url || ''
+      let finalFileId = form.material_file_id || activeDbGorev.material_file_id || null
+      let finalTitle = form.material_title || activeDbGorev.material_title || ''
+      let finalType = form.material_type || activeDbGorev.material_type || 'PDF'
+
+      // 1. Eğer yeni bir dosya seçildiyse Google Drive'a yükle
+      if (form.material_file) {
+        const uploadRes = await uploadProgramMaterialFile(form.material_file, {
+          programTaskKey: template.taskKey,
+          week: template.taskWeek
+        })
+        finalUrl = uploadRes.webViewLink || uploadRes.download_url
+        finalFileId = uploadRes.file_id
+        if (!finalTitle) {
+          finalTitle = form.material_file.name
+        }
+        // Dosya uzantısına göre varsayılan tip belirle
+        const fileExt = (form.material_file.name.split('.').pop() || '').toLowerCase()
+        if (fileExt === 'pdf') finalType = 'PDF'
+        else if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(fileExt)) finalType = 'Video'
+        else if (['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'zip'].includes(fileExt)) finalType = 'Dosya'
+      }
+
+      if (!finalUrl && !finalFileId) {
+        setToast({ msg: 'Lütfen bir materyal dosyası yükleyin veya harici bir link girin.', type: 'error' })
+        setSavingMaterialId(null)
+        return
+      }
+
+      if (!finalTitle) {
+        finalTitle = `${template.taskWeek}. Hafta Eğitim Materyali`
+      }
+
       await updateGorevMaterial(gorevId, {
-        material_title: form.material_title,
-        material_url: form.material_url,
-        material_type: form.material_type || 'PDF'
+        material_title: finalTitle,
+        material_url: finalUrl,
+        material_type: finalType,
+        material_file_id: finalFileId
       })
+
+      setMaterialForms(prev => ({
+        ...prev,
+        [gorevId]: {
+          material_title: finalTitle,
+          material_url: finalUrl,
+          material_type: finalType,
+          material_file_id: finalFileId,
+          material_file: null
+        }
+      }))
+
       await fetchAll()
-      setToast({ msg: 'Eğitim materyali başarıyla güncellendi! 📄', type: 'success' })
+      setToast({ msg: 'Eğitim materyali başarıyla kaydedildi! 📄', type: 'success' })
     } catch (e) {
       console.error('Materyal kaydedilemedi:', e)
       setToast({ msg: `Materyal kaydedilemedi: ${e.message}`, type: 'error' })
@@ -1219,31 +1268,31 @@ export default function AdminPanel() {
                             </div>
                           </div>
 
-                          {/* Aktif Görev İçin Materyal Yönetimi */}
+                          {/* Aktif Görev İçin Materyal Yönetimi (Dosya + Link) */}
                           {isAlreadyActive && activeDbGorev && (
-                            <div className="bg-gradient-to-br from-violet-50/70 to-purple-50/50 rounded-2xl p-3.5 border border-violet/20 space-y-2.5">
-                              <div className="flex items-center justify-between">
+                            <div className="bg-gradient-to-br from-violet-50/70 to-purple-50/50 rounded-2xl p-4 border border-violet/20 space-y-3">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-sm">📄</span>
-                                  <h5 className="text-xs font-bold text-gray-800">Eğitim Materyali</h5>
+                                  <span className="text-base">📄</span>
+                                  <h5 className="text-xs font-bold text-gray-800">Eğitim Materyali Yönetimi</h5>
                                 </div>
                                 {activeDbGorev.material_url ? (
                                   <a
                                     href={activeDbGorev.material_url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-[10px] font-bold text-violet hover:text-purple-700 underline inline-flex items-center gap-1"
+                                    className="text-[10px] font-bold text-violet hover:text-purple-700 underline inline-flex items-center gap-1 bg-white/80 px-2.5 py-1 rounded-lg border border-violet/20 shadow-2xs"
                                   >
-                                    Aç ↗
+                                    Mevcut Materyali Aç ↗
                                   </a>
                                 ) : (
-                                  <span className="text-[9px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                    Eklenmedi
+                                  <span className="text-[9px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                    Henüz Materyal Yok
                                   </span>
                                 )}
                               </div>
 
-                              <div className="space-y-2 text-xs">
+                              <div className="space-y-2.5 text-xs">
                                 <div>
                                   <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
                                     Materyal Başlığı
@@ -1259,14 +1308,67 @@ export default function AdminPanel() {
                                       }
                                     }))}
                                     placeholder="Örn: 1. Hafta Sunum Slaytı & Vaka Dosyası"
-                                    className="w-full px-2.5 py-1.5 text-xs text-gray-800 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
+                                    className="w-full px-3 py-1.5 text-xs text-gray-800 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
                                   />
+                                </div>
+
+                                {/* Dosya Seçimi */}
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
+                                    Dosya Yükle (PDF, Belge, Görsel — Maks 20MB)
+                                  </label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="file"
+                                      id={`mat-file-${activeDbGorev.id}`}
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0] || null
+                                        setMaterialForms(prev => ({
+                                          ...prev,
+                                          [activeDbGorev.id]: {
+                                            ...currentMatForm,
+                                            material_file: f,
+                                            material_title: currentMatForm.material_title || (f ? f.name : '')
+                                          }
+                                        }))
+                                      }}
+                                      className="hidden"
+                                    />
+                                    <label
+                                      htmlFor={`mat-file-${activeDbGorev.id}`}
+                                      className="cursor-pointer px-3 py-1.5 bg-white border border-gray-300 hover:border-violet rounded-lg text-xs font-semibold text-gray-700 shadow-2xs hover:bg-violet-50/50 transition-all inline-flex items-center gap-1.5 shrink-0"
+                                    >
+                                      <span>📁</span>
+                                      <span>{currentMatForm.material_file ? 'Dosyayı Değiştir' : 'Dosya Seç'}</span>
+                                    </label>
+                                    <div className="text-[11px] text-gray-500 truncate flex-1 min-w-0">
+                                      {currentMatForm.material_file ? (
+                                        <span className="font-bold text-violet flex items-center gap-1">
+                                          <span>✓</span> <span className="truncate">{currentMatForm.material_file.name}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setMaterialForms(prev => ({
+                                              ...prev,
+                                              [activeDbGorev.id]: { ...currentMatForm, material_file: null }
+                                            }))}
+                                            className="text-red-500 hover:text-red-700 font-bold ml-1"
+                                          >
+                                            ✕
+                                          </button>
+                                        </span>
+                                      ) : activeDbGorev.material_file_id ? (
+                                        <span className="text-slate-500 italic">Drive'a yüklü dosya mevcut</span>
+                                      ) : (
+                                        <span className="text-slate-400">Seçilen dosya yok</span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-2">
                                   <div className="col-span-2">
                                     <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
-                                      Materyal Linki (URL)
+                                      veya Harici Link (URL)
                                     </label>
                                     <input
                                       type="url"
@@ -1284,7 +1386,7 @@ export default function AdminPanel() {
                                   </div>
                                   <div>
                                     <label className="block text-[10px] font-semibold text-gray-600 mb-0.5">
-                                      Tür
+                                      Materyal Türü
                                     </label>
                                     <select
                                       value={currentMatForm.material_type}
@@ -1295,27 +1397,28 @@ export default function AdminPanel() {
                                           material_type: e.target.value
                                         }
                                       }))}
-                                      className="w-full px-1.5 py-1.5 text-xs text-gray-800 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet"
+                                      className="w-full px-1.5 py-1.5 text-xs text-gray-800 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet font-medium"
                                     >
-                                      <option value="PDF">PDF</option>
-                                      <option value="Video">Video</option>
-                                      <option value="Link">Link</option>
+                                      <option value="PDF">PDF Dosyası</option>
+                                      <option value="Dosya">Belge / Dosya</option>
+                                      <option value="Video">Video / Kayıt</option>
+                                      <option value="Link">Harici Link</option>
                                       <option value="Diger">Diğer</option>
                                     </select>
                                   </div>
                                 </div>
 
-                                <div className="flex justify-end pt-0.5">
+                                <div className="flex justify-end pt-1">
                                   <button
                                     type="button"
-                                    onClick={() => handleSaveMaterial(activeDbGorev.id)}
+                                    onClick={() => handleSaveMaterial(activeDbGorev, template)}
                                     disabled={savingMaterialId === activeDbGorev.id}
-                                    className="px-3 py-1.5 rounded-lg bg-violet hover:bg-violet/90 text-white font-bold text-[11px] shadow-2xs hover:shadow transition-all flex items-center gap-1.5 disabled:opacity-50"
+                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all flex items-center gap-1.5 disabled:opacity-50"
                                   >
                                     {savingMaterialId === activeDbGorev.id ? (
                                       <>
-                                        <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        <span>Kaydediliyor…</span>
+                                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Yükleniyor & Kaydediliyor…</span>
                                       </>
                                     ) : (
                                       <>

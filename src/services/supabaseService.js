@@ -235,6 +235,7 @@ export async function createGorev(gorevData) {
     material_url: gorevData.material_url || null,
     material_title: gorevData.material_title || null,
     material_type: gorevData.material_type || null,
+    material_file_id: gorevData.material_file_id || null,
   }
   const { data, error } = await supabase.from('core_gorev').insert([payload]).select().single()
   if (error) throw error
@@ -282,6 +283,7 @@ export async function activateProgramGorev(template, options = {}) {
     material_url: options.material_url || null,
     material_title: options.material_title || null,
     material_type: options.material_type || null,
+    material_file_id: options.material_file_id || null,
   }
 
   const { data, error } = await supabase.from('core_gorev').insert([payload]).select().single()
@@ -299,11 +301,48 @@ export async function activateProgramGorev(template, options = {}) {
   return { created: true, gorev: data, message: `"${template.taskTitle}" görevi (${score} Puan) başarıyla aktif edildi!` }
 }
 
-export async function updateGorevMaterial(gorevId, { material_url, material_title, material_type }) {
+export async function uploadProgramMaterialFile(file, { programTaskKey, week } = {}) {
+  if (!file) throw new Error('Yüklenecek bir dosya seçilmedi.')
+
+  const MAX_SIZE = 20 * 1024 * 1024
+  if (file.size > MAX_SIZE) {
+    throw new Error('Dosya boyutu 20 MB sınırını aşıyor. Lütfen daha küçük bir dosya seçin veya harici link ekleyin.')
+  }
+
+  const fileBase64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  const timestamp = Date.now()
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const ext = sanitizedName.includes('.') ? sanitizedName.split('.').pop() : 'pdf'
+  const customFileName = `program-materyal-hafta${week || 1}-${programTaskKey || 'gorev'}-${timestamp}.${ext}`
+
+  const uploadRes = await uploadFileToGoogleDrive({
+    filename: customFileName,
+    file_base64: fileBase64,
+    content_type: file.type || 'application/octet-stream',
+    katilimci_adi: 'Eğitim Programı Materyalleri',
+    katilimci_id: null
+  })
+
+  return {
+    file_id: uploadRes.file_id,
+    webViewLink: uploadRes.webViewLink,
+    webContentLink: uploadRes.webContentLink,
+    filename: file.name
+  }
+}
+
+export async function updateGorevMaterial(gorevId, { material_url, material_title, material_type, material_file_id }) {
   const updates = {
     material_url: (material_url || '').trim() || null,
     material_title: (material_title || '').trim() || null,
     material_type: material_type || 'PDF',
+    material_file_id: (material_file_id || '').trim() || null,
   }
   const { data, error } = await supabase.from('core_gorev').update(updates).eq('id', gorevId).select().single()
   if (error) throw error

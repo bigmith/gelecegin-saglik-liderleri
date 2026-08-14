@@ -2025,63 +2025,95 @@ export default function KatilimciPanel() {
                             </div>
                           </div>
 
-                          {/* Günler ve Oturumlar (Salı & Perşembe) */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {weekData.days.map((dayData, dayIdx) => (
-                              <div
-                                key={dayIdx}
-                                className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-5 sm:p-6 space-y-4 flex flex-col"
-                              >
-                                {/* Gün Başlığı */}
-                                <div className="flex items-center justify-between pb-3 border-b border-slate-200/70">
-                                  <div className="flex items-center gap-2">
-                                    <span className="bg-slate-800 text-white text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-2xs uppercase">
-                                      {dayData.dayName}
-                                    </span>
-                                    <h4 className="text-xs sm:text-sm font-black text-slate-800">
-                                      {dayData.title}
-                                    </h4>
-                                  </div>
-                                  <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                                    3 Oturum
-                                  </span>
-                                </div>
+                          {/* Günler ve Oturumlar (Salı & Perşembe Belirgin Ayrımı - BÖLÜM 5) */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-2">
+                            {weekData.days.map((dayData, dayIdx) => {
+                              const isTuesday = dayData.dayName.toLowerCase().includes('salı')
+                              const isThursday = dayData.dayName.toLowerCase().includes('perşembe')
 
-                                {/* 3 Oturum Kartları */}
-                                <div className="space-y-3 flex-1">
-                                  {dayData.sessions.map((session, sIdx) => (
-                                    <div
-                                      key={sIdx}
-                                      className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all space-y-1.5"
-                                    >
-                                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-black flex items-center justify-center">
-                                            {session.sessionNumber}
-                                          </span>
-                                          <h5 className="font-extrabold text-slate-800 text-xs">
-                                            {session.title}
-                                          </h5>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          {session.guest && (
-                                            <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
-                                              🎙️ {session.guest}
-                                            </span>
-                                          )}
-                                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                            ⏱️ {session.duration}
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <p className="text-[11px] text-slate-600 leading-relaxed pl-6">
-                                        {session.description}
-                                      </p>
+                              return (
+                                <div
+                                  key={dayIdx}
+                                  className={`rounded-3xl p-6 sm:p-7 space-y-5 flex flex-col shadow-xs relative overflow-hidden transition-all border-2 ${
+                                    isTuesday
+                                      ? 'bg-gradient-to-b from-amber-50/60 via-orange-50/30 to-white border-amber-200/90'
+                                      : 'bg-gradient-to-b from-indigo-50/60 via-violet-50/30 to-white border-indigo-200/90'
+                                  }`}
+                                >
+                                  {/* Üst Dekoratif Çizgi */}
+                                  <div className={`absolute top-0 left-0 right-0 h-1.5 ${
+                                    isTuesday
+                                      ? 'bg-gradient-to-r from-amber-400 to-orange-500'
+                                      : 'bg-gradient-to-r from-indigo-500 to-purple-600'
+                                  }`} />
+
+                                  {/* Gün Başlığı */}
+                                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b ${
+                                    isTuesday ? 'border-amber-200/80' : 'border-indigo-200/80'
+                                  }`}>
+                                    <div className="space-y-1">
+                                      <span className={`inline-flex items-center gap-1 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs uppercase tracking-wider ${
+                                        isTuesday
+                                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-200'
+                                          : 'bg-gradient-to-r from-indigo-600 to-violet text-white shadow-indigo-200'
+                                      }`}>
+                                        🗓️ {isTuesday ? '1. GÜN · SALI EĞİTİMİ' : isThursday ? '2. GÜN · PERŞEMBE EĞİTİMİ' : `${dayData.dayName} EĞİTİMİ`}
+                                      </span>
+                                      <h4 className="text-sm sm:text-base font-black text-slate-800 tracking-tight pt-1">
+                                        {dayData.title}
+                                      </h4>
                                     </div>
-                                  ))}
+                                    <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border self-start sm:self-auto ${
+                                      isTuesday
+                                        ? 'text-amber-800 bg-amber-100/90 border-amber-200'
+                                        : 'text-indigo-800 bg-indigo-100/90 border-indigo-200'
+                                    }`}>
+                                      3 Oturum
+                                    </span>
+                                  </div>
+
+                                  {/* 3 Oturum Kartları */}
+                                  <div className="space-y-3 flex-1">
+                                    {dayData.sessions.map((session, sIdx) => (
+                                      <div
+                                        key={sIdx}
+                                        className={`bg-white border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all space-y-1.5 ${
+                                          isTuesday ? 'border-amber-100 hover:border-amber-200' : 'border-indigo-100 hover:border-indigo-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
+                                              isTuesday
+                                                ? 'bg-orange-100 text-orange-700'
+                                                : 'bg-indigo-100 text-indigo-700'
+                                            }`}>
+                                              {session.sessionNumber}
+                                            </span>
+                                            <h5 className="font-extrabold text-slate-800 text-xs">
+                                              {session.title}
+                                            </h5>
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            {session.guest && (
+                                              <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                                                🎙️ {session.guest}
+                                              </span>
+                                            )}
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                              ⏱️ {session.duration}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <p className="text-[11px] text-slate-600 leading-relaxed pl-6">
+                                          {session.description}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
 
                           {/* Haftanın Saha / Final Görevi */}
