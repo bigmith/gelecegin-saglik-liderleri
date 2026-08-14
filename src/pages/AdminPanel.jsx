@@ -3041,6 +3041,17 @@ function PerformansSection({ token, setToast }) {
   const katilimciObj = detail?.katilimci && typeof detail.katilimci === 'object' ? detail.katilimci : {}
   const performansObj = detail?.performans && typeof detail.performans === 'object' ? detail.performans : {}
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && detail) {
+        setDetail(null)
+        setSelectedKatilimciId(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [detail])
+
   return (
     <div className="space-y-6">
       {error && (
@@ -3049,151 +3060,161 @@ function PerformansSection({ token, setToast }) {
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* LİSTE GÖRÜNÜMÜ */}
-        <div className={`bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden w-full transition-all duration-300 ${
-          detail ? 'lg:w-[48%] xl:w-[45%]' : 'w-full'
-        }`}>
-          <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gray-50/50">
-            <div className="flex items-center gap-2">
-              <span className="text-base">⭐</span>
-              <h3 className="text-sm font-bold text-gray-800">Katılımcı Performans Listesi</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={fetchList}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-600 text-xs font-medium border border-gray-200 transition-all disabled:opacity-50"
-              >
-                <span className={loading ? 'animate-spin inline-block' : 'inline-block'}>
-                  <Ic.Refresh c="w-3.5 h-3.5" />
-                </span>
-                Yenile
-              </button>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"><Ic.Search /></span>
-                <input
-                  type="text"
-                  placeholder="Katılımcı veya takım ara…"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 w-44"
-                />
-              </div>
-            </div>
+      {/* LİSTE GÖRÜNÜMÜ (HER ZAMAN TAM GENİŞLİK) */}
+      <div className="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden w-full">
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gray-50/50">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⭐</span>
+            <h3 className="text-sm font-bold text-gray-800">Katılımcı Performans Listesi</h3>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50/80 border-b border-gray-100">
-                  {['#', 'Katılımcı', 'Takım', 'Bireysel Puan', 'Puan Dağılımı', 'İşlem'].map(h => (
-                    <th key={h} className="text-left px-4 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading
-                  ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={6} />)
-                  : filtered.length === 0
-                  ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-16 text-gray-400">
-                        <div className="flex flex-col items-center gap-2">
-                          <span className="text-4xl">⭐</span>
-                          <p className="font-semibold text-gray-700">Henüz performans kaydı bulunmuyor.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                  : filtered.map((item, idx) => {
-                    if (!item || typeof item !== 'object') return null
-                    const targetId = item.katilimci || item.id
-                    const isSelected = selectedKatilimciId === targetId
-                    const kAdi = String(item.ad_soyad || item.katilimci_adi || 'Bilinmeyen Katılımcı')
-                    const tAdi = item.takim_adi ? String(item.takim_adi) : null
-                    const birPuan = Number(item.bireysel_puan) || 0
-                    const gPuan = Number(item.gorev_puani) || 0
-                    const tPuan = Number(item.toplanti_katilim_puani) || 0
-                    const ePuan = Number(item.etkilesim_bonus_puani) || 0
-                    const mPuan = Number(item.manuel_puan) || 0
-
-                    return (
-                      <tr
-                        key={item.id || idx}
-                        className={`border-t border-gray-100 transition-colors duration-150 ${
-                          isSelected ? 'bg-amber-50/70 font-medium' : 'hover:bg-gray-50/80'
-                        }`}
-                      >
-                        <td className="px-4 py-3.5 text-gray-400 font-mono text-xs">{idx + 1}</td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-2.5">
-                            {getParticipantAvatarSrc(item) ? (
-                              <img
-                                src={getParticipantAvatarSrc(item, 80)}
-                                alt={kAdi}
-                                onError={(e) => { e.currentTarget.style.display = 'none' }}
-                                className="w-7 h-7 rounded-full object-cover ring-1 ring-amber-300 flex-shrink-0"
-                              />
-                            ) : (
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-orange-100 flex items-center justify-center flex-shrink-0 text-amber-800 font-bold text-xs">
-                                {kAdi[0].toUpperCase()}
-                              </div>
-                            )}
-                            <span className="font-medium text-gray-800 whitespace-nowrap">{kAdi}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5 text-xs text-gray-600 whitespace-nowrap">
-                          {tAdi ? <span className="bg-violet-50 text-violet border border-violet/20 font-semibold px-2 py-0.5 rounded-md">{tAdi}</span> : <span className="text-gray-400 italic">Takımsız</span>}
-                        </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-100 border border-amber-200/80 px-2.5 py-1 rounded-full text-xs shadow-2xs">
-                            <Ic.Star c="w-3.5 h-3.5 text-amber-500" />
-                            {birPuan} puan
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-xs text-gray-500 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 text-[11px]">
-                            <span title="Görev Puanı" className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">G: {gPuan}</span>
-                            <span title="Toplantı Puanı" className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100">T: {tPuan}</span>
-                            <span title="Etkileşim Bonusu" className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-100">E: {ePuan}</span>
-                            <span title="Manuel Puan" className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">M: {mPuan}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap">
-                          <button
-                            id={`btn-perf-detail-${targetId}`}
-                            onClick={() => fetchDetail(targetId, item)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                              isSelected
-                                ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
-                            }`}
-                          >
-                            <Ic.Eye c="w-3.5 h-3.5" /> Detay / Performans Gör
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={fetchList}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-600 text-xs font-medium border border-gray-200 transition-all disabled:opacity-50"
+            >
+              <span className={loading ? 'animate-spin inline-block' : 'inline-block'}>
+                <Ic.Refresh c="w-3.5 h-3.5" />
+              </span>
+              Yenile
+            </button>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"><Ic.Search /></span>
+              <input
+                type="text"
+                placeholder="Katılımcı veya takım ara…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 w-44"
+              />
+            </div>
           </div>
         </div>
 
-        {/* DETAY PANELİ */}
-        {detail && (
-          <div className="w-full lg:w-[52%] xl:w-[55%] bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden flex flex-col transition-all duration-300">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-amber-50/60">
-              <div className="flex items-center gap-3 min-w-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/80 border-b border-gray-100">
+                {['#', 'Katılımcı', 'Takım', 'Bireysel Puan', 'Puan Dağılımı', 'İşlem'].map(h => (
+                  <th key={h} className="text-left px-4 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading
+                ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={6} />)
+                : filtered.length === 0
+                ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-16 text-gray-400">
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="text-4xl">⭐</span>
+                        <p className="font-semibold text-gray-700">Henüz performans kaydı bulunmuyor.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )
+                : filtered.map((item, idx) => {
+                  if (!item || typeof item !== 'object') return null
+                  const targetId = item.katilimci || item.id
+                  const isSelected = selectedKatilimciId === targetId
+                  const kAdi = String(item.ad_soyad || item.katilimci_adi || 'Bilinmeyen Katılımcı')
+                  const tAdi = item.takim_adi ? String(item.takim_adi) : null
+                  const birPuan = Number(item.bireysel_puan) || 0
+                  const gPuan = Number(item.gorev_puani) || 0
+                  const tPuan = Number(item.toplanti_katilim_puani) || 0
+                  const ePuan = Number(item.etkilesim_bonus_puani) || 0
+                  const mPuan = Number(item.manuel_puan) || 0
+
+                  return (
+                    <tr
+                      key={item.id || idx}
+                      className={`border-t border-gray-100 transition-colors duration-150 ${
+                        isSelected ? 'bg-amber-50/70 font-medium' : 'hover:bg-gray-50/80'
+                      }`}
+                    >
+                      <td className="px-4 py-3.5 text-gray-400 font-mono text-xs">{idx + 1}</td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          {getParticipantAvatarSrc(item) ? (
+                            <img
+                              src={getParticipantAvatarSrc(item, 80)}
+                              alt={kAdi}
+                              onError={(e) => { e.currentTarget.style.display = 'none' }}
+                              className="w-7 h-7 rounded-full object-cover ring-1 ring-amber-300 flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-orange-100 flex items-center justify-center flex-shrink-0 text-amber-800 font-bold text-xs">
+                              {kAdi[0].toUpperCase()}
+                            </div>
+                          )}
+                          <span className="font-medium text-gray-800 whitespace-nowrap">{kAdi}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-gray-600 whitespace-nowrap">
+                        {tAdi ? <span className="bg-violet-50 text-violet border border-violet/20 font-semibold px-2 py-0.5 rounded-md">{tAdi}</span> : <span className="text-gray-400 italic">Takımsız</span>}
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-100 border border-amber-200/80 px-2.5 py-1 rounded-full text-xs shadow-2xs">
+                          <Ic.Star c="w-3.5 h-3.5 text-amber-500" />
+                          {birPuan} puan
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-gray-500 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span title="Görev Puanı" className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">G: {gPuan}</span>
+                          <span title="Toplantı Puanı" className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100">T: {tPuan}</span>
+                          <span title="Etkileşim Bonusu" className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-100">E: {ePuan}</span>
+                          <span title="Manuel Puan" className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">M: {mPuan}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <button
+                          id={`btn-perf-detail-${targetId}`}
+                          onClick={() => fetchDetail(targetId, item)}
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border shadow-2xs transition-all ${
+                            isSelected
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                              : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                          }`}
+                        >
+                          <Ic.Eye c="w-3.5 h-3.5" /> Detay Gör
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          GENİŞ / TAM PANEL PERFORMANS DETAY MODAL
+      ═══════════════════════════════════════════════════════════════ */}
+      {detail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDetail(null)
+              setSelectedKatilimciId(null)
+            }
+          }}
+        >
+          <div className="w-full max-w-7xl h-[94vh] max-h-[94vh] bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-scale-up">
+            
+            {/* 1. STICKY MODAL HEADER */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-amber-50/90 via-orange-50/80 to-amber-50/90 backdrop-blur-md sticky top-0 z-20 flex-shrink-0">
+              <div className="flex items-center gap-3.5 min-w-0">
                 <button
                   id="btn-close-perf-detail"
                   onClick={() => { setDetail(null); setSelectedKatilimciId(null) }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-700 text-xs font-bold border border-gray-200 shadow-2xs transition-all flex-shrink-0"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-gray-100 text-gray-700 text-xs font-bold border border-gray-200 shadow-2xs transition-all flex-shrink-0"
+                  title="Listeye Geri Dön (ESC)"
                 >
-                  <Ic.Close c="w-3.5 h-3.5 text-gray-500" />
-                  <span>Listeye Dön</span>
+                  <Ic.Close c="w-4 h-4 text-gray-500" />
+                  <span className="hidden sm:inline">Listeye Dön</span>
                 </button>
 
                 {(() => {
@@ -3202,6 +3223,7 @@ function PerformansSection({ token, setToast }) {
                   const tName = katilimciObj.takim_adi || katilimciObj.takim || performansObj.takim_adi || 'Takımsız'
                   const email = katilimciObj.eposta || performansObj.eposta || ''
                   const uni = katilimciObj.universite || performansObj.universite || ''
+                  const sinif = katilimciObj.sinif || performansObj.sinif || ''
 
                   return (
                     <>
@@ -3217,46 +3239,58 @@ function PerformansSection({ token, setToast }) {
                             src={getParticipantAvatarSrc(katilimciObj, 120)}
                             alt={kName}
                             onError={(e) => { e.currentTarget.style.display = 'none' }}
-                            className="w-10 h-10 rounded-xl object-cover ring-2 ring-amber-300 shadow-2xs group-hover:scale-105 transition-all"
+                            className="w-11 h-11 rounded-2xl object-cover ring-2 ring-amber-300 shadow-xs group-hover:scale-105 transition-all"
                           />
                         </a>
                       ) : (
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-base shadow-2xs flex-shrink-0">
+                        <div className="w-11 h-11 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center font-black text-lg shadow-xs flex-shrink-0">
                           {kInitial}
                         </div>
                       )}
                       <div className="min-w-0">
-                        <h3 className="font-bold text-gray-800 text-base leading-snug truncate">{kName}</h3>
-                        <p className="text-xs text-gray-500 truncate">
-                          {email ? `${email} · ` : ''}
-                          <span className="font-semibold text-gray-700">{tName}</span>
-                          {uni ? ` · ${uni}` : ''}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-extrabold text-gray-800 text-base leading-snug truncate">{kName}</h3>
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                            Katılımcı #{katilimciObj.id || selectedKatilimciId}
+                          </span>
+                          {tName && tName !== 'Takımsız' && (
+                            <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                              🏆 {tName}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          {email ? <span className="font-mono text-[11px]">{email} · </span> : ''}
+                          {uni ? <span>{uni}{sinif ? ` (${sinif}. Sınıf)` : ''}</span> : ''}
                         </p>
                       </div>
                     </>
                   )
                 })()}
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="text-right">
-                  <span className="text-xs text-gray-400 font-semibold block uppercase">Bireysel Puan</span>
-                  <span className="text-xl font-black text-amber-600">{Number(performansObj.bireysel_puan) || 0}</span>
+
+              <div className="flex items-center gap-3.5 flex-shrink-0">
+                <div className="text-right bg-white/90 px-4 py-1.5 rounded-2xl border border-amber-200 shadow-2xs">
+                  <span className="text-[10px] text-amber-700 font-bold block uppercase tracking-wider">Bireysel Puan</span>
+                  <span className="text-xl font-black text-amber-900 tabular-nums">
+                    {Number(performansObj.bireysel_puan) || 0} <span className="text-xs font-bold text-amber-600">puan</span>
+                  </span>
                 </div>
                 <button
                   onClick={() => { setDetail(null); setSelectedKatilimciId(null) }}
-                  className="p-2 rounded-xl hover:bg-amber-100/60 text-gray-400 hover:text-gray-600 transition-colors"
-                  title="Detayı Kapat"
+                  className="p-2.5 rounded-2xl bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 border border-gray-200 transition-colors shadow-2xs"
+                  title="Kapat (ESC)"
                 >
-                  <Ic.Close c="w-4.5 h-4.5" />
+                  <Ic.Close c="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Detay Sekme Butonları */}
-            <div className="flex border-b border-gray-100 bg-gray-50/60 px-6 gap-1 overflow-x-auto">
+            {/* 2. DETAY SEKME BUTONLARI */}
+            <div className="flex border-b border-gray-100 bg-gray-50/80 px-6 gap-2 overflow-x-auto flex-shrink-0">
               {[
-                { key: 'puanlar', label: '⭐ Puan Düzenle & Notlar' },
                 { key: 'profil', label: '👤 Profil Detayları' },
+                { key: 'puanlar', label: '⭐ Puan Düzenle & Notlar' },
                 { key: 'toplanti', label: `📅 Toplantılar (${toplantiKatilimlari.length})` },
                 { key: 'sosyal', label: `📱 Sosyal Medya (${sosyalMedyaList.length})` },
                 { key: 'teslimler', label: `📋 Teslimler (${teslimlerList.length})` },
@@ -3264,10 +3298,10 @@ function PerformansSection({ token, setToast }) {
                 <button
                   key={t.key}
                   onClick={() => setActiveTab(t.key)}
-                  className={`px-4 py-3 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
+                  className={`px-4 py-3.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
                     activeTab === t.key
-                      ? 'border-amber-500 text-amber-800 bg-white shadow-2xs'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+                      ? 'border-amber-500 text-amber-900 bg-white shadow-2xs'
+                      : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-100/60'
                   }`}
                 >
                   {t.label}
@@ -3275,115 +3309,17 @@ function PerformansSection({ token, setToast }) {
               ))}
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[calc(100vh-230px)] space-y-6">
+            {/* 3. SCROLLABLE TAB CONTENT */}
+            <div className="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6">
               {detailLoading && (
-                <div className="py-8 text-center text-gray-400 animate-pulse">Veriler güncelleniyor…</div>
+                <div className="py-16 text-center text-gray-400 animate-pulse text-sm">Katılımcı detay verileri yükleniyor…</div>
               )}
 
-              {/* 1. TAB: PUAN DÜZENLEME & NOTLAR */}
-              {!detailLoading && activeTab === 'puanlar' && (
-                <div className="space-y-6">
-                  {/* Form */}
-                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                      <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Puanları Güncelle</h4>
-                      <span className="text-xs font-semibold text-amber-700">
-                        Canlı Toplam: <strong className="text-base font-black text-amber-800">{calcLiveTotal}</strong> puan
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Görev Puanı</label>
-                        <input
-                          type="number"
-                          readOnly
-                          value={scoreForm.gorev_puani}
-                          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-100/80 text-gray-600 font-semibold cursor-not-allowed"
-                        />
-                        <span className="text-[10px] text-gray-400 block mt-1">Teslim değerlendirmelerinden gelir</span>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Toplantı Puanı</label>
-                        <input
-                          type="number"
-                          readOnly
-                          value={scoreForm.toplanti_katilim_puani}
-                          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-100/80 text-gray-600 font-semibold cursor-not-allowed"
-                        />
-                        <span className="text-[10px] text-gray-400 block mt-1">Toplantı kayıtlarından gelir</span>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Etkileşim Bonusu</label>
-                        <input
-                          type="number"
-                          readOnly
-                          value={scoreForm.etkilesim_bonus_puani}
-                          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-100/80 text-gray-600 font-semibold cursor-not-allowed"
-                        />
-                        <span className="text-[10px] text-gray-400 block mt-1">Sosyal medya kayıtlarından gelir</span>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-amber-800 uppercase mb-1">Manuel Puan ★</label>
-                        <input
-                          type="number"
-                          value={scoreForm.manuel_puan}
-                          onChange={e => setScoreForm(f => ({ ...f, manuel_puan: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm rounded-xl border border-amber-300 bg-white focus:ring-2 focus:ring-amber-400 font-extrabold text-amber-900 shadow-2xs"
-                        />
-                        <span className="text-[10px] text-amber-600 font-semibold block mt-1">Admin tarafından elle girilir</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 pt-2">
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1 flex items-center justify-between">
-                          <span>🔒 Admin İç Notu</span>
-                          <span className="text-[10px] text-gray-400 font-normal">Sadece adminler görebilir</span>
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={scoreForm.admin_ici_not}
-                          onChange={e => setScoreForm(f => ({ ...f, admin_ici_not: e.target.value }))}
-                          placeholder="Yalnızca admin yöneticilerin görebileceği notlar…"
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-amber-200/80 bg-amber-50/40 focus:ring-2 focus:ring-amber-300 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1 flex items-center justify-between">
-                          <span>👁️ Katılımcıya Görünen Not</span>
-                          <span className="text-[10px] text-emerald-600 font-normal">Katılımcı panelinde görünür</span>
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={scoreForm.katilimciya_gorunen_not}
-                          onChange={e => setScoreForm(f => ({ ...f, katilimciya_gorunen_not: e.target.value }))}
-                          placeholder="Katılımcının görebileceği genel değerlendirme notu…"
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-emerald-200/80 bg-emerald-50/30 focus:ring-2 focus:ring-emerald-300 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        id="btn-save-perf-score"
-                        onClick={handleScoreSave}
-                        disabled={savingScore}
-                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
-                      >
-                        {savingScore ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Ic.Check c="w-4 h-4" />}
-                        Manuel Puan & Notları Kaydet
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 2. TAB: PROFİL DETAYLARI */}
+              {/* ─── TAB 1: PROFİL DETAYLARI ─── */}
               {!detailLoading && activeTab === 'profil' && (
                 <div className="space-y-6">
                   {/* Profil Başlık & Fotoğraf */}
-                  <div className="bg-gradient-to-r from-orange-50 to-amber-50/60 border border-amber-200/80 rounded-2xl p-5 flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                  <div className="bg-gradient-to-r from-orange-50 via-amber-50/70 to-pink-50/50 border border-amber-200/80 rounded-3xl p-6 sm:p-7 flex flex-col sm:flex-row items-center sm:items-start gap-6 shadow-sm">
                     {getParticipantAvatarSrc(katilimciObj) ? (
                       <a
                         href={katilimciObj.profil_fotografi_url || getParticipantAvatarSrc(katilimciObj)}
@@ -3396,232 +3332,363 @@ function PerformansSection({ token, setToast }) {
                           src={getParticipantAvatarSrc(katilimciObj, 400)}
                           alt={katilimciObj.ad_soyad}
                           onError={(e) => { e.currentTarget.style.display = 'none' }}
-                          className="w-20 h-20 rounded-2xl object-cover ring-2 ring-amber-300 shadow-md group-hover:scale-105 transition-all"
+                          className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover ring-4 ring-amber-300 shadow-md group-hover:scale-105 transition-all"
                         />
-                        <span className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold transition-opacity">
+                        <span className="absolute inset-0 bg-black/30 rounded-3xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
                           Büyüt ↗
                         </span>
                       </a>
                     ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center font-black text-2xl shadow-sm shrink-0">
+                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-black text-3xl shadow-md shrink-0">
                         {(katilimciObj.ad_soyad || '?')[0]?.toUpperCase()}
                       </div>
                     )}
 
-                    <div className="space-y-1 text-center sm:text-left min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-                        <h4 className="font-extrabold text-gray-800 text-base">{katilimciObj.ad_soyad}</h4>
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                    <div className="space-y-2 text-center sm:text-left min-w-0 flex-1">
+                      <div className="flex items-center gap-2.5 flex-wrap justify-center sm:justify-start">
+                        <h4 className="font-black text-gray-800 text-xl tracking-tight">{katilimciObj.ad_soyad}</h4>
+                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-0.5 rounded-full border border-amber-200">
                           Katılımcı #{katilimciObj.id}
                         </span>
                         {katilimciObj.takim_adi && (
-                          <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                          <span className="text-xs font-bold text-purple-700 bg-purple-100 px-3 py-0.5 rounded-full border border-purple-200">
                             🏆 {katilimciObj.takim_adi}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 font-mono">{katilimciObj.eposta || '—'}</p>
-                      <p className="text-xs text-gray-600">
-                        {katilimciObj.telefon ? `📞 ${katilimciObj.telefon}` : <span className="text-gray-400 italic">Telefon belirtilmemiş</span>}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-gray-500 justify-center sm:justify-start">
+                        <span className="font-mono">✉️ {katilimciObj.eposta || '—'}</span>
+                        <span>•</span>
+                        <span>📞 {katilimciObj.telefon || <span className="italic">Telefon belirtilmemiş</span>}</span>
+                        <span>•</span>
+                        <span>🎓 {katilimciObj.universite || 'Üniversite belirtilmemiş'}</span>
+                      </div>
                       {katilimciObj.profil_guncelleme_tarihi && (
-                        <p className="text-[10px] text-gray-400 pt-1">
+                        <p className="text-[11px] text-gray-400 pt-1">
                           Son Profil Güncellemesi: {new Date(katilimciObj.profil_guncelleme_tarihi).toLocaleString('tr-TR')}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* İletişim & Adres Detayları */}
-                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5 space-y-3">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>📍</span> İletişim & Gönderim Adresi
-                    </h4>
-                    <div className="bg-white border border-gray-100 rounded-xl p-3.5 text-xs text-gray-700 leading-relaxed">
-                      {katilimciObj.adres && String(katilimciObj.adres).trim() ? (
-                        <p className="whitespace-pre-line">{katilimciObj.adres}</p>
-                      ) : (
-                        <p className="text-gray-400 italic">Adres bilgisi henüz katılımcı tarafından girilmedi.</p>
-                      )}
+                  {/* 3 Kolonlu Detay Kartları */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* İletişim & Adres */}
+                    <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3.5">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>📍</span> İletişim & Gönderim Adresi
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Telefon Numarası</span>
+                          <span className="font-semibold text-gray-800 text-xs">{katilimciObj.telefon || 'Belirtilmemiş'}</span>
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">E-Posta Adresi</span>
+                          <span className="font-mono text-gray-800 text-xs">{katilimciObj.eposta || '—'}</span>
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3.5 text-xs text-gray-700 leading-relaxed">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Açık İkamet / Gönderim Adresi</span>
+                          {katilimciObj.adres && String(katilimciObj.adres).trim() ? (
+                            <p className="whitespace-pre-line text-xs">{katilimciObj.adres}</p>
+                          ) : (
+                            <p className="text-gray-400 italic">Adres bilgisi henüz girilmedi.</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Eğitim & Okul Detayları */}
-                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5 space-y-3">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>🎓</span> Eğitim & Okul Bilgileri
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-white border border-gray-100 rounded-xl p-3">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Üniversite</span>
-                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.universite || '—'}</span>
-                      </div>
-                      <div className="bg-white border border-gray-100 rounded-xl p-3">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Sınıf</span>
-                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.sinif || '—'}</span>
-                      </div>
-                      <div className="bg-white border border-gray-100 rounded-xl p-3">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Eğitim Durumu</span>
-                        <span className="font-semibold text-gray-800 text-xs">
-                          {katilimciObj.egitim_durumu ? (
-                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-100">
-                              {katilimciObj.egitim_durumu}
-                            </span>
-                          ) : '—'}
-                        </span>
+                    {/* Eğitim & Okul */}
+                    <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3.5">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🎓</span> Eğitim & Okul Bilgileri
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Üniversite</span>
+                            <span className="font-semibold text-gray-800 text-xs">{katilimciObj.universite || '—'}</span>
+                          </div>
+                          <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Sınıf</span>
+                            <span className="font-semibold text-gray-800 text-xs">{katilimciObj.sinif || '—'}</span>
+                          </div>
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Eğitim Durumu</span>
+                          <span className="font-semibold text-gray-800 text-xs">
+                            {katilimciObj.egitim_durumu ? (
+                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-100">
+                                {katilimciObj.egitim_durumu}
+                              </span>
+                            ) : '—'}
+                          </span>
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3.5 text-xs text-gray-700">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Okul & Bölüm Tam Bilgileri</span>
+                          {katilimciObj.okul_bilgisi && String(katilimciObj.okul_bilgisi).trim() ? (
+                            <p className="whitespace-pre-line text-xs">{katilimciObj.okul_bilgisi}</p>
+                          ) : (
+                            <p className="text-gray-400 italic">Detaylı okul bilgisi girilmedi.</p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-white border border-gray-100 rounded-xl p-3.5 text-xs text-gray-700">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Okul & Bölüm Tam Bilgileri</span>
-                      {katilimciObj.okul_bilgisi && String(katilimciObj.okul_bilgisi).trim() ? (
-                        <p className="whitespace-pre-line text-xs">{katilimciObj.okul_bilgisi}</p>
-                      ) : (
-                        <p className="text-gray-400 italic">Detaylı okul bilgisi girilmedi.</p>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* İş & Kariyer Detayları */}
-                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5 space-y-3">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>💼</span> İş & Kariyer Durumu
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-white border border-gray-100 rounded-xl p-3">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">İş Durumu</span>
-                        <span className="font-semibold text-gray-800 text-xs">
-                          {katilimciObj.is_durumu ? (
-                            <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-bold border border-purple-100">
-                              {katilimciObj.is_durumu}
-                            </span>
-                          ) : '—'}
-                        </span>
+                    {/* İş & Kariyer */}
+                    <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3.5">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>💼</span> İş & Kariyer Durumu
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">İş Durumu</span>
+                          <span className="font-semibold text-gray-800 text-xs">
+                            {katilimciObj.is_durumu ? (
+                              <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-bold border border-purple-100">
+                                {katilimciObj.is_durumu}
+                              </span>
+                            ) : '—'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Çalıştığı Kurum</span>
+                            <span className="font-semibold text-gray-800 text-xs">{katilimciObj.calistigi_kurum || '—'}</span>
+                          </div>
+                          <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Pozisyon</span>
+                            <span className="font-semibold text-gray-800 text-xs">{katilimciObj.pozisyon || '—'}</span>
+                          </div>
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3.5 text-xs text-gray-700">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">İş & Sorumluluk Açıklaması</span>
+                          {katilimciObj.is_aciklamasi && String(katilimciObj.is_aciklamasi).trim() ? (
+                            <p className="whitespace-pre-line text-xs">{katilimciObj.is_aciklamasi}</p>
+                          ) : (
+                            <p className="text-gray-400 italic">İş açıklaması girilmedi.</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="bg-white border border-gray-100 rounded-xl p-3">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Çalıştığı Kurum</span>
-                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.calistigi_kurum || '—'}</span>
-                      </div>
-                      <div className="bg-white border border-gray-100 rounded-xl p-3">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Pozisyon / Ünvan</span>
-                        <span className="font-semibold text-gray-800 text-xs">{katilimciObj.pozisyon || '—'}</span>
-                      </div>
-                    </div>
-                    <div className="bg-white border border-gray-100 rounded-xl p-3.5 text-xs text-gray-700">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">İş & Sorumluluk Açıklaması</span>
-                      {katilimciObj.is_aciklamasi && String(katilimciObj.is_aciklamasi).trim() ? (
-                        <p className="whitespace-pre-line text-xs">{katilimciObj.is_aciklamasi}</p>
-                      ) : (
-                        <p className="text-gray-400 italic">İş açıklaması girilmedi.</p>
-                      )}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 2. TAB: TOPLANTI KATILIMI */}
-              {!detailLoading && activeTab === 'toplanti' && (
+              {/* ─── TAB 2: PUAN DÜZENLEME & NOTLAR ─── */}
+              {!detailLoading && activeTab === 'puanlar' && (
                 <div className="space-y-6">
-                  {/* Ekleme Formu */}
-                  <form onSubmit={handleToplantiSubmit} className="bg-emerald-50/40 border border-emerald-100 rounded-2xl p-4 space-y-3">
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-6 sm:p-7 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-gray-200">
+                      <div>
+                        <h4 className="text-sm font-black text-gray-800 uppercase tracking-wider">Puan Hesaplama & Manuel Giriş</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">Otomatik hesaplanan alt puanları inceleyebilir veya manuel puan ekleyebilirsiniz</p>
+                      </div>
+                      <div className="bg-white border border-amber-300 px-4 py-2 rounded-2xl shadow-2xs">
+                        <span className="text-xs font-bold text-amber-700">
+                          Canlı Toplam Puan: <strong className="text-lg font-black text-amber-900">{calcLiveTotal}</strong> puan
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-white border border-gray-200/70 rounded-2xl p-4 shadow-2xs">
+                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Görev Puanı</label>
+                        <input
+                          type="number"
+                          readOnly
+                          value={scoreForm.gorev_puani}
+                          className="w-full px-3.5 py-2.5 text-base rounded-xl border border-gray-200 bg-gray-100/80 text-gray-700 font-bold cursor-not-allowed"
+                        />
+                        <span className="text-[10px] text-gray-400 block mt-1">Teslim değerlendirmelerinden gelir</span>
+                      </div>
+                      <div className="bg-white border border-gray-200/70 rounded-2xl p-4 shadow-2xs">
+                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Toplantı Puanı</label>
+                        <input
+                          type="number"
+                          readOnly
+                          value={scoreForm.toplanti_katilim_puani}
+                          className="w-full px-3.5 py-2.5 text-base rounded-xl border border-gray-200 bg-gray-100/80 text-gray-700 font-bold cursor-not-allowed"
+                        />
+                        <span className="text-[10px] text-gray-400 block mt-1">Toplantı kayıtlarından gelir</span>
+                      </div>
+                      <div className="bg-white border border-gray-200/70 rounded-2xl p-4 shadow-2xs">
+                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Etkileşim Bonusu</label>
+                        <input
+                          type="number"
+                          readOnly
+                          value={scoreForm.etkilesim_bonus_puani}
+                          className="w-full px-3.5 py-2.5 text-base rounded-xl border border-gray-200 bg-gray-100/80 text-gray-700 font-bold cursor-not-allowed"
+                        />
+                        <span className="text-[10px] text-gray-400 block mt-1">Sosyal medya kayıtlarından gelir</span>
+                      </div>
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50/70 border-2 border-amber-300 rounded-2xl p-4 shadow-2xs">
+                        <label className="block text-[11px] font-black text-amber-900 uppercase mb-1">Manuel Puan ★</label>
+                        <input
+                          type="number"
+                          value={scoreForm.manuel_puan}
+                          onChange={e => setScoreForm(f => ({ ...f, manuel_puan: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 text-base rounded-xl border border-amber-400 bg-white focus:ring-2 focus:ring-amber-400 font-black text-amber-950 shadow-2xs"
+                        />
+                        <span className="text-[10px] text-amber-700 font-semibold block mt-1">Admin tarafından girilir</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div className="bg-white border border-amber-200/70 rounded-2xl p-4 shadow-2xs space-y-2">
+                        <label className="block text-xs font-bold text-gray-700 uppercase flex items-center justify-between">
+                          <span>🔒 Admin İç Notu</span>
+                          <span className="text-[10px] text-gray-400 font-normal">Yalnızca yöneticiler görür</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={scoreForm.admin_ici_not}
+                          onChange={e => setScoreForm(f => ({ ...f, admin_ici_not: e.target.value }))}
+                          placeholder="Yalnızca admin yöneticilerin görebileceği dahili notlar…"
+                          className="w-full p-3 text-xs rounded-xl border border-amber-200/80 bg-amber-50/30 focus:ring-2 focus:ring-amber-300 focus:outline-none resize-none"
+                        />
+                      </div>
+                      <div className="bg-white border border-emerald-200/70 rounded-2xl p-4 shadow-2xs space-y-2">
+                        <label className="block text-xs font-bold text-gray-700 uppercase flex items-center justify-between">
+                          <span>👁️ Katılımcıya Görünen Not</span>
+                          <span className="text-[10px] text-emerald-600 font-normal">Katılımcı panelinde görünür</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={scoreForm.katilimciya_gorunen_not}
+                          onChange={e => setScoreForm(f => ({ ...f, katilimciya_gorunen_not: e.target.value }))}
+                          placeholder="Katılımcının panelinde görebileceği genel geri bildirim notu…"
+                          className="w-full p-3 text-xs rounded-xl border border-emerald-200/80 bg-emerald-50/30 focus:ring-2 focus:ring-emerald-300 focus:outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        id="btn-save-perf-score"
+                        onClick={handleScoreSave}
+                        disabled={savingScore}
+                        className="flex items-center gap-2 px-7 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                      >
+                        {savingScore ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Ic.Check c="w-4 h-4" />}
+                        Manuel Puan & Notları Kaydet
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── TAB 3: TOPLANTI KATILIMI ─── */}
+              {!detailLoading && activeTab === 'toplanti' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Sol: Ekleme Formu */}
+                  <form onSubmit={handleToplantiSubmit} className="lg:col-span-5 bg-emerald-50/50 border border-emerald-200/80 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
                     <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
                       <span>📅</span> Yeni Toplantı Katılımı Ekle
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-3">
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Toplantı Başlığı ★</label>
+                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Toplantı Başlığı ★</label>
                         <input
                           type="text"
                           required
                           value={toplantiForm.baslik}
                           onChange={e => setToplantiForm(f => ({ ...f, baslik: e.target.value }))}
                           placeholder="Örn: Hafta 2 Değerlendirme"
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
+                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Tarih</label>
-                        <input
-                          type="date"
-                          value={toplantiForm.tarih}
-                          onChange={e => setToplantiForm(f => ({ ...f, tarih: e.target.value }))}
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Tarih</label>
+                          <input
+                            type="date"
+                            value={toplantiForm.tarih}
+                            onChange={e => setToplantiForm(f => ({ ...f, tarih: e.target.value }))}
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Katılım Puanı</label>
+                          <input
+                            type="number"
+                            value={toplantiForm.katilim_puani}
+                            onChange={e => setToplantiForm(f => ({ ...f, katilim_puani: e.target.value }))}
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-center">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5 pt-1">
                         <input
                           type="checkbox"
                           id="toplanti-katildi"
                           checked={toplantiForm.katildi_mi}
                           onChange={e => setToplantiForm(f => ({ ...f, katildi_mi: e.target.checked }))}
-                          className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-300"
+                          className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-300 cursor-pointer"
                         />
-                        <label htmlFor="toplanti-katildi" className="text-xs font-semibold text-gray-700 cursor-pointer">Katıldı mı?</label>
+                        <label htmlFor="toplanti-katildi" className="text-xs font-bold text-gray-700 cursor-pointer">Toplantıya Katıldı mı?</label>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Katılım Puanı</label>
-                        <input
-                          type="number"
-                          value={toplantiForm.katilim_puani}
-                          onChange={e => setToplantiForm(f => ({ ...f, katilim_puani: e.target.value }))}
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
-                        />
-                      </div>
-                      <div className="col-span-2 sm:col-span-1">
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Not</label>
+                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Toplantı Notu</label>
                         <input
                           type="text"
                           value={toplantiForm.not_metni}
                           onChange={e => setToplantiForm(f => ({ ...f, not_metni: e.target.value }))}
-                          placeholder="Açıklama/not…"
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
+                          placeholder="Katılım veya mazeret açıklaması…"
+                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
                         />
                       </div>
                     </div>
-                    <div className="flex justify-end pt-1">
+                    <div className="flex justify-end pt-2">
                       <button
                         type="submit"
                         disabled={savingToplanti}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all disabled:opacity-50"
                       >
                         {savingToplanti ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Ic.Plus c="w-3.5 h-3.5" />}
-                        Kaydet
+                        Toplantı Kaydını Ekle
                       </button>
                     </div>
                   </form>
 
-                  {/* Liste */}
-                  <div className="space-y-2">
-                    <h5 className="text-xs font-bold text-gray-500 uppercase">Toplantı Katılım Geçmişi</h5>
+                  {/* Sağ: Liste */}
+                  <div className="lg:col-span-7 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-bold text-gray-600 uppercase tracking-wider">Toplantı Katılım Geçmişi ({toplantiKatilimlari.length})</h5>
+                      <span className="text-xs text-emerald-700 font-semibold">
+                        Toplam Katılım: {toplantiKatilimlari.filter(t => t.katildi_mi).length} / {toplantiKatilimlari.length}
+                      </span>
+                    </div>
                     {toplantiKatilimlari.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">Henüz toplantı kaydı yok.</p>
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-8 text-center text-gray-400 italic text-xs">
+                        Henüz kayıtlı toplantı bulunmuyor.
+                      </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         {toplantiKatilimlari.map(tk => {
                           if (!tk || typeof tk !== 'object') return null
                           return (
-                            <div key={tk.id || Math.random()} className="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between text-xs shadow-2xs">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-gray-800">{String(tk.baslik || 'Toplantı')}</span>
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tk.katildi_mi ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            <div key={tk.id || Math.random()} className="bg-white border border-gray-200/80 rounded-2xl p-4 flex items-center justify-between text-xs shadow-2xs hover:shadow-xs transition-shadow">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-gray-800 text-sm">{String(tk.baslik || 'Toplantı')}</span>
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${tk.katildi_mi ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
                                     {tk.katildi_mi ? '✅ Katıldı' : '❌ Katılmadı'}
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-gray-400 mt-0.5">{String(tk.tarih || '—')} {tk.not_metni ? `· Not: ${String(tk.not_metni)}` : ''}</p>
+                                <p className="text-[11px] text-gray-400">{String(tk.tarih || '—')} {tk.not_metni ? `· Not: ${String(tk.not_metni)}` : ''}</p>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                                <span className="font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-100">
                                   +{Number(tk.katilim_puani) || 0} puan
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleToplantiDelete(tk.id)}
                                   disabled={deletingToplanti === tk.id}
-                                  className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[11px] border border-red-200 transition-all flex items-center gap-1 disabled:opacity-50"
+                                  className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs border border-red-200 transition-all flex items-center gap-1 disabled:opacity-50"
                                 >
-                                  {deletingToplanti === tk.id ? <span className="w-3 h-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin" /> : <Ic.Trash c="w-3 h-3" />}
+                                  {deletingToplanti === tk.id ? <span className="w-3.5 h-3.5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" /> : <Ic.Trash c="w-3.5 h-3.5" />}
                                   Sil
                                 </button>
                               </div>
@@ -3634,116 +3701,122 @@ function PerformansSection({ token, setToast }) {
                 </div>
               )}
 
-              {/* 3. TAB: SOSYAL MEDYA */}
+              {/* ─── TAB 4: SOSYAL MEDYA ─── */}
               {!detailLoading && activeTab === 'sosyal' && (
-                <div className="space-y-6">
-                  {/* Form */}
-                  <form onSubmit={handleSosyalSubmit} className="bg-purple-50/40 border border-purple-100 rounded-2xl p-4 space-y-3">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Sol: Form */}
+                  <form onSubmit={handleSosyalSubmit} className="lg:col-span-5 bg-purple-50/50 border border-purple-200/80 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold text-purple-800 uppercase tracking-wider flex items-center gap-1.5">
                         <span>📱</span> Sosyal Medya Performansı Ekle
                       </h4>
-                      <span className="text-[11px] font-medium text-purple-600 bg-purple-100 px-2 py-0.5 rounded-md">
-                        Tahmini Oran: %{Number(sosyalForm.takipci_sayisi) > 0 ? ((Number(sosyalForm.etkilesim_sayisi) || 0) / Number(sosyalForm.takipci_sayisi) * 100).toFixed(2) : '0.00'}
+                      <span className="text-[11px] font-bold text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full">
+                        Tahmini: %{Number(sosyalForm.takipci_sayisi) > 0 ? ((Number(sosyalForm.etkilesim_sayisi) || 0) / Number(sosyalForm.takipci_sayisi) * 100).toFixed(2) : '0.00'}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Platform ★</label>
-                        <select
-                          value={sosyalForm.platform}
-                          onChange={e => setSosyalForm(f => ({ ...f, platform: e.target.value }))}
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
-                        >
-                          <option value="Instagram">Instagram</option>
-                          <option value="LinkedIn">LinkedIn</option>
-                          <option value="YouTube">YouTube</option>
-                          <option value="Twitter">Twitter / X</option>
-                          <option value="TikTok">TikTok</option>
-                          <option value="Diger">Diğer</option>
-                        </select>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Platform ★</label>
+                          <select
+                            value={sosyalForm.platform}
+                            onChange={e => setSosyalForm(f => ({ ...f, platform: e.target.value }))}
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
+                          >
+                            <option value="Instagram">Instagram</option>
+                            <option value="LinkedIn">LinkedIn</option>
+                            <option value="YouTube">YouTube</option>
+                            <option value="Twitter">Twitter / X</option>
+                            <option value="TikTok">TikTok</option>
+                            <option value="Diger">Diğer</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Bonus Puan</label>
+                          <input
+                            type="number"
+                            value={sosyalForm.bonus_puan}
+                            onChange={e => setSosyalForm(f => ({ ...f, bonus_puan: e.target.value }))}
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Takipçi Sayısı</label>
+                          <input
+                            type="number"
+                            value={sosyalForm.takipci_sayisi}
+                            onChange={e => setSosyalForm(f => ({ ...f, takipci_sayisi: e.target.value }))}
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Etkileşim Sayısı</label>
+                          <input
+                            type="number"
+                            value={sosyalForm.etkilesim_sayisi}
+                            onChange={e => setSosyalForm(f => ({ ...f, etkilesim_sayisi: e.target.value }))}
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Takipçi Sayısı</label>
+                        <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Not / Link</label>
                         <input
-                          type="number"
-                          value={sosyalForm.takipci_sayisi}
-                          onChange={e => setSosyalForm(f => ({ ...f, takipci_sayisi: e.target.value }))}
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Etkileşim Sayısı</label>
-                        <input
-                          type="number"
-                          value={sosyalForm.etkilesim_sayisi}
-                          onChange={e => setSosyalForm(f => ({ ...f, etkilesim_sayisi: e.target.value }))}
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Bonus Puan</label>
-                        <input
-                          type="number"
-                          value={sosyalForm.bonus_puan}
-                          onChange={e => setSosyalForm(f => ({ ...f, bonus_puan: e.target.value }))}
-                          className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
+                          type="text"
+                          value={sosyalForm.not_metni}
+                          onChange={e => setSosyalForm(f => ({ ...f, not_metni: e.target.value }))}
+                          placeholder="Paylaşım bağlantısı veya kısa not…"
+                          className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Not</label>
-                      <input
-                        type="text"
-                        value={sosyalForm.not_metni}
-                        onChange={e => setSosyalForm(f => ({ ...f, not_metni: e.target.value }))}
-                        placeholder="İçerik/paylaşım hakkında kısa not…"
-                        className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-purple-300 focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex justify-end pt-1">
+                    <div className="flex justify-end pt-2">
                       <button
                         type="submit"
                         disabled={savingSosyal}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all disabled:opacity-50"
                       >
                         {savingSosyal ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Ic.Plus c="w-3.5 h-3.5" />}
-                        Kaydet
+                        Performans Kaydet
                       </button>
                     </div>
                   </form>
 
-                  {/* Liste */}
-                  <div className="space-y-2">
-                    <h5 className="text-xs font-bold text-gray-500 uppercase">Sosyal Medya Kayıtları</h5>
+                  {/* Sağ: Liste */}
+                  <div className="lg:col-span-7 space-y-3">
+                    <h5 className="text-xs font-bold text-gray-600 uppercase tracking-wider">Sosyal Medya Kayıtları ({sosyalMedyaList.length})</h5>
                     {sosyalMedyaList.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">Henüz sosyal medya performansı girilmemiş.</p>
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-8 text-center text-gray-400 italic text-xs">
+                        Henüz sosyal medya performansı girilmemiş.
+                      </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         {sosyalMedyaList.map(sm => {
                           if (!sm || typeof sm !== 'object') return null
                           return (
-                            <div key={sm.id || Math.random()} className="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between text-xs shadow-2xs">
-                              <div>
+                            <div key={sm.id || Math.random()} className="bg-white border border-gray-200/80 rounded-2xl p-4 flex items-center justify-between text-xs shadow-2xs hover:shadow-xs transition-shadow">
+                              <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-bold text-purple-800">{String(sm.platform || 'Platform')}</span>
+                                  <span className="font-bold text-purple-800 text-sm">{String(sm.platform || 'Platform')}</span>
                                   <span className="text-[11px] text-gray-500">
-                                    {Number(sm.takipci_sayisi) || 0} takipçi · {Number(sm.etkilesim_sayisi) || 0} etkileşim · <strong className="text-purple-600">%{Number(sm.etkilesim_orani) || 0}</strong> oran
+                                    {Number(sm.takipci_sayisi) || 0} takipçi · {Number(sm.etkilesim_sayisi) || 0} etkileşim · <strong className="text-purple-600 font-bold">%{Number(sm.etkilesim_orani) || 0}</strong> oran
                                   </span>
                                 </div>
-                                {sm.not_metni && <p className="text-[11px] text-gray-400 mt-0.5">{String(sm.not_metni)}</p>}
+                                {sm.not_metni && <p className="text-[11px] text-gray-400">{String(sm.not_metni)}</p>}
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
+                                <span className="font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-xl border border-purple-100">
                                   +{Number(sm.bonus_puan) || 0} bonus
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleSosyalDelete(sm.id)}
                                   disabled={deletingSosyal === sm.id}
-                                  className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[11px] border border-red-200 transition-all flex items-center gap-1 disabled:opacity-50"
+                                  className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs border border-red-200 transition-all flex items-center gap-1 disabled:opacity-50"
                                 >
-                                  {deletingSosyal === sm.id ? <span className="w-3 h-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin" /> : <Ic.Trash c="w-3 h-3" />}
+                                  {deletingSosyal === sm.id ? <span className="w-3.5 h-3.5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" /> : <Ic.Trash c="w-3.5 h-3.5" />}
                                   Sil
                                 </button>
                               </div>
@@ -3756,12 +3829,16 @@ function PerformansSection({ token, setToast }) {
                 </div>
               )}
 
-              {/* 4. TAB: TESLİMLER */}
+              {/* ─── TAB 5: TESLİMLER & TIMELINE ─── */}
               {!detailLoading && activeTab === 'teslimler' && (
                 <div className="space-y-4">
-                  <h5 className="text-xs font-bold text-gray-500 uppercase">Görev Teslimleri Özeti & Timeline</h5>
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-xs font-bold text-gray-600 uppercase tracking-wider">Görev Teslimleri & Değerlendirme Detayları ({teslimlerList.length})</h5>
+                  </div>
                   {teslimlerList.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">Bu katılımcıya ait görev teslimi bulunmuyor.</p>
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-8 text-center text-gray-400 italic text-xs">
+                      Bu katılımcıya ait henüz görev teslimi bulunmuyor.
+                    </div>
                   ) : (
                     <div className="space-y-4">
                       {teslimlerList.map(t => {
@@ -3771,38 +3848,38 @@ function PerformansSection({ token, setToast }) {
                         const activeLink = fileUrl || extLink || t.dosya_linki
 
                         return (
-                          <div key={t.id || Math.random()} className="bg-white border border-gray-100 rounded-2xl p-4 text-xs shadow-2xs space-y-3">
-                            <div className="flex items-center justify-between gap-2">
+                          <div key={t.id || Math.random()} className="bg-white border border-gray-200/80 rounded-3xl p-5 sm:p-6 text-xs shadow-2xs space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                               <div>
-                                <span className="font-bold text-gray-800 text-sm block">{String(t.gorev_adi || 'Görev')}</span>
-                                <span className="text-[11px] text-gray-400">
+                                <span className="font-extrabold text-gray-800 text-base block">{String(t.gorev_adi || 'Görev')}</span>
+                                <span className="text-[11px] text-gray-400 mt-0.5 block">
                                   Son Teslim Tarihi: {t.teslim_tarihi ? new Date(t.teslim_tarihi).toLocaleDateString('tr-TR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100 text-xs">
+                              <div className="flex items-center gap-2.5 self-start sm:self-center">
+                                <span className="font-bold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 text-xs">
                                   {Number(t.alinan_puan) || 0} puan
                                 </span>
-                                <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                                <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                                   {String(t.durum_etiketi || t.durum || 'BEKLIYOR')}
                                 </span>
                               </div>
                             </div>
 
                             {t.aciklama && (
-                              <div className="bg-gray-50/80 p-2.5 rounded-xl border border-gray-100 text-[11px] text-gray-700">
-                                <span className="font-bold block text-[10px] text-gray-400 uppercase mb-0.5">Katılımcı Açıklaması</span>
+                              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/70 text-xs text-gray-700">
+                                <span className="font-bold block text-[10px] text-gray-400 uppercase mb-1">Katılımcı Teslim Açıklaması</span>
                                 {String(t.aciklama)}
                               </div>
                             )}
 
-                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <div className="flex flex-wrap items-center gap-2.5 pt-1">
                               {fileUrl ? (
                                 <a
                                   href={fileUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs border border-indigo-200 transition-all"
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition-all shadow-2xs"
                                 >
                                   <span>📎</span>
                                   <span>Yüklenen Dosyayı Aç</span>
@@ -3814,7 +3891,7 @@ function PerformansSection({ token, setToast }) {
                                   href={extLink}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-xs border border-purple-200 transition-all"
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition-all shadow-2xs"
                                 >
                                   <span>🔗</span>
                                   <span>Harici Bağlantıyı Aç</span>
@@ -3826,7 +3903,7 @@ function PerformansSection({ token, setToast }) {
                                   href={activeLink}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs border border-indigo-200 transition-all"
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition-all shadow-2xs"
                                 >
                                   <span>📎</span>
                                   <span>Dosyayı / Linki Aç</span>
@@ -3834,21 +3911,22 @@ function PerformansSection({ token, setToast }) {
                               ) : null}
 
                               {!fileUrl && !extLink && !activeLink && (
-                                <span className="text-[11px] text-gray-400 italic bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
+                                <span className="text-xs text-gray-400 italic bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
                                   Dosya veya bağlantı bulunmuyor.
                                 </span>
                               )}
                             </div>
 
                             {t.mentor_yorumu && (
-                              <p className="text-[11px] text-gray-600 bg-amber-50/50 p-2.5 rounded-xl border border-amber-100/80 italic">
-                                <strong>Mentor Yorumu:</strong> "{String(t.mentor_yorumu)}"
-                              </p>
+                              <div className="text-xs text-gray-700 bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200/80 italic">
+                                <strong className="text-amber-900 not-italic font-bold block mb-1">Mentor Geri Bildirimi:</strong>
+                                "{String(t.mentor_yorumu)}"
+                              </div>
                             )}
 
                             {/* TIMELINE */}
-                            <div className="pt-2 border-t border-gray-100">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
+                            <div className="pt-3 border-t border-gray-100">
+                              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-2">
                                 📜 İşlem Geçmişi & Revizyon Timeline'ı
                               </span>
                               <TeslimTimeline hareketler={t.hareketler || t.teslim_hareketleri || t.timeline} />
@@ -3862,11 +3940,8 @@ function PerformansSection({ token, setToast }) {
               )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
-
-
-
