@@ -15,6 +15,7 @@ import {
   submitKatilimciTeslim,
   logoutUser
 } from '../services/supabaseService'
+import { PROGRAM_WEEKS, PROGRAM_SUMMARY } from '../data/programSchedule'
 
 // Form soruları (20 adet final soru ve seçenekleri)
 const QUESTIONS = [
@@ -948,6 +949,7 @@ const Ic = {
   Dashboard: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" /><path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.432z" /></svg>,
   Task: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M7.502 6h7.128A3.375 3.375 0 0118 9.375v9.375a3 3 0 003-3V6.108c0-1.505-1.125-2.811-2.664-2.94a48.972 48.972 0 00-.673-.05A3 3 0 0015 1.5h-1.5a3 3 0 00-2.663 1.618c-.225.015-.45.032-.673.05C8.662 3.295 7.554 4.542 7.502 6zM13.5 3A1.5 1.5 0 0012 4.5h4.5A1.5 1.5 0 0015 3h-1.5z" clipRule="evenodd" /><path fillRule="evenodd" d="M3 9.375C3 8.339 3.84 7.5 4.875 7.5h9.75c1.036 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875h-9.75A1.875 1.875 0 013 20.625V9.375zm9.586 4.594a.75.75 0 00-1.172-.938l-2.476 3.096-.908-.907a.75.75 0 00-1.06 1.06l1.5 1.5a.75.75 0 001.116-.062l3-3.75z" clipRule="evenodd" /></svg>,
   Dna: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={c}><path d="M7 3c5 3 5 15 10 18" /><path d="M17 3C12 6 12 18 7 21" /><path d="M9 6h6" /><path d="M8.5 10h7" /><path d="M8.5 14h7" /><path d="M9 18h6" /></svg>,
+  Calendar: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor" className={c}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5" /></svg>,
   User: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.6-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" /></svg>,
   Logout: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={c}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>,
   Upload: ({ c = 'w-4 h-4' }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={c}><path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>,
@@ -1549,6 +1551,7 @@ export default function KatilimciPanel() {
           <p className="hidden md:block text-[10px] text-slate-400 font-semibold uppercase tracking-widest px-4 mb-2">Menü</p>
           {[
             { key: 'genel', label: 'Genel Bakış', icon: <Ic.Dashboard /> },
+            { key: 'program', label: 'Haftalık Program', icon: <Ic.Calendar /> },
             { key: 'gorevler', label: 'Görevlerim', icon: <Ic.Task /> },
             { key: 'dna', label: 'İçerik DNA Testi', icon: <Ic.Dna /> },
             { key: 'profil', label: 'Profil / Takım', icon: <Ic.User /> },
@@ -1774,42 +1777,77 @@ export default function KatilimciPanel() {
                   </div>
 
                   {/* Hızlı Erişim Kartları */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
 
-                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
-                          📋
+                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-lg">
+                            🗓️
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Haftalık Program</h3>
+                            <p className="text-[11px] text-slate-400">Canlı oturumlar & eğitim linkleri</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-slate-800 text-base">Haftalık Görevler</h3>
-                          <p className="text-xs text-slate-400">Takımınıza atanan görevleri inceleyin ve teslim yükleyin.</p>
-                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          3 haftalık canlı dersler, atölyeler, soru-cevap oturumları ve saha görevleri.
+                        </p>
                       </div>
                       <div className="pt-2">
                         <button
-                          onClick={() => setActiveTab('gorevler')}
-                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold text-xs border border-orange-200 transition-all inline-flex items-center justify-center gap-2"
+                          onClick={() => setActiveTab('program')}
+                          className="w-full px-4 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold text-xs border border-orange-200 transition-all inline-flex items-center justify-center gap-2"
                         >
-                          Görevlerime Git →
+                          Programı Gör →
                         </button>
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
-                          🧬
+                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                            <Ic.Task />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Haftalık Görevler</h3>
+                            <p className="text-[11px] text-slate-400">{tamamlaniSayisi} / {gorevler.length} tamamlandı</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-slate-800 text-base">İçerik DNA Analizi</h3>
-                          <p className="text-xs text-slate-400">20 soruluk testi doldurun veya AI raporunuzu görüntüleyin.</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Takım görevlerinizi tamamlayın, dosya/link yükleyin ve mentor geri bildirimlerini inceleyin.
+                        </p>
+                      </div>
+                      <div className="pt-2">
+                        <button
+                          onClick={() => setActiveTab('gorevler')}
+                          className="w-full px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs border border-blue-200 transition-all inline-flex items-center justify-center gap-2"
+                        >
+                          Görevlere Git →
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-soft space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
+                            🧬
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-sm">İçerik DNA Analizi</h3>
+                            <p className="text-[11px] text-slate-400">Yapay zeka strateji raporu</p>
+                          </div>
                         </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          20 soruluk testi doldurarak kişiselleştirilmiş içerik stratejisi raporunuzu keşfedin.
+                        </p>
                       </div>
                       <div className="pt-2">
                         <button
                           onClick={() => setActiveTab('dna')}
-                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-600 font-bold text-xs border border-purple-200 transition-all inline-flex items-center justify-center gap-2"
+                          className="w-full px-4 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-600 font-bold text-xs border border-purple-200 transition-all inline-flex items-center justify-center gap-2"
                         >
                           DNA Testine Git →
                         </button>
@@ -1818,6 +1856,287 @@ export default function KatilimciPanel() {
 
                   </div>
 
+                </div>
+              )}
+
+              {/* ════════ TAB: HAFTALIK PROGRAM ════════ */}
+              {activeTab === 'program' && (
+                <div className="space-y-8 animate-fade-in">
+                  
+                  {/* Başlık & Açıklama */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">🗓️</span>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Haftalık Eğitim Programı</h2>
+                      </div>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                        Canlı eğitimler, uygulamalı atölyeler, saha görevleri ve eğitim linkleri bu alanda paylaşılır.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Üst 4'lü Özet Kartları */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-soft flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center font-black text-lg shrink-0 shadow-2xs">
+                        {PROGRAM_SUMMARY.totalWeeks}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Eğitim Süreci</p>
+                        <p className="text-sm sm:text-base font-extrabold text-slate-800">3 Hafta</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-soft flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center font-black text-lg shrink-0 shadow-2xs">
+                        {PROGRAM_SUMMARY.totalDays}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Canlı Ders</p>
+                        <p className="text-sm sm:text-base font-extrabold text-slate-800">6 Canlı Gün</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-soft flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center font-black text-lg shrink-0 shadow-2xs">
+                        {PROGRAM_SUMMARY.totalSessions}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modül & Pratik</p>
+                        <p className="text-sm sm:text-base font-extrabold text-slate-800">18 Oturum</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-soft flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-black text-lg shrink-0 shadow-2xs">
+                        {PROGRAM_SUMMARY.totalTasks}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Uygulama</p>
+                        <p className="text-sm sm:text-base font-extrabold text-slate-800">3 Saha Görevi</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Haftalar Listesi */}
+                  <div className="space-y-8">
+                    {PROGRAM_WEEKS.map((weekData) => (
+                      <div
+                        key={weekData.week}
+                        className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden transition-all"
+                      >
+                        {/* Hafta Başlık & Linkler Barı */}
+                        <div className="bg-gradient-to-r from-orange-50/90 via-pink-50/70 to-purple-50/50 p-6 sm:p-7 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
+                          <div className="space-y-1.5 min-w-0">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <span className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-black px-3.5 py-1 rounded-full shadow-xs tracking-wide">
+                                {weekData.week}. HAFTA
+                              </span>
+                              <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">
+                                {weekData.title}
+                              </h3>
+                            </div>
+                          </div>
+
+                          {/* Eğitim Link Butonları */}
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            {/* Canlı Yayın */}
+                            {weekData.liveUrl ? (
+                              <a
+                                href={weekData.liveUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs shadow-xs transition-all"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                <span>Canlı Yayına Katıl</span>
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed"
+                                title="Canlı yayın linki eğitim günü aktifleşecektir."
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                <span>Canlı Yayın: Yakında</span>
+                              </button>
+                            )}
+
+                            {/* Kayıt Linki */}
+                            {weekData.recordingUrl ? (
+                              <a
+                                href={weekData.recordingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-all"
+                              >
+                                <span>📹</span>
+                                <span>Ders Kaydını İzle</span>
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed"
+                                title="Ders kayıtları oturum sonrası yüklenecektir."
+                              >
+                                <span>📹</span>
+                                <span>Kayıt: Yakında</span>
+                              </button>
+                            )}
+
+                            {/* Materyal Linki */}
+                            {weekData.materialUrl ? (
+                              <a
+                                href={weekData.materialUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all"
+                              >
+                                <span>📄</span>
+                                <span>Materyalleri Aç</span>
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed"
+                                title="Eğitim sunum ve dokümanları oturum öncesi yüklenecektir."
+                              >
+                                <span>📄</span>
+                                <span>Materyal: Yakında</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-6 sm:p-7 space-y-6">
+                          {/* Haftanın Hedefi & Format */}
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                            {/* Hedef */}
+                            <div className="lg:col-span-8 bg-amber-50/60 border border-amber-200/70 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5">
+                              <div className="w-8 h-8 rounded-xl bg-amber-200/80 text-amber-900 flex items-center justify-center font-bold text-base shrink-0 mt-0.5 shadow-2xs">
+                                🎯
+                              </div>
+                              <div className="space-y-1 min-w-0">
+                                <h4 className="text-xs font-extrabold text-amber-900 uppercase tracking-wider">Haftanın Hedefi</h4>
+                                <p className="text-xs sm:text-[13px] text-amber-950/90 leading-relaxed">
+                                  {weekData.goal}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Format / Akış */}
+                            <div className="lg:col-span-4 bg-slate-50 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-2">
+                              <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <span>⏱️</span> Oturum Akış Planı
+                              </h4>
+                              <div className="space-y-1.5">
+                                {weekData.format.map((fmt, i) => (
+                                  <div key={i} className="text-[11px] text-slate-600 flex items-start gap-1.5 leading-snug">
+                                    <span className="text-orange-500 font-bold">•</span>
+                                    <span>{fmt}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Günler ve Oturumlar (Salı & Perşembe) */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {weekData.days.map((dayData, dayIdx) => (
+                              <div
+                                key={dayIdx}
+                                className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-5 sm:p-6 space-y-4 flex flex-col"
+                              >
+                                {/* Gün Başlığı */}
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-200/70">
+                                  <div className="flex items-center gap-2">
+                                    <span className="bg-slate-800 text-white text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-2xs uppercase">
+                                      {dayData.dayName}
+                                    </span>
+                                    <h4 className="text-xs sm:text-sm font-black text-slate-800">
+                                      {dayData.title}
+                                    </h4>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                    3 Oturum
+                                  </span>
+                                </div>
+
+                                {/* 3 Oturum Kartları */}
+                                <div className="space-y-3 flex-1">
+                                  {dayData.sessions.map((session, sIdx) => (
+                                    <div
+                                      key={sIdx}
+                                      className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all space-y-1.5"
+                                    >
+                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-black flex items-center justify-center">
+                                            {session.sessionNumber}
+                                          </span>
+                                          <h5 className="font-extrabold text-slate-800 text-xs">
+                                            {session.title}
+                                          </h5>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          {session.guest && (
+                                            <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                                              🎙️ {session.guest}
+                                            </span>
+                                          )}
+                                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                            ⏱️ {session.duration}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <p className="text-[11px] text-slate-600 leading-relaxed pl-6">
+                                        {session.description}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Haftanın Saha / Final Görevi */}
+                          <div className="bg-gradient-to-r from-orange-50 via-pink-50 to-purple-50 border border-orange-200/80 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-pink-500 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
+                                {weekData.fieldTask.type.includes('Final') ? '🏆' : '🚀'}
+                              </div>
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-extrabold text-orange-800 bg-orange-200/70 px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-orange-300/80">
+                                    {weekData.fieldTask.type}
+                                  </span>
+                                  <h4 className="text-sm font-black text-slate-800">
+                                    {weekData.fieldTask.title}
+                                  </h4>
+                                </div>
+                                <p className="text-xs text-slate-700 leading-relaxed">
+                                  {weekData.fieldTask.description}
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('gorevler')}
+                              className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-bold text-xs shadow-sm hover:shadow transition-all self-start sm:self-center"
+                            >
+                              <span>Görev Teslim Alanı</span>
+                              <span>➔</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
