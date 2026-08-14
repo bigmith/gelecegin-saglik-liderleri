@@ -26,6 +26,8 @@ import {
   deleteAdminSosyalMedya,
   importCandidatesCsvText,
   getAdminKatilimciDetay,
+  getDriveThumbnailUrl,
+  getParticipantAvatarSrc,
   logoutUser
 } from '../services/supabaseService'
 
@@ -3126,10 +3128,11 @@ function PerformansSection({ token, setToast }) {
                         <td className="px-4 py-3.5 text-gray-400 font-mono text-xs">{idx + 1}</td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2.5">
-                            {item.profil_fotografi_url ? (
+                            {getParticipantAvatarSrc(item) ? (
                               <img
-                                src={item.profil_fotografi_url}
+                                src={getParticipantAvatarSrc(item, 80)}
                                 alt={kAdi}
+                                onError={(e) => { e.currentTarget.style.display = 'none' }}
                                 className="w-7 h-7 rounded-full object-cover ring-1 ring-amber-300 flex-shrink-0"
                               />
                             ) : (
@@ -3202,17 +3205,18 @@ function PerformansSection({ token, setToast }) {
 
                   return (
                     <>
-                      {katilimciObj.profil_fotografi_url ? (
+                      {getParticipantAvatarSrc(katilimciObj) ? (
                         <a
-                          href={katilimciObj.profil_fotografi_url}
+                          href={katilimciObj.profil_fotografi_url || getParticipantAvatarSrc(katilimciObj)}
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Fotoğrafı tam boyutta aç"
                           className="shrink-0 group relative"
                         >
                           <img
-                            src={katilimciObj.profil_fotografi_url}
+                            src={getParticipantAvatarSrc(katilimciObj, 120)}
                             alt={kName}
+                            onError={(e) => { e.currentTarget.style.display = 'none' }}
                             className="w-10 h-10 rounded-xl object-cover ring-2 ring-amber-300 shadow-2xs group-hover:scale-105 transition-all"
                           />
                         </a>
@@ -3380,17 +3384,18 @@ function PerformansSection({ token, setToast }) {
                 <div className="space-y-6">
                   {/* Profil Başlık & Fotoğraf */}
                   <div className="bg-gradient-to-r from-orange-50 to-amber-50/60 border border-amber-200/80 rounded-2xl p-5 flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                    {katilimciObj.profil_fotografi_url ? (
+                    {getParticipantAvatarSrc(katilimciObj) ? (
                       <a
-                        href={katilimciObj.profil_fotografi_url}
+                        href={katilimciObj.profil_fotografi_url || getParticipantAvatarSrc(katilimciObj)}
                         target="_blank"
                         rel="noopener noreferrer"
                         title="Orijinal fotoğrafı görüntüle"
                         className="group relative shrink-0"
                       >
                         <img
-                          src={katilimciObj.profil_fotografi_url}
+                          src={getParticipantAvatarSrc(katilimciObj, 400)}
                           alt={katilimciObj.ad_soyad}
+                          onError={(e) => { e.currentTarget.style.display = 'none' }}
                           className="w-20 h-20 rounded-2xl object-cover ring-2 ring-amber-300 shadow-md group-hover:scale-105 transition-all"
                         />
                         <span className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold transition-opacity">

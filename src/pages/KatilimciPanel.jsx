@@ -5,6 +5,8 @@ import {
   getKatilimciProfilim,
   updateKatilimciProfilim,
   uploadKatilimciProfilFotografi,
+  getDriveThumbnailUrl,
+  getParticipantAvatarSrc,
   getGorevler,
   getKatilimciTeslimlerMe,
   getKatilimciDnaMe,
@@ -1061,6 +1063,7 @@ export default function KatilimciPanel() {
   })
   const [profilePhotoFile, setProfilePhotoFile] = useState(null)
   const [profilePhotoPreview, setProfilePhotoPreview] = useState(null)
+  const [imgError, setImgError] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
@@ -1076,8 +1079,10 @@ export default function KatilimciPanel() {
         pozisyon: katilimci.pozisyon || '',
         is_aciklamasi: katilimci.is_aciklamasi || ''
       })
-      if (katilimci.profil_fotografi_url) {
-        setProfilePhotoPreview(katilimci.profil_fotografi_url)
+      const avatarSrc = getParticipantAvatarSrc(katilimci, 400)
+      if (avatarSrc) {
+        setProfilePhotoPreview(avatarSrc)
+        setImgError(false)
       }
     }
   }, [katilimci])
@@ -1102,12 +1107,19 @@ export default function KatilimciPanel() {
     setProfilePhotoFile(selected)
     const localPreviewUrl = URL.createObjectURL(selected)
     setProfilePhotoPreview(localPreviewUrl)
+    setImgError(false)
 
     setUploadingPhoto(true)
     try {
       const res = await uploadKatilimciProfilFotografi(selected)
       setToast({ type: 'success', message: 'Profil fotoğrafınız başarıyla güncellendi!' })
       setTimeout(() => setToast(null), 4000)
+
+      const newThumb = getDriveThumbnailUrl(res.profil_fotografi_file_id || res.profil_fotografi_url, 400)
+      if (newThumb) setProfilePhotoPreview(newThumb)
+
+      setKatilimci(prev => prev ? ({ ...prev, ...res }) : prev)
+
       const meData = await getKatilimciMe()
       if (meData?.katilimci) setKatilimci(meData.katilimci)
     } catch (err) {
@@ -1547,14 +1559,15 @@ export default function KatilimciPanel() {
 
         <div className="hidden md:block px-4 py-4 border-t border-slate-100 space-y-2">
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50">
-            {profilePhotoPreview || katilimci?.profil_fotografi_url ? (
+            {(!imgError && (profilePhotoPreview || getParticipantAvatarSrc(katilimci, 120))) ? (
               <img
-                src={profilePhotoPreview || katilimci?.profil_fotografi_url}
+                src={profilePhotoPreview || getParticipantAvatarSrc(katilimci, 120)}
                 alt={displayName}
+                onError={() => setImgError(true)}
                 className="w-8 h-8 rounded-full object-cover ring-2 ring-orange-200 shrink-0"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs shrink-0">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-xs">
                 {displayName[0]?.toUpperCase()}
               </div>
             )}
@@ -2319,11 +2332,12 @@ export default function KatilimciPanel() {
                         
                         {/* Fotoğraf / Avatar Container */}
                         <div className="relative group shrink-0">
-                          {profilePhotoPreview || katilimci?.profil_fotografi_url ? (
+                          {(!imgError && (profilePhotoPreview || getParticipantAvatarSrc(katilimci, 400))) ? (
                             <img
-                              src={profilePhotoPreview || katilimci?.profil_fotografi_url}
+                              src={profilePhotoPreview || getParticipantAvatarSrc(katilimci, 400)}
                               alt={katilimci?.ad_soyad || displayName}
-                              className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover ring-4 ring-orange-100 shadow-md"
+                              onError={() => setImgError(true)}
+                              className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover ring-4 ring-orange-100 shadow-md transition-transform group-hover:scale-105"
                             />
                           ) : (
                             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-orange-400 via-pink-500 to-purple-600 text-white font-black text-3xl flex items-center justify-center shadow-md">
@@ -2414,42 +2428,24 @@ export default function KatilimciPanel() {
                     </div>
 
                     {/* 2. DETAYLI PROFİL FORMU */}
-                    <form onSubmit={handleProfileSubmit} className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-soft space-y-6">
+                    <form onSubmit={handleProfileSubmit} className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-soft space-y-7">
                       
-                      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-base shadow-2xs">
-                            📝
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-slate-800 text-sm">Profil Bilgilerini Düzenle</h3>
-                            <p className="text-[11px] text-slate-400">Bilgilerinizi güncel tutup "Değişiklikleri Kaydet" butonuna basınız</p>
-                          </div>
+                      {/* Form Başlığı (Tek Buton aşağıda) */}
+                      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                        <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-base shadow-2xs">
+                          📝
                         </div>
-                        <button
-                          type="submit"
-                          disabled={savingProfile}
-                          className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-400 to-pink-500 text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50"
-                        >
-                          {savingProfile ? (
-                            <>
-                              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Kaydediliyor…
-                            </>
-                          ) : (
-                            <>
-                              <Ic.Check c="w-4 h-4" />
-                              Değişiklikleri Kaydet
-                            </>
-                          )}
-                        </button>
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-sm">Profil Bilgilerini Düzenle</h3>
+                          <p className="text-[11px] text-slate-400">Bilgilerinizi güncel tutup en alttaki "Değişiklikleri Kaydet" butonuna basınız</p>
+                        </div>
                       </div>
 
                       {/* Form Alanları Grid */}
                       <div className="space-y-6 text-xs">
 
                         {/* BÖLÜM A: İletişim & Adres */}
-                        <div className="space-y-3">
+                        <div className="space-y-3 bg-slate-50/60 p-5 rounded-2xl border border-slate-100">
                           <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-2">
                             <span>📞</span> İletişim & Adres Bilgileri
                           </h4>
@@ -2461,7 +2457,7 @@ export default function KatilimciPanel() {
                                 value={profileForm.telefon}
                                 onChange={e => setProfileForm(f => ({ ...f, telefon: e.target.value }))}
                                 placeholder="05XX XXX XX XX"
-                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all"
+                                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs placeholder-slate-400 transition-all"
                               />
                             </div>
                             <div>
@@ -2482,14 +2478,14 @@ export default function KatilimciPanel() {
                                 value={profileForm.adres}
                                 onChange={e => setProfileForm(f => ({ ...f, adres: e.target.value }))}
                                 placeholder="Sertifika, materyal ve resmi evrak gönderimi için açık adresiniz..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 resize-none transition-all"
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs placeholder-slate-400 resize-none transition-all"
                               />
                             </div>
                           </div>
                         </div>
 
                         {/* BÖLÜM B: Eğitim & Okul Bilgileri */}
-                        <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <div className="space-y-3 bg-slate-50/60 p-5 rounded-2xl border border-slate-100">
                           <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-2">
                             <span>🎓</span> Eğitim & Okul Bilgileri
                           </h4>
@@ -2523,7 +2519,7 @@ export default function KatilimciPanel() {
                               <select
                                 value={profileForm.egitim_durumu}
                                 onChange={e => setProfileForm(f => ({ ...f, egitim_durumu: e.target.value }))}
-                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs text-slate-700 transition-all"
+                                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs text-slate-700 transition-all"
                               >
                                 <option value="">Seçiniz</option>
                                 <option value="Okuyor">Okuyor</option>
@@ -2541,14 +2537,14 @@ export default function KatilimciPanel() {
                                 value={profileForm.okul_bilgisi}
                                 onChange={e => setProfileForm(f => ({ ...f, okul_bilgisi: e.target.value }))}
                                 placeholder="Fakülte, anabilim dalı, uzmanlık alanı veya okulunuzla ilgili detaylı bilgiler..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 resize-none transition-all"
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs placeholder-slate-400 resize-none transition-all"
                               />
                             </div>
                           </div>
                         </div>
 
                         {/* BÖLÜM C: İş & Kariyer Durumu */}
-                        <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <div className="space-y-3 bg-slate-50/60 p-5 rounded-2xl border border-slate-100">
                           <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-2">
                             <span>💼</span> İş & Kariyer Durumu
                           </h4>
@@ -2558,7 +2554,7 @@ export default function KatilimciPanel() {
                               <select
                                 value={profileForm.is_durumu}
                                 onChange={e => setProfileForm(f => ({ ...f, is_durumu: e.target.value }))}
-                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs text-slate-700 transition-all"
+                                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs text-slate-700 transition-all"
                               >
                                 <option value="">Seçiniz</option>
                                 <option value="Çalışmıyor">Çalışmıyor</option>
@@ -2577,7 +2573,7 @@ export default function KatilimciPanel() {
                                     value={profileForm.calistigi_kurum}
                                     onChange={e => setProfileForm(f => ({ ...f, calistigi_kurum: e.target.value }))}
                                     placeholder="Hastane, eczane, klinik veya kurum adı..."
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all animate-fade-in"
+                                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs placeholder-slate-400 transition-all animate-fade-in"
                                   />
                                 </div>
                                 <div>
@@ -2587,7 +2583,7 @@ export default function KatilimciPanel() {
                                     value={profileForm.pozisyon}
                                     onChange={e => setProfileForm(f => ({ ...f, pozisyon: e.target.value }))}
                                     placeholder="Örn: Eczacı, Hekim, Stajyer..."
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 transition-all animate-fade-in"
+                                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs placeholder-slate-400 transition-all animate-fade-in"
                                   />
                                 </div>
                               </>
@@ -2602,7 +2598,7 @@ export default function KatilimciPanel() {
                                 value={profileForm.is_aciklamasi}
                                 onChange={e => setProfileForm(f => ({ ...f, is_aciklamasi: e.target.value }))}
                                 placeholder="Mesleki faaliyetleriniz, çalışma alanlarınız veya iş detaylarınız..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:bg-white text-xs placeholder-slate-400 resize-none transition-all"
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs placeholder-slate-400 resize-none transition-all"
                               />
                             </div>
                           </div>
@@ -2610,17 +2606,17 @@ export default function KatilimciPanel() {
 
                       </div>
 
-                      {/* Mobil & Masaüstü Kaydet Butonu */}
+                      {/* Tek Ana Kaydet Butonu (Form Footer) */}
                       <div className="pt-4 border-t border-slate-100 flex justify-end">
                         <button
                           type="submit"
                           disabled={savingProfile}
-                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-gradient-to-r from-orange-400 to-pink-500 text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50"
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 hover:from-orange-600 hover:via-pink-600 hover:to-purple-700 text-white text-xs font-bold shadow-md hover:shadow-lg hover:scale-102 active:scale-98 transition-all disabled:opacity-50"
                         >
                           {savingProfile ? (
                             <>
-                              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Kaydediliyor…
+                              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Değişiklikler Kaydediliyor…
                             </>
                           ) : (
                             <>

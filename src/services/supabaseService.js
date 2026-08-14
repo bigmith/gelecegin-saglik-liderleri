@@ -631,6 +631,38 @@ export async function uploadKatilimciProfilFotografi(file) {
   }
 }
 
+export function getDriveThumbnailUrl(fileIdOrUrl, size = 400) {
+  if (!fileIdOrUrl || typeof fileIdOrUrl !== 'string') return ''
+  // If it's already a direct data: or blob: or thumbnail url, return as is
+  if (fileIdOrUrl.startsWith('data:') || fileIdOrUrl.startsWith('blob:') || fileIdOrUrl.includes('drive.google.com/thumbnail')) {
+    return fileIdOrUrl
+  }
+  let fileId = fileIdOrUrl
+  if (fileIdOrUrl.includes('/d/')) {
+    const match = fileIdOrUrl.match(/\/d\/([^/&?]+)/)
+    if (match) fileId = match[1]
+  } else if (fileIdOrUrl.includes('id=')) {
+    const match = fileIdOrUrl.match(/id=([^&]+)/)
+    if (match) fileId = match[1]
+  }
+  if (!fileId) return ''
+  return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w${size}`
+}
+
+export function getParticipantAvatarSrc(katilimci, size = 400) {
+  if (!katilimci) return ''
+  if (katilimci.profil_fotografi_file_id) {
+    return getDriveThumbnailUrl(katilimci.profil_fotografi_file_id, size)
+  }
+  if (katilimci.profil_fotografi_url) {
+    return getDriveThumbnailUrl(katilimci.profil_fotografi_url, size)
+  }
+  if (katilimci.avatar_url) {
+    return getDriveThumbnailUrl(katilimci.avatar_url, size)
+  }
+  return ''
+}
+
 export async function getKatilimciPerformansMe(katilimciId) {
   if (!katilimciId) return null
   const { data, error } = await supabase
