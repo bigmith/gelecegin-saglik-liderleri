@@ -394,6 +394,11 @@ export default function AdminPanel() {
   const [savingGorev, setSavingGorev]       = useState(false)
   const [deletingGorev, setDeletingGorev]   = useState(null)
   const [activatingProgramTaskKey, setActivatingProgramTaskKey] = useState(null)
+  const [programTaskScores, setProgramTaskScores] = useState({
+    'week1-antibiyotik-cift-versiyon': '100',
+    'week2-hook-ai-senaryo': '100',
+    'week3-who-sandvic-final': '150'
+  })
   const GOREV_BOSH = { hafta: '', gorev_adi: '', brief_aciklama: '', puan_kriterleri: '', son_teslim_tarihi: '', maksimum_puan: 100, gorev_tipi: 'GENEL', hedef_katilimci: '', hedef_takim: '' }
   const [gorevForm, setGorevForm]           = useState(GOREV_BOSH)
   // Mentor Sekmesi
@@ -593,15 +598,22 @@ export default function AdminPanel() {
     finally { setSavingGorev(false) }
   }
 
-  /* ── Hazır Program Görevini Aktif Et (PROGRAM-TASKS-01) ── */
+  /* ── Hazır Program Görevini Aktif Et (PROGRAM-TASKS-FIX-01) ── */
   const handleActivateProgramTask = async (taskTemplate) => {
     if (activatingProgramTaskKey) return
+    const scoreVal = programTaskScores[taskTemplate.taskKey]
+    const numericScore = Number(scoreVal)
+    if (!scoreVal || isNaN(numericScore) || numericScore < 1) {
+      setToast({ msg: 'Lütfen maksimum puanı girin (en az 1).', type: 'error' })
+      return
+    }
+
     setActivatingProgramTaskKey(taskTemplate.taskKey)
     try {
-      const res = await activateProgramGorev(taskTemplate)
+      const res = await activateProgramGorev(taskTemplate, { maksimumPuan: numericScore })
       await fetchAll()
       if (res.created) {
-        setToast({ msg: `"${taskTemplate.taskTitle}" görevi başarıyla aktif edildi ve katılımcılara açıldı! 🎉`, type: 'success' })
+        setToast({ msg: `"${taskTemplate.taskTitle}" görevi (${numericScore} Puan) başarıyla aktif edildi! 🎉`, type: 'success' })
       } else {
         setToast({ msg: res.message || `"${taskTemplate.taskTitle}" zaten aktif.`, type: 'info' })
       }
@@ -1122,12 +1134,14 @@ export default function AdminPanel() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                   {PROGRAM_TASKS.map((template) => {
-                    const isAlreadyActive = (gorevler || []).some(g =>
+                    const activeDbGorev = (gorevler || []).find(g =>
                       g.program_task_key === template.taskKey ||
                       g.gorev_adi === template.taskTitle ||
                       (Number(g.hafta) === Number(template.taskWeek) && g.gorev_adi?.toLowerCase().includes(template.taskTitle.toLowerCase()))
                     )
+                    const isAlreadyActive = Boolean(activeDbGorev)
                     const isActivating = activatingProgramTaskKey === template.taskKey
+                    const currentScoreInput = programTaskScores[template.taskKey] ?? ''
 
                     return (
                       <div
@@ -1180,40 +1194,63 @@ export default function AdminPanel() {
                           </div>
                         </div>
 
-                        {/* Buton Alanı */}
-                        <div className="pt-4 mt-2 border-t border-gray-100 flex items-center justify-between gap-3">
-                          <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                            ★ {template.maksimumPuan} Puan
-                          </span>
-
+                        {/* Puan ve Buton Alanı */}
+                        <div className="pt-4 mt-3 border-t border-gray-100 space-y-3">
                           {isAlreadyActive ? (
-                            <button
-                              type="button"
-                              disabled
-                              className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200 cursor-default flex items-center gap-1.5"
-                            >
-                              <span>✓</span>
-                              <span>Aktif</span>
-                            </button>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                                ★ {activeDbGorev?.maksimum_puan ?? 100} Puan
+                              </span>
+                              <button
+                                type="button"
+                                disabled
+                                className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200 cursor-default flex items-center gap-1.5"
+                              >
+                                <span>✓</span>
+                                <span>Aktif</span>
+                              </button>
+                            </div>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleActivateProgramTask(template)}
-                              disabled={isActivating}
-                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all flex items-center gap-1.5 disabled:opacity-50"
-                            >
-                              {isActivating ? (
-                                <>
-                                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                  <span>Aktif Ediliyor…</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span>🚀</span>
-                                  <span>Görevi Aktif Et</span>
-                                </>
-                              )}
-                            </button>
+                            <div className="space-y-2.5">
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                  Maksimum Puan <span className="text-red-400">★</span>
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="1000"
+                                    value={currentScoreInput}
+                                    onChange={(e) => setProgramTaskScores(prev => ({ ...prev, [template.taskKey]: e.target.value }))}
+                                    placeholder="Örn: 100"
+                                    className="w-full px-3 py-2 text-xs font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet/30 focus:border-violet transition-all"
+                                  />
+                                  <span className="absolute right-3 top-2 text-[11px] font-semibold text-gray-400 pointer-events-none">
+                                    Puan
+                                  </span>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleActivateProgramTask(template)}
+                                disabled={isActivating || !currentScoreInput}
+                                className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {isActivating ? (
+                                  <>
+                                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    <span>Aktif Ediliyor…</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>🚀</span>
+                                    <span>Görevi {currentScoreInput ? `(${currentScoreInput} Puan ile)` : ''} Aktif Et</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>

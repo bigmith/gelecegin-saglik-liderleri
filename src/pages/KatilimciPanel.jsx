@@ -2235,10 +2235,15 @@ export default function KatilimciPanel() {
                                 </div>
                                 <div>
                                   <h3 className="text-lg font-bold text-slate-800 mb-1">{gorev?.gorev_adi || 'Görev Adı Bulunamadı'}</h3>
-                                  <p className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                                    <Ic.Clock />
-                                    Son Teslim: {gorev?.son_teslim_tarihi ? new Date(gorev.son_teslim_tarihi).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
-                                  </p>
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    <p className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                                      <Ic.Clock />
+                                      Son Teslim: {gorev?.son_teslim_tarihi ? new Date(gorev.son_teslim_tarihi).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                    </p>
+                                    <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-flex items-center gap-1">
+                                      ★ {gorev?.maksimum_puan ?? 100} Puan
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                               <div className="shrink-0 self-start">

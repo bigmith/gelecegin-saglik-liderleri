@@ -20,7 +20,6 @@ export const PROGRAM_TASKS = [
     taskDescription: 'Antibiyotik direncini iki farklı kitle için yaz. Versiyon 1: Eğitimli kesime, veri ve otorite odaklı. Versiyon 2: Ortaokul-lise ve yaşlı kesime, jargonsuz, samimi ve hikayesel. Katılımcı istediği versiyonu çekip paylaşmakta özgürdür.',
     deliverableHint: 'Bir senaryo metni veya video teslimi.',
     evaluationHint: 'Hedef kitle uyumu, dil sadeliği, TİTCK uyumu ve anlatım netliği.',
-    maksimumPuan: 100,
   },
   {
     taskKey: 'week2-hook-ai-senaryo',
@@ -31,7 +30,6 @@ export const PROGRAM_TASKS = [
     taskDescription: 'İzleyiciyi ilk üç saniyede yakalayacak, etik kurallara uygun beş farklı yaratıcı giriş cümlesi yaz. Bu kancaları yapay zekaya vererek kendi üslubuna uygun bir taslak senaryo oluştur. Videonun sonuna izleyiciyi yoruma, kaydetmeye veya DM’den mesaj atmaya yönlendirecek güçlü bir eylem çağrısı ekle.',
     deliverableHint: '5 hook, AI destekli senaryo taslağı ve CTA metni.',
     evaluationHint: 'Kanca gücü, etik uyum, hedef kitleye uygunluk ve CTA netliği.',
-    maksimumPuan: 100,
   },
   {
     taskKey: 'week3-who-sandvic-final',
@@ -42,7 +40,6 @@ export const PROGRAM_TASKS = [
     taskDescription: 'Yaygın bir sağlık mitini, örneğin antibiyotiklerle ilgili bir miti, seçip Dünya Sağlık Örgütünün sandviç metoduna uygun şekilde altmış saniyelik dikey video hazırla ve kameraya çek.',
     deliverableHint: '60 saniyelik dikey video.',
     evaluationHint: 'Yanlış bilgiyle mücadele, WHO sandviç metoduna uyum, kamera anlatımı ve güven veren dil.',
-    maksimumPuan: 150,
   }
 ]
 
