@@ -786,7 +786,7 @@ serve(async (req) => {
     // ACTION: reject_candidate
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'reject_candidate') {
-      const { aday_id, reason } = payload || {}
+      const { aday_id, force_revert_participant, reason } = payload || {}
       if (!aday_id) return jsonRes(req, { ok: false, error: 'aday_id zorunludur.' }, 400)
 
       const { data: aday, error: adayErr } = await adminClient
@@ -799,20 +799,57 @@ serve(async (req) => {
         return jsonRes(req, { ok: false, error: 'Aday bulunamadı.' }, 404)
       }
 
-      // Check if aday has already been converted to an active participant
+      // Check if aday has already been converted to a participant
       const { data: existingKatilimci } = await adminClient
         .from('core_katilimci')
         .select('id')
         .eq('aday_id', aday_id)
         .maybeSingle()
 
+      let revertedParticipant = false
+      let katilimciId: number | null = null
+
       if (existingKatilimci) {
-        return jsonRes(req, {
-          ok: false,
-          error: 'Bu aday zaten katılımcıya dönüştürülmüş, reddedilemez.'
-        }, 400)
+        if (!force_revert_participant) {
+          return jsonRes(req, {
+            ok: false,
+            requires_confirmation: true,
+            error: 'Bu aday katılımcıya dönüştürülmüş. Reddetmek için katılımcı kaydını geri alma onayı gerekir.'
+          }, 400)
+        }
+
+        katilimciId = existingKatilimci.id
+        revertedParticipant = true
+
+        // 1. Delete participant delivery movements
+        await adminClient.from('core_teslimhareketi').delete().eq('katilimci_id', katilimciId)
+        
+        // 2. Delete participant deliveries
+        await adminClient.from('core_teslim').delete().eq('katilimci_id', katilimciId)
+
+        // 3. Delete participant content DNA tests
+        await adminClient.from('core_icerikdnatesti').delete().eq('katilimci_id', katilimciId)
+
+        // 4. Delete mentor notes for participant
+        await adminClient.from('core_mentornotu').delete().eq('katilimci_id', katilimciId)
+
+        // 5. Delete participant performance record
+        await adminClient.from('core_katilimciperformans').delete().eq('katilimci_id', katilimciId)
+
+        // 6. Safe profiles unlink (DO NOT DELETE AUTH USER)
+        await adminClient.from('profiles').update({ core_katilimci_id: null }).eq('core_katilimci_id', katilimciId)
+        if (aday.eposta) {
+          await adminClient.from('profiles').update({ core_katilimci_id: null }).ilike('email', aday.eposta.trim())
+        }
+
+        // 7. Delete the core_katilimci record
+        const { error: delKatErr } = await adminClient.from('core_katilimci').delete().eq('id', katilimciId)
+        if (delKatErr) {
+          console.warn('core_katilimci delete warning:', delKatErr)
+        }
       }
 
+      // 8. Update core_aday status to REDDEDILDI
       const { error: updateErr } = await adminClient
         .from('core_aday')
         .update({ basvuru_durumu: 'REDDEDILDI' })
@@ -829,7 +866,9 @@ serve(async (req) => {
         ok: true,
         data: {
           success: true,
+          revertedParticipant,
           aday_id,
+          katilimci_id: katilimciId,
           durum: 'REDDEDILDI',
           action: 'reject_candidate'
         }

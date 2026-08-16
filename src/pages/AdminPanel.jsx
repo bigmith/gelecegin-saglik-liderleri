@@ -464,20 +464,44 @@ export default function AdminPanel() {
   }, [toast])
 
   /* ── Aday durum güncelle (admin-actions Edge Function) ── */
-  const durumGuncelle = async (aday, yeniDurum) => {
+  const durumGuncelle = async (aday, yeniDurum, forceRevert = false) => {
     if (updating) return
     setUpdating(aday.id)
     try {
       const action = yeniDurum === 'ONAYLANDI' ? 'approve_candidate' : 'reject_candidate'
-      await callAdminAction(action, { aday_id: aday.id })
+      const payload = { aday_id: aday.id }
+      if (yeniDurum === 'REDDEDILDI' && forceRevert) {
+        payload.force_revert_participant = true
+      }
+      
+      const res = await callAdminAction(action, payload)
+      
       setAdaylar(prev => prev.map(a => a.id === aday.id ? { ...a, basvuru_durumu: yeniDurum } : a))
       setModal(prev => (prev && prev.id === aday.id) ? { ...prev, basvuru_durumu: yeniDurum } : prev)
-      if (yeniDurum === 'ONAYLANDI') {
-        const kD = await getKatilimcilar()
-        setKatilimcilar(kD)
+      
+      // Her iki durumda da katılımcı listesini güncelle
+      const kD = await getKatilimcilar()
+      setKatilimcilar(kD)
+
+      const successMsg = res?.revertedParticipant 
+        ? `"${aday.ad_soyad}" reddedildi ve katılımcı bağlantısı geri alındı.`
+        : `"${aday.ad_soyad}" → ${DURUM_MAP[yeniDurum]?.label ?? yeniDurum}`
+
+      setToast({ msg: successMsg, type: 'success' })
+    } catch (e) {
+      const errText = e?.message || String(e)
+      if (yeniDurum === 'REDDEDILDI' && !forceRevert && (errText.includes('katılımcıya dönüştürülmüş') || errText.includes('onayı gerekir') || errText.includes('geri alma'))) {
+        setUpdating(null)
+        const confirmed = window.confirm(
+          `"${aday.ad_soyad}" daha önce katılımcıya dönüştürülmüş.\n\nReddetmek için katılımcı kaydı geri alınacak, ilgili teslim/DNA/test kayıtları temizlenecektir. Auth hesabı silinmeyecektir.\n\nDevam etmek istiyor musunuz?`
+        )
+        if (confirmed) {
+          return durumGuncelle(aday, 'REDDEDILDI', true)
+        }
+        return
       }
-      setToast({ msg: `"${aday.ad_soyad}" → ${DURUM_MAP[yeniDurum]?.label ?? yeniDurum}`, type: 'success' })
-    } catch (e) { setToast({ msg: `Güncelleme başarısız: ${e.message}`, type: 'error' }) }
+      setToast({ msg: `Güncelleme başarısız: ${errText}`, type: 'error' })
+    }
     finally { setUpdating(null) }
   }
 
