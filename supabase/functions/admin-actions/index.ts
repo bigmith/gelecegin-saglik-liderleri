@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const ALLOWED_ORIGINS = [
+  'https://saglikliderleri.markamutfagi.co',
   'https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev',
   'http://localhost:5173',
   'http://localhost:3000',
@@ -238,7 +239,7 @@ serve(async (req) => {
       const { data: profile } = await adminClient.from('profiles').select('id, email, role, ad_soyad').eq('id', authUserId).maybeSingle()
 
       // 3. Send password reset email ONLY to this address
-      const redirectTo = 'https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev'
+      const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
       const { data: resetData, error: resetErr } = await adminClient.auth.resetPasswordForEmail(email, {
         redirectTo
       })
@@ -298,7 +299,7 @@ serve(async (req) => {
       }
 
       // 1. Generate password recovery link safely via Admin API
-      const redirectTo = 'https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev'
+      const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
       const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
         type: 'recovery',
         email,
@@ -385,7 +386,7 @@ serve(async (req) => {
         type: 'recovery',
         email,
         options: {
-          redirectTo: 'https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev'
+          redirectTo: 'https://saglikliderleri.markamutfagi.co/reset-password'
         }
       })
 
@@ -410,7 +411,7 @@ serve(async (req) => {
     if (action === 'test_smtp_reset_mail') {
       const testEmail = payload?.email || 'test@example.com'
       const { data, error } = await adminClient.auth.resetPasswordForEmail(testEmail, {
-        redirectTo: 'https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev'
+        redirectTo: 'https://saglikliderleri.markamutfagi.co/reset-password'
       })
       if (error) {
         return jsonRes(req, {
@@ -705,7 +706,7 @@ serve(async (req) => {
 
         if (send_reset_mail) {
           const { error: resetErr } = await adminClient.auth.resetPasswordForEmail(cleanEmail, {
-            redirectTo: 'https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev'
+            redirectTo: 'https://saglikliderleri.markamutfagi.co/reset-password'
           })
 
           if (resetErr) {

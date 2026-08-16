@@ -6,7 +6,7 @@ Geleceğin Dijital Sağlık Liderleri programı için geliştirilmiş; aday kabu
 
 ## 🔗 Canlı Ortam Bağlantısı
 
-* **Canlı Web Platformu URL**: [https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev/login](https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev/login)
+* **Canlı Web Platformu URL**: [https://saglikliderleri.markamutfagi.co/login](https://saglikliderleri.markamutfagi.co/login)
 
 ---
 

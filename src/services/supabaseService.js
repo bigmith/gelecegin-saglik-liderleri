@@ -70,7 +70,8 @@ export async function logoutUser() {
 
 export async function requestPasswordReset(email) {
   const cleanEmail = email.trim().toLowerCase()
-  const redirectTo = window.location.origin + '/login'
+  const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://saglikliderleri.markamutfagi.co'
+  const redirectTo = `${origin}/reset-password`
   const { data, error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
     redirectTo
   })

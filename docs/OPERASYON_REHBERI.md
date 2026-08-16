@@ -36,7 +36,7 @@ Platform aşağıdaki sunucusuz ve bulut tabanlı teknolojiler üzerinde çalı�
 
 ## 3. Canlı Ortam Bilgileri
 
-* **Canlı Web Platformu URL**: `https://gelecegin-saglik-liderleri.omerkarapinar.workers.dev/login`
+* **Canlı Web Platformu URL**: `https://saglikliderleri.markamutfagi.co/login`
 * **Supabase Proje Referansı**: `wczupupflxvfnjbjkfrj`
 * **Supabase API URL**: `https://wczupupflxvfnjbjkfrj.supabase.co`
 

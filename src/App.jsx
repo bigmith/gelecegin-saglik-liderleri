@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import AnaSayfa from './pages/AnaSayfa'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import AdminPanel from './pages/AdminPanel'
 import MentorPanel from './pages/MentorPanel'
 import KatilimciPanel from './pages/KatilimciPanel'
@@ -28,6 +29,7 @@ function AnimatedRoutes() {
       <Routes location={location}>
         <Route path="/" element={<AnaSayfa />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/hakkinda" element={<Hakkinda />} />
         <Route path="/gizlilik" element={<Gizlilik />} />
         <Route path="/iletisim" element={<Iletisim />} />
