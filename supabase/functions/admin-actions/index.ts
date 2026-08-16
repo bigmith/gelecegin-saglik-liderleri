@@ -195,6 +195,99 @@ serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_launch_recipients
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'audit_launch_recipients') {
+      const { data: adaylar } = await adminClient.from('core_aday').select('*')
+      const { data: katilimcilar } = await adminClient.from('core_katilimci').select('*')
+      const { data: profiles } = await adminClient.from('profiles').select('*')
+      const { data: takimlar } = await adminClient.from('core_takim').select('*')
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = (authUsersData?.users || []).map(u => ({
+        id: u.id,
+        email: (u.email || '').toLowerCase(),
+        last_sign_in_at: u.last_sign_in_at,
+        created_at: u.created_at,
+        role: u.user_metadata?.role
+      }))
+
+      // Specific audits
+      const auditAccount = (email: string) => {
+        const clean = email.toLowerCase().trim()
+        const authUser = authUsers.find(u => u.email === clean)
+        const profile = (profiles || []).find(p => (p.email || '').toLowerCase() === clean)
+        const aday = (adaylar || []).find(a => (a.eposta || '').toLowerCase() === clean)
+        const katilimci = (katilimcilar || []).find(k => k.aday_id === aday?.id || k.id === profile?.core_katilimci_id)
+        const takim = katilimci?.takim_id ? (takimlar || []).find(t => t.id === katilimci.takim_id) : null
+
+        return {
+          email: clean,
+          has_auth_user: Boolean(authUser),
+          auth_user_id: authUser?.id || null,
+          last_sign_in_at: authUser?.last_sign_in_at || null,
+          has_profile: Boolean(profile),
+          profile_id: profile?.id || null,
+          profile_role: profile?.role || null,
+          profile_name: profile?.ad_soyad || null,
+          profile_core_katilimci_id: profile?.core_katilimci_id || null,
+          has_core_katilimci: Boolean(katilimci),
+          core_katilimci_id: katilimci?.id || null,
+          takim_id: katilimci?.takim_id || null,
+          takim_adi: takim?.takim_adi || null,
+          has_core_aday: Boolean(aday),
+          core_aday_id: aday?.id || null,
+          core_aday_basvuru_durumu: aday?.basvuru_durumu || null,
+          access_reason: profile?.role === 'katilimci' ? 'profiles.role=katilimci olduğu için /katilimci paneline erişebiliyor' : 'Yetkisiz / Farklı rol'
+        }
+      }
+
+      const akyasanAudit = auditAccount('akyasan.6178@gmail.com')
+      const katilimciTestAudit = auditAccount('katilimci-test@gdsl.com')
+
+      // All approved participants from CSV (excluding tests)
+      const allParticipants = (katilimcilar || []).map(k => {
+        const aday = (adaylar || []).find(a => a.id === k.aday_id)
+        const email = (aday?.eposta || profileMatching(k.id))?.toLowerCase() || ''
+        const authUser = authUsers.find(u => u.email === email)
+        const profile = (profiles || []).find(p => (p.email || '').toLowerCase() === email || p.core_katilimci_id === k.id)
+        const takim = k.takim_id ? (takimlar || []).find(t => t.id === k.takim_id) : null
+
+        function profileMatching(kId: number) {
+          const pr = (profiles || []).find(p => p.core_katilimci_id === kId)
+          return pr?.email || ''
+        }
+
+        const isTestEmail = email.includes('test') || email.includes('gdsl.com') || email === 'akyasan.6178@gmail.com'
+
+        return {
+          katilimci_id: k.id,
+          aday_id: aday?.id || null,
+          ad_soyad: aday ? `${aday.ad || ''} ${aday.soyad || ''}`.trim() : (profile?.ad_soyad || `Katılımcı #${k.id}`),
+          email: email || profile?.email || null,
+          is_test_account: isTestEmail,
+          has_auth_user: Boolean(authUser),
+          profile_role: profile?.role || null,
+          core_aday_durumu: aday?.basvuru_durumu || null,
+          program_katilim_durumu: k.program_katilim_durumu || null,
+          takim_adi: takim?.takim_adi || null
+        }
+      })
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          akyasan_audit: akyasanAudit,
+          katilimci_test_audit: katilimciTestAudit,
+          real_participants: allParticipants.filter(p => !p.is_test_account),
+          test_participants: allParticipants.filter(p => p.is_test_account),
+          total_real_count: allParticipants.filter(p => !p.is_test_account).length,
+          all_profiles_count: (profiles || []).length,
+          all_auth_users_count: authUsers.length
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // ACTION: check_csv_candidates_in_db
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'check_csv_candidates_in_db') {
@@ -1178,7 +1271,7 @@ serve(async (req) => {
 
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
