@@ -99,6 +99,39 @@ function getResetPasswordHtml(userName: string, actionLink: string): string {
 </html>`
 }
 
+function parseCsvLine(line: string, delim: string = ','): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === delim && !inQuotes) {
+      result.push(current.trim().replace(/^"|"$/g, ''))
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  result.push(current.trim().replace(/^"|"$/g, ''))
+  return result
+}
+
+function normalizeHeader(h: string): string {
+  return h
+    .toLowerCase()
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/İ/g, 'i')
+    .replace(/[^a-z0-9]/g, '')
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -749,9 +782,364 @@ serve(async (req) => {
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: reject_candidate
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'reject_candidate') {
+      const { aday_id, reason } = payload || {}
+      if (!aday_id) return jsonRes(req, { ok: false, error: 'aday_id zorunludur.' }, 400)
+
+      const { data: aday, error: adayErr } = await adminClient
+        .from('core_aday')
+        .select('*')
+        .eq('id', aday_id)
+        .maybeSingle()
+
+      if (adayErr || !aday) {
+        return jsonRes(req, { ok: false, error: 'Aday bulunamadı.' }, 404)
+      }
+
+      // Check if aday has already been converted to an active participant
+      const { data: existingKatilimci } = await adminClient
+        .from('core_katilimci')
+        .select('id')
+        .eq('aday_id', aday_id)
+        .maybeSingle()
+
+      if (existingKatilimci) {
+        return jsonRes(req, {
+          ok: false,
+          error: 'Bu aday zaten katılımcıya dönüştürülmüş, reddedilemez.'
+        }, 400)
+      }
+
+      const { error: updateErr } = await adminClient
+        .from('core_aday')
+        .update({ basvuru_durumu: 'REDDEDILDI' })
+        .eq('id', aday_id)
+
+      if (updateErr) {
+        return jsonRes(req, {
+          ok: false,
+          error: 'Aday durumu güncellenemedi: ' + updateErr.message
+        }, 500)
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          success: true,
+          aday_id,
+          durum: 'REDDEDILDI',
+          action: 'reject_candidate'
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: approve_candidate
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'approve_candidate') {
+      const { aday_id } = payload || {}
+      if (!aday_id) return jsonRes(req, { ok: false, error: 'aday_id zorunludur.' }, 400)
+
+      const { data: aday, error: adayErr } = await adminClient
+        .from('core_aday')
+        .select('*')
+        .eq('id', aday_id)
+        .maybeSingle()
+
+      if (adayErr || !aday) {
+        return jsonRes(req, { ok: false, error: 'Aday bulunamadı.' }, 404)
+      }
+
+      const { error: updateErr } = await adminClient
+        .from('core_aday')
+        .update({ basvuru_durumu: 'ONAYLANDI' })
+        .eq('id', aday_id)
+
+      if (updateErr) {
+        return jsonRes(req, { ok: false, error: 'Aday durumu güncellenemedi: ' + updateErr.message }, 500)
+      }
+
+      const { data: existingKatilimci } = await adminClient
+        .from('core_katilimci')
+        .select('id')
+        .eq('aday_id', aday_id)
+        .maybeSingle()
+
+      let katilimci = existingKatilimci
+      if (!existingKatilimci) {
+        let egitimDurumu: string | null = null
+        if (aday.sinif) {
+          if (aday.sinif.toLowerCase().includes('mezun')) egitimDurumu = 'Mezun'
+          else if (aday.sinif.toLowerCase().includes('sınıf') || aday.sinif.toLowerCase().includes('sinif')) egitimDurumu = 'Okuyor'
+        }
+        const okulBilgisi = [aday.universite, aday.sinif].filter(Boolean).join(' - ') || null
+
+        const { data: kData, error: kErr } = await adminClient
+          .from('core_katilimci')
+          .insert({
+            aday_id: aday_id,
+            telefon: aday.telefon || null,
+            okul_bilgisi: okulBilgisi,
+            egitim_durumu: egitimDurumu,
+            kabul_durumu: true,
+            kabul_tarihi: new Date().toISOString().split('T')[0],
+            program_katilim_durumu: 'AKTIF',
+            notlar: '',
+          })
+          .select()
+          .single()
+
+        if (kErr) {
+          return jsonRes(req, { ok: false, error: 'Katılımcı kaydı oluşturulamadı: ' + kErr.message }, 500)
+        }
+        katilimci = kData
+
+        await adminClient.from('core_katilimciperformans').insert({
+          katilimci_id: kData.id,
+          bireysel_puan: 0, gorev_puani: 0, toplanti_katilim_puani: 0,
+          etkilesim_bonus_puani: 0, manuel_puan: 0,
+        })
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          success: true,
+          aday_id,
+          katilimci,
+          action: 'approve_candidate'
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: create_mentor
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'create_mentor') {
+      const { ad_soyad, eposta, uzmanlik, gecici_sifre } = payload || {}
+      if (!ad_soyad || !eposta) return jsonRes(req, { ok: false, error: 'ad_soyad ve eposta zorunludur.' }, 400)
+
+      const { data: existingMentor } = await adminClient
+        .from('core_mentor')
+        .select('*')
+        .eq('eposta', eposta)
+        .maybeSingle()
+
+      if (existingMentor && existingMentor.aktif === false) {
+        const { data: reactivatedMentor, error: reactErr } = await adminClient
+          .from('core_mentor')
+          .update({ aktif: true, silinme_tarihi: null, ad_soyad, uzmanlik: uzmanlik || existingMentor.uzmanlik })
+          .eq('id', existingMentor.id)
+          .select()
+          .single()
+
+        if (reactErr) return jsonRes(req, { ok: false, error: 'Pasif mentor tekrar aktifleştirilemedi.' }, 500)
+
+        const { data: pRow } = await adminClient.from('profiles').select('id').eq('email', eposta).maybeSingle()
+        if (pRow) {
+          await adminClient.from('profiles').update({
+            role: 'mentor', ad_soyad, core_mentor_id: existingMentor.id
+          }).eq('id', pRow.id)
+        }
+
+        return jsonRes(req, { ok: true, data: { mentor: reactivatedMentor, action: 'create_mentor', reactivated: true } })
+      }
+
+      const password = gecici_sifre || Math.random().toString(36).slice(-10) + 'A1!'
+      const { data: authUser, error: authErr } = await adminClient.auth.admin.createUser({
+        email: eposta, password, email_confirm: true,
+        user_metadata: { ad_soyad, uzmanlik, role: 'mentor' },
+      })
+
+      if (authErr) {
+        const msg = authErr.message || ''
+        if (msg.includes('already registered') || msg.includes('already exists')) {
+          return jsonRes(req, { ok: false, error: 'Bu e-posta adresi zaten kayıtlıdır.' }, 409)
+        }
+        return jsonRes(req, { ok: false, error: 'Auth kullanıcısı oluşturulamadı: ' + authErr.message }, 500)
+      }
+
+      const newUserId = authUser.user?.id
+      if (!newUserId) return jsonRes(req, { ok: false, error: 'Auth ID alınamadı.' }, 500)
+
+      const { data: mentorData, error: mentorErr } = await adminClient
+        .from('core_mentor')
+        .insert({ ad_soyad, eposta, uzmanlik: uzmanlik || '', aktif: true })
+        .select().single()
+      if (mentorErr) return jsonRes(req, { ok: false, error: 'Mentor kaydı oluşturulamadı: ' + mentorErr.message }, 500)
+
+      await adminClient.from('profiles').upsert({
+        id: newUserId, email: eposta, role: 'mentor', ad_soyad, core_mentor_id: mentorData.id,
+      }, { onConflict: 'id' })
+
+      return jsonRes(req, { ok: true, data: { mentor: mentorData, action: 'create_mentor' } })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: delete_mentor
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'delete_mentor') {
+      const { mentor_id } = payload || {}
+      if (!mentor_id) return jsonRes(req, { ok: false, error: 'mentor_id zorunludur.' }, 400)
+
+      const now = new Date().toISOString()
+
+      const { error: softDelErr } = await adminClient
+        .from('core_mentor')
+        .update({ aktif: false, silinme_tarihi: now })
+        .eq('id', mentor_id)
+
+      if (softDelErr) {
+        console.error('Soft delete mentor error:', softDelErr)
+        return jsonRes(req, { ok: false, error: 'Mentor pasif hale getirilemedi: ' + softDelErr.message }, 500)
+      }
+
+      await adminClient.from('core_takim').update({ mentor_id: null }).eq('mentor_id', mentor_id)
+
+      return jsonRes(req, { ok: true, data: { mentor_id, action: 'delete_mentor', soft_deleted: true } })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: import_candidates_csv
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'import_candidates_csv') {
+      const { csvText, filename } = payload || {}
+      if (!csvText || typeof csvText !== 'string') {
+        return jsonRes(req, { ok: false, error: 'csvText zorunludur.' }, 400)
+      }
+
+      const rawLines = csvText
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .filter(l => l.trim().length > 0)
+
+      if (rawLines.length < 2) {
+        return jsonRes(req, { ok: false, error: 'CSV dosyası en az bir başlık ve bir veri satırı içermelidir.' }, 400)
+      }
+
+      let delimiter = ','
+      if (rawLines[0].includes(';') && (rawLines[0].split(';').length > rawLines[0].split(',').length)) {
+        delimiter = ';'
+      } else if (rawLines[0].includes('\t') && (rawLines[0].split('\t').length > rawLines[0].split(',').length)) {
+        delimiter = '\t'
+      }
+
+      const headers = parseCsvLine(rawLines[0], delimiter).map(normalizeHeader)
+
+      function getColIndex(aliases: string[]): number {
+        const normAliases = aliases.map(normalizeHeader)
+        return headers.findIndex(h => normAliases.includes(h))
+      }
+
+      const colAd = getColIndex(['ad', 'adi', 'adiniz', 'first_name', 'firstname', 'name', 'isim'])
+      const colSoyad = getColIndex(['soyad', 'soyadi', 'soyadiniz', 'last_name', 'lastname', 'surname', 'soyisim'])
+      const colEposta = getColIndex(['eposta', 'e-posta', 'e posta', 'eposta adresi', 'eposta adresiniz', 'email', 'e-mail', 'mail', 'email adresi', 'email adresiniz'])
+      const colTelefon = getColIndex(['telefon', 'telefon numarası', 'telefon numaranız', 'tel', 'phone', 'gsm', 'mobile'])
+      const colUniversite = getColIndex(['universite', 'üniversite', 'okuduğunuz / mezun olduğunuz üniversite', 'university', 'okul'])
+      const colSinif = getColIndex(['sinif', 'sınıf', 'sınıfınız', 'sinifiniz', 'class', 'grade', 'yil'])
+      const colTakvimOnay = getColIndex(['program takvimine uyum ve devamlılık onayı', 'takvim onayi', 'takvim_onay', 'devamlılık onayı'])
+      const colKaynak = getColIndex(['kaynak', 'source'])
+      const colAdSoyadCombined = getColIndex(['ad_soyad', 'ad soyad', 'isim soyisim', 'adi soyadi', 'adiniz soyadiniz', 'fullname', 'full_name'])
+
+      if (colEposta === -1 || (colAd === -1 && colSoyad === -1 && colAdSoyadCombined === -1)) {
+        return jsonRes(req, { ok: false, error: 'CSV başlıkları tanınamadı. Lütfen eposta/email ve ad/soyad veya ad_soyad kolonları kullanın.' }, 400)
+      }
+
+      const { data: existingAdaylar } = await adminClient.from('core_aday').select('eposta')
+      const existingEmails = new Set((existingAdaylar || []).map(a => (a.eposta || '').trim().toLowerCase()))
+
+      const nowIso = new Date().toISOString()
+      const rowsToInsert: any[] = []
+      const errors: string[] = []
+      let skippedCount = 0
+
+      for (let i = 1; i < rawLines.length; i++) {
+        const cols = parseCsvLine(rawLines[i], delimiter)
+        if (cols.length === 0 || (cols.length === 1 && !cols[0])) continue
+
+        let email = colEposta !== -1 ? (cols[colEposta] || '').trim().toLowerCase() : ''
+        let ad = colAd !== -1 ? (cols[colAd] || '').trim() : ''
+        let soyad = colSoyad !== -1 ? (cols[colSoyad] || '').trim() : ''
+
+        if (!ad && !soyad && colAdSoyadCombined !== -1) {
+          const combinedVal = (cols[colAdSoyadCombined] || '').trim()
+          const parts = combinedVal.split(/\s+/)
+          ad = parts[0] || ''
+          soyad = parts.slice(1).join(' ') || ''
+        }
+
+        const rowNum = i + 1
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!email || !emailRegex.test(email)) {
+          errors.push(`Satır ${rowNum}: Geçersiz veya boş e-posta adresi ("${cols[colEposta] || ad || 'boş'}")`)
+          continue
+        }
+
+        if (!ad) {
+          errors.push(`Satır ${rowNum}: Ad alanı boş`)
+          continue
+        }
+
+        if (existingEmails.has(email)) {
+          skippedCount++
+          continue
+        }
+
+        const telefon = colTelefon !== -1 ? (cols[colTelefon] || '').trim() : null
+        const universite = colUniversite !== -1 ? (cols[colUniversite] || '').trim() : null
+        const sinif = colSinif !== -1 ? (cols[colSinif] || '').trim() : null
+        const takvimOnayVal = colTakvimOnay !== -1 ? (cols[colTakvimOnay] || '').trim().toLowerCase() : ''
+        const takvim_onay = takvimOnayVal.includes('evet') || takvimOnayVal.includes('onay') || takvimOnayVal.includes('kabul') || takvimOnayVal === 'true' || takvimOnayVal === '1'
+        const kaynakVal = colKaynak !== -1 && cols[colKaynak] ? cols[colKaynak].trim() : 'Google Forms CSV Import'
+
+        existingEmails.add(email)
+        rowsToInsert.push({
+          ad,
+          soyad: soyad || ad,
+          eposta: email,
+          telefon: telefon || null,
+          universite: universite || null,
+          sinif: sinif || null,
+          kaynak: kaynakVal,
+          basvuru_tarihi: nowIso,
+          basvuru_durumu: 'BEKLIYOR',
+          takvim_onay: takvim_onay,
+        })
+      }
+
+      let insertedCount = 0
+      if (rowsToInsert.length > 0) {
+        const { data: insertedData, error: insertErr } = await adminClient
+          .from('core_aday')
+          .insert(rowsToInsert)
+          .select()
+
+        if (insertErr) {
+          console.error('CSV Bulk Insert Error:', insertErr)
+          return jsonRes(req, { ok: false, error: 'Adaylar veritabanına eklenirken hata oluştu: ' + insertErr.message }, 500)
+        }
+        insertedCount = insertedData ? insertedData.length : rowsToInsert.length
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          inserted: insertedCount,
+          skipped: skippedCount,
+          total: rawLines.length - 1,
+          errors: errors,
+          filename: filename || 'adaylar.csv'
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
