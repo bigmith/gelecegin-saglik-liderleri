@@ -68,6 +68,28 @@ export async function logoutUser() {
   }
 }
 
+export async function requestPasswordReset(email) {
+  const cleanEmail = email.trim().toLowerCase()
+  const redirectTo = window.location.origin + '/login'
+  const { data, error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+    redirectTo
+  })
+  if (error) {
+    throw new Error(error.message || 'Şifre sıfırlama e-postası gönderilemedi.')
+  }
+  return data
+}
+
+export async function updateUserPassword(newPassword) {
+  const { data, error } = await supabase.auth.updateUser({
+    password: newPassword
+  })
+  if (error) {
+    throw new Error(error.message || 'Şifre güncellenemedi.')
+  }
+  return data
+}
+
 // ─── ADAYLAR ───────────────────────────────────────────────────────────────────
 export async function getAdaylar() {
   const { data, error } = await supabase.from('core_aday').select('*').order('id', { ascending: false })
