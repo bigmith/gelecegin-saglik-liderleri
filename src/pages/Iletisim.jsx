@@ -159,12 +159,24 @@ export default function Iletisim() {
                   <p className="text-slate-600 text-xs sm:text-sm leading-relaxed mb-4 sm:mb-5">
                     Başvuru koşulları, değerlendirme süreçleri ve program takvimi ile ilgili sorularınız için destek ekibimizle iletişime geçebilirsiniz.
                   </p>
-                  <div className="bg-orange-50 border border-orange-100 rounded-xl px-3.5 py-2.5 sm:px-4 sm:py-3 flex items-center gap-3">
-                    <span className="text-orange-400 text-base">📬</span>
-                    <p className="text-orange-800 text-xs sm:text-sm font-medium">
-                      İletişim kanalları yakında güncellenecektir.
-                    </p>
-                  </div>
+                  <a
+                    href="mailto:saglikliderleri@markamutfagi.co"
+                    className="bg-orange-50 border border-orange-200/70 hover:border-orange-300 hover:bg-orange-100/60 rounded-xl px-3.5 py-3 sm:px-4 sm:py-3.5 flex items-center gap-3 transition-all duration-200 group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+                        <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
+                        <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] text-orange-600 font-semibold uppercase tracking-wider">E-posta ile Ulaşın</div>
+                      <span className="text-orange-900 text-xs sm:text-sm font-bold truncate block group-hover:text-orange-600 transition-colors">
+                        saglikliderleri@markamutfagi.co
+                      </span>
+                    </div>
+                    <span className="text-orange-400 group-hover:translate-x-0.5 transition-transform text-xs">↗</span>
+                  </a>
                 </div>
 
                 {/* Marka Mutfağı card */}

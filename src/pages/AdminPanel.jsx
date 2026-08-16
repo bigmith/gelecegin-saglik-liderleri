@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   getAdaylar,
   getTakimlar,
+  createTakim,
+  deleteTakim,
   getKatilimcilar,
   getGorevler,
   getMentorlar,
