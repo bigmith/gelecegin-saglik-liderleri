@@ -625,46 +625,116 @@ export async function submitIcerikDna(cevaplar) {
   return data.data
 }
 
-// ─── KATILIMCI ÖZEL SORGULARI ──────────────────────────────────────────────────
-export async function getKatilimciMe() {
+// ─── KATILIMCI ÖZEL SORGULARI & RESOLVER ──────────────────────────────────────
+
+/**
+ * Aktif oturumdaki katılımcıyı güvenli, çok kademeli ve kendini onaran (self-healing)
+ * bir resolver mantığıyla çözer.
+ */
+export async function resolveCurrentKatilimci() {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError || !session?.user) throw new Error('Oturum geçersiz.')
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .maybeSingle()
-
-  if (profileError) throw profileError
-  if (!profile) throw new Error('Profil bulunamadı.')
-
-  let katilimciId = profile.core_katilimci_id
-  let katilimciData = null
-
-  if (katilimciId) {
-    const { data: kData, error: kError } = await supabase
-      .from('core_katilimci')
-      .select('*, aday:core_aday(ad, soyad, eposta, telefon, universite, sinif)')
-      .eq('id', katilimciId)
-      .maybeSingle()
-    if (!kError && kData) katilimciData = kData
+  if (sessionError || !session?.user) {
+    throw new Error('Oturum geçersiz veya süresi dolmuş. Lütfen tekrar giriş yapın.')
   }
 
-  if (!katilimciData) {
-    const { data: kData, error: kError } = await supabase
-      .from('core_katilimci')
-      .select('*, aday:core_aday(ad, soyad, eposta, telefon, universite, sinif)')
-      .eq('user_id', session.user.id)
+  const userId = session.user.id
+  const userEmail = (session.user.email || '').toLowerCase().trim()
+
+  // 1. Profile kontrolü
+  let { data: profile, error: profError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (profError) {
+    console.warn('resolveCurrentKatilimci profile fetch warning:', profError)
+  }
+
+  // Profil yoksa email ile ara veya temel profil oluştur
+  if (!profile && userEmail) {
+    const { data: profByEmail } = await supabase
+      .from('profiles')
+      .select('*')
+      .ilike('email', userEmail)
       .maybeSingle()
-    if (!kError && kData) {
-      katilimciData = kData
-      katilimciId = kData.id
+
+    if (profByEmail && profByEmail.id === userId) {
+      profile = profByEmail
+    } else {
+      const { data: newProf } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          email: userEmail,
+          role: 'katilimci',
+          ad_soyad: session.user.user_metadata?.ad_soyad || null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .select()
+        .maybeSingle()
+      profile = newProf
     }
   }
 
+  let katilimciId = profile?.core_katilimci_id || null
+  let katilimciData = null
+
+  // 2. Doğrudan core_katilimci_id ile lookup
+  if (katilimciId) {
+    const { data: kData, error: kError } = await supabase
+      .from('core_katilimci')
+      .select('*, aday:core_aday(id, ad, soyad, eposta, telefon, universite, sinif, basvuru_durumu)')
+      .eq('id', katilimciId)
+      .maybeSingle()
+    if (!kError && kData) {
+      katilimciData = kData
+    }
+  }
+
+  // 3. Fallback 1: Email üzerinden core_aday (ONAYLANDI) -> core_katilimci lookup (Self-Healing)
+  if (!katilimciData && userEmail) {
+    const { data: adayData } = await supabase
+      .from('core_aday')
+      .select('id, ad, soyad, eposta, telefon, universite, sinif, basvuru_durumu')
+      .ilike('eposta', userEmail)
+      .eq('basvuru_durumu', 'ONAYLANDI')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (adayData?.id) {
+      const { data: kData } = await supabase
+        .from('core_katilimci')
+        .select('*, aday:core_aday(id, ad, soyad, eposta, telefon, universite, sinif, basvuru_durumu)')
+        .eq('aday_id', adayData.id)
+        .maybeSingle()
+
+      if (kData) {
+        katilimciData = kData
+        katilimciId = kData.id
+
+        // Self-repair profiles.core_katilimci_id
+        try {
+          await supabase
+            .from('profiles')
+            .update({ core_katilimci_id: kData.id, role: 'katilimci', updated_at: new Date().toISOString() })
+            .eq('id', userId)
+          if (profile) profile.core_katilimci_id = kData.id
+        } catch (repairErr) {
+          console.warn('Profile self-healing update warning:', repairErr)
+        }
+      }
+    }
+  }
+
+  if (!katilimciData || !katilimciId) {
+    throw new Error('Katılımcı kaydınız eşleştirilemedi. Lütfen destek ekibiyle iletişime geçin.')
+  }
+
+  // 4. Takım bilgisi
   let takimData = null
-  if (katilimciData && katilimciData.takim_id) {
+  if (katilimciData.takim_id) {
     const { data: tData } = await supabase
       .from('core_takim')
       .select('*')
@@ -673,39 +743,54 @@ export async function getKatilimciMe() {
     if (tData) takimData = tData
   }
 
-  const adayObj = katilimciData?.aday || {}
-  const finalAdSoyad = `${katilimciData?.ad || ''} ${katilimciData?.soyad || ''}`.trim() || katilimciData?.ad_soyad || profile.ad_soyad || `${adayObj.ad || ''} ${adayObj.soyad || ''}`.trim() || 'Katılımcı'
-  const finalEposta = profile.email || katilimciData?.eposta || adayObj.eposta || ''
-  const finalTelefon = katilimciData?.telefon || profile.telefon || adayObj.telefon || ''
-  const finalUniversite = katilimciData?.universite || adayObj.universite || ''
-  const finalSinif = katilimciData?.sinif || adayObj.sinif || ''
+  const adayObj = katilimciData.aday || {}
+  const finalAdSoyad = `${katilimciData.ad || ''} ${katilimciData.soyad || ''}`.trim() || katilimciData.ad_soyad || profile?.ad_soyad || `${adayObj.ad || ''} ${adayObj.soyad || ''}`.trim() || 'Katılımcı'
+  const finalEposta = profile?.email || katilimciData.eposta || adayObj.eposta || userEmail || ''
+  const finalTelefon = katilimciData.telefon || profile?.telefon || adayObj.telefon || ''
+  const finalUniversite = katilimciData.universite || adayObj.universite || ''
+  const finalSinif = katilimciData.sinif || adayObj.sinif || ''
+
+  const resolvedKatilimci = {
+    ...katilimciData,
+    id: katilimciId,
+    katilimci_id: katilimciId,
+    ad_soyad: finalAdSoyad,
+    eposta: finalEposta,
+    telefon: finalTelefon,
+    universite: finalUniversite,
+    sinif: finalSinif,
+    adres: katilimciData.adres || '',
+    okul_bilgisi: katilimciData.okul_bilgisi || '',
+    egitim_durumu: katilimciData.egitim_durumu || '',
+    is_durumu: katilimciData.is_durumu || '',
+    calistigi_kurum: katilimciData.calistigi_kurum || '',
+    pozisyon: katilimciData.pozisyon || '',
+    is_aciklamasi: katilimciData.is_aciklamasi || '',
+    profil_fotografi_url: katilimciData.profil_fotografi_url || profile?.avatar_url || '',
+    profil_fotografi_file_id: katilimciData.profil_fotografi_file_id || '',
+    profil_guncelleme_tarihi: katilimciData.profil_guncelleme_tarihi || null,
+    takim: katilimciData.takim_id,
+    takim_id: katilimciData.takim_id,
+    takim_adi: takimData ? takimData.takim_adi : null,
+    toplam_puan: takimData ? takimData.toplam_puan : 0
+  }
 
   return {
+    session,
+    user: session.user,
     profile,
-    katilimci: katilimciData ? {
-      ...katilimciData,
-      katilimci_id: katilimciData.id,
-      ad_soyad: finalAdSoyad,
-      eposta: finalEposta,
-      telefon: finalTelefon,
-      universite: finalUniversite,
-      sinif: finalSinif,
-      adres: katilimciData.adres || '',
-      okul_bilgisi: katilimciData.okul_bilgisi || '',
-      egitim_durumu: katilimciData.egitim_durumu || '',
-      is_durumu: katilimciData.is_durumu || '',
-      calistigi_kurum: katilimciData.calistigi_kurum || '',
-      pozisyon: katilimciData.pozisyon || '',
-      is_aciklamasi: katilimciData.is_aciklamasi || '',
-      profil_fotografi_url: katilimciData.profil_fotografi_url || profile.avatar_url || '',
-      profil_fotografi_file_id: katilimciData.profil_fotografi_file_id || '',
-      profil_guncelleme_tarihi: katilimciData.profil_guncelleme_tarihi || null,
-      takim: katilimciData.takim_id,
-      takim_id: katilimciData.takim_id,
-      takim_adi: takimData ? takimData.takim_adi : null,
-      toplam_puan: takimData ? takimData.toplam_puan : 0
-    } : null,
+    katilimci: resolvedKatilimci,
+    katilimci_id: katilimciId,
     takim: takimData
+  }
+}
+
+export async function getKatilimciMe() {
+  const resolved = await resolveCurrentKatilimci()
+  return {
+    profile: resolved.profile,
+    katilimci: resolved.katilimci,
+    takim: resolved.takim
   }
 }
 
@@ -872,39 +957,63 @@ export function getParticipantAvatarSrc(katilimci, size = 400) {
 }
 
 export async function getKatilimciPerformansMe(katilimciId) {
-  if (!katilimciId) return null
+  let effectiveId = katilimciId
+  if (!effectiveId) {
+    try {
+      const resolved = await resolveCurrentKatilimci()
+      effectiveId = resolved?.katilimci_id
+    } catch (_) {}
+  }
+  if (!effectiveId) return null
+
   const { data, error } = await supabase
     .from('core_katilimciperformans')
     .select('*')
-    .eq('katilimci_id', katilimciId)
+    .eq('katilimci_id', effectiveId)
     .maybeSingle()
   if (error) throw error
   return data
 }
 
 export async function getKatilimciDnaMe(katilimciId) {
-  if (!katilimciId) return null
+  let effectiveId = katilimciId
+  if (!effectiveId) {
+    try {
+      const resolved = await resolveCurrentKatilimci()
+      effectiveId = resolved?.katilimci_id
+    } catch (_) {}
+  }
+  if (!effectiveId) return null
+
   const { data, error } = await supabase
     .from('core_icerikdnatesti')
     .select('*')
-    .eq('katilimci_id', katilimciId)
+    .eq('katilimci_id', effectiveId)
     .maybeSingle()
   if (error) throw error
   return data
 }
 
 export async function getKatilimciTeslimlerMe(katilimciId) {
-  if (!katilimciId) return []
+  let effectiveId = katilimciId
+  if (!effectiveId) {
+    try {
+      const resolved = await resolveCurrentKatilimci()
+      effectiveId = resolved?.katilimci_id
+    } catch (_) {}
+  }
+  if (!effectiveId) return []
+
   const { data, error } = await supabase
     .from('core_teslim')
     .select('*, gorev:core_gorev(*), hareketler:core_teslimhareketi(*)')
-    .eq('katilimci_id', katilimciId)
+    .eq('katilimci_id', effectiveId)
     .order('id', { ascending: false })
   if (error) {
     const { data: rawData, error: rawErr } = await supabase
       .from('core_teslim')
       .select('*, gorev:core_gorev(*)')
-      .eq('katilimci_id', katilimciId)
+      .eq('katilimci_id', effectiveId)
       .order('id', { ascending: false })
     if (rawErr) throw rawErr
     return groupTeslimlerByTask(rawData || [])
@@ -1671,24 +1780,10 @@ export async function submitKatilimciTeslim({ gorev_id, teslim_linki, aciklama, 
     throw new Error('Lütfen bir dosya yükleyin veya harici bağlantı girin.')
   }
 
-  const user = (await supabase.auth.getUser()).data.user
-  if (!user) throw new Error('Oturum açmanız gerekmektedir.')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('core_katilimci_id, ad_soyad')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (!profile || !profile.core_katilimci_id) {
-    throw new Error('Katılımcı profil kaydınız bulunamadı.')
-  }
-
-  const katilimciId = profile.core_katilimci_id
-  const katilimciAdi = profile.ad_soyad || ''
-
-  const { data: katilimciRow } = await supabase.from('core_katilimci').select('takim_id').eq('id', katilimciId).maybeSingle()
-  const takimId = katilimciRow?.takim_id || null
+  const resolved = await resolveCurrentKatilimci()
+  const katilimciId = resolved.katilimci_id
+  const katilimciAdi = resolved.katilimci.ad_soyad || ''
+  const takimId = resolved.katilimci.takim_id || null
 
   let finalFileLink = cleanLink
   let finalFileDosya = ''

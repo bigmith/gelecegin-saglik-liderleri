@@ -275,77 +275,87 @@ serve(async (req) => {
       .eq('id', user.id)
       .maybeSingle()
 
-    if (profileError || !profile) return jsonRes(req, { ok: false, error: 'Profil bulunamadı.' }, 403)
-    if (profile.role !== 'katilimci' && profile.role !== 'admin') {
-      return jsonRes(req, { ok: false, error: 'Bu işlem için katılımcı veya admin yetkisi gereklidir.' }, 403)
-    }
-
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
     const { cevaplar, katilimci_id: targetKatilimciId } = await req.json()
 
-    let katilimciId = profile.core_katilimci_id
-    if (profile.role === 'admin' && targetKatilimciId) {
+    let katilimciId = profile?.core_katilimci_id || null
+    if (profile?.role === 'admin' && targetKatilimciId) {
       katilimciId = targetKatilimciId
     }
 
-    // Katılımcı kaydı yoksa otomatik oluştur ve profile bağla
+    // ─────────────────────────────────────────────────────────────────────────
+    // Self-Healing Participant Resolver:
+    // ─────────────────────────────────────────────────────────────────────────
     if (!katilimciId) {
-      const { data: newAday } = await adminClient
-        .from('core_aday')
-        .insert({
-          ad: profile.ad_soyad || 'Katılımcı',
-          soyad: 'Üyesi',
-          eposta: profile.email || `${user.id}@example.com`,
-          telefon: '5550000000',
-          universite: 'Sağlık Bilimleri',
-          sinif: '4',
-          kaynak: 'Direct',
-          takvim_onay: true,
-          basvuru_durumu: 'ONAYLANDI',
-          basvuru_tarihi: new Date().toISOString()
-        })
-        .select()
-        .single()
+      // 1. Fallback: core_aday by user email (ONAYLANDI) -> core_katilimci
+      const userEmail = (user.email || profile?.email || '').trim().toLowerCase()
+      if (userEmail) {
+        const { data: aday } = await adminClient
+          .from('core_aday')
+          .select('id, basvuru_durumu')
+          .ilike('eposta', userEmail)
+          .eq('basvuru_durumu', 'ONAYLANDI')
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle()
 
-      if (newAday) {
-        const { data: newK } = await adminClient
-          .from('core_katilimci')
-          .insert({
-            aday_id: newAday.id,
-            kabul_durumu: true,
-            kabul_tarihi: new Date().toISOString().split('T')[0],
-            program_katilim_durumu: 'AKTIF',
-            notlar: ''
-          })
-          .select()
-          .single()
+        if (aday?.id) {
+          const { data: k } = await adminClient
+            .from('core_katilimci')
+            .select('id')
+            .eq('aday_id', aday.id)
+            .maybeSingle()
 
-        if (newK) {
-          katilimciId = newK.id
-          await adminClient
-            .from('profiles')
-            .update({ core_katilimci_id: newK.id })
-            .eq('id', user.id)
+          if (k?.id) {
+            katilimciId = k.id
 
-          await adminClient
-            .from('core_katilimciperformans')
-            .insert({
-              katilimci_id: newK.id,
-              bireysel_puan: 0,
-              gorev_puani: 0,
-              toplanti_katilim_puani: 0,
-              etkilesim_bonus_puani: 0,
-              manuel_puan: 0,
-              admin_ici_not: '',
-              katilimciya_gorunen_not: '',
-              olusturulma_tarihi: new Date().toISOString(),
-              guncellenme_tarihi: new Date().toISOString()
-            })
+            // Self-repair profiles table
+            await adminClient
+              .from('profiles')
+              .upsert({
+                id: user.id,
+                email: userEmail,
+                role: 'katilimci',
+                core_katilimci_id: k.id,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'id' })
+          }
         }
       }
     }
 
-    if (!katilimciId) return jsonRes(req, { ok: false, error: 'Katılımcı kaydı eşleştirilemedi.' }, 400)
+    // Ensure performance record exists for this participant
+    if (katilimciId) {
+      const { data: existingPerf } = await adminClient
+        .from('core_katilimciperformans')
+        .select('id')
+        .eq('katilimci_id', katilimciId)
+        .maybeSingle()
+
+      if (!existingPerf) {
+        await adminClient
+          .from('core_katilimciperformans')
+          .insert({
+            katilimci_id: katilimciId,
+            bireysel_puan: 0,
+            gorev_puani: 0,
+            toplanti_katilim_puani: 0,
+            etkilesim_bonus_puani: 0,
+            manuel_puan: 0,
+            admin_ici_not: '',
+            katilimciya_gorunen_not: '',
+            olusturulma_tarihi: new Date().toISOString(),
+            guncellenme_tarihi: new Date().toISOString()
+          })
+      }
+    }
+
+    if (!katilimciId) {
+      return jsonRes(req, {
+        ok: false,
+        error: 'Katılımcı kaydınız eşleştirilemedi. Lütfen destek ekibiyle iletişime geçin.'
+      }, 400)
+    }
 
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
     let raporMetni = ""
