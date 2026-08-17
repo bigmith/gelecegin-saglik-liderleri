@@ -221,16 +221,12 @@ const parseSeriesBlocks = (body) => {
       series.push({
         id: Math.floor(i / 2) + 1,
         title: headerTitle,
-        format: format || 'Reels / Shorts / TikTok Video',
-        channel: channel || 'Instagram & TikTok',
-        logic: logic || 'Uzmanlık alanına yönelik sürdürülebilir içerik mantığı.',
-        episodes: episodes.length > 0 ? episodes : [
-          'Bölüm 1: Sağlıkta doğru bilinen mitler',
-          'Bölüm 2: En sık sorulan danışan soruları',
-          'Bölüm 3: Günlük koruyucu sağlık pratikleri'
-        ],
-        production: production || '1 gün senaryo taslağı, 1 gün toplu çekim ve altyazı kurgusu.',
-        riskNote: riskNote || 'İlaç marka ismi verilmemeli, sadece etken madde ve genel mekanizma anlatılmalıdır.'
+        format: format || 'Reels / Shorts / Video',
+        channel: channel || 'Instagram / Sosyal Medya',
+        logic: logic || '',
+        episodes: episodes,
+        production: production || '',
+        riskNote: riskNote || ''
       })
     }
   }
