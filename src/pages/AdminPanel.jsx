@@ -3830,6 +3830,7 @@ function PerformansSection({ token, setToast }) {
                               const EVENT_MAP = {
                                 login: { label: 'Sisteme Giriş', icon: '🔑', cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
                                 password_recovery_login: { label: 'Şifre Belirleme Girişi', icon: '🔓', cls: 'bg-purple-100 text-purple-800 border-purple-200' },
+                                auth_backfill_login: { label: 'Geçmiş Auth Girişi', icon: '⏳', cls: 'bg-indigo-100 text-indigo-800 border-indigo-200', note: 'Supabase Auth geçmişi' },
                                 panel_open: { label: 'Panel Açılışı', icon: '💻', cls: 'bg-blue-100 text-blue-800 border-blue-200' },
                                 activity_ping: { label: 'Aktivite Sinyali', icon: '💓', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
                               }
@@ -3841,10 +3842,17 @@ function PerformansSection({ token, setToast }) {
                               return (
                                 <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-3 py-3">
-                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${ev.cls}`}>
-                                      <span>{ev.icon}</span>
-                                      <span>{ev.label}</span>
-                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${ev.cls}`}>
+                                        <span>{ev.icon}</span>
+                                        <span>{ev.label}</span>
+                                      </span>
+                                      {ev.note && (
+                                        <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                                          {ev.note}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-3 py-3 font-mono text-gray-600 whitespace-nowrap">
                                     {tarihFormatted}
