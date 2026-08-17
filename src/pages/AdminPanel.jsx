@@ -29,6 +29,7 @@ import {
   deleteAdminSosyalMedya,
   importCandidatesCsvText,
   getAdminKatilimciDetay,
+  getAdminKatilimciAktiviteLoglari,
   getDriveThumbnailUrl,
   getParticipantAvatarSrc,
   logoutUser
@@ -3025,12 +3026,13 @@ function PerformansSection({ token, setToast }) {
     try {
       const baseItem = baseRow || (performansList || []).find(p => Number(p.katilimci_id || p.katilimci || p.id) === Number(katilimciId)) || null
 
-      const [item, kDetay, tList, sList, tesList] = await Promise.all([
+      const [item, kDetay, tList, sList, tesList, aList] = await Promise.all([
         baseItem || (performansList || []).find(p => Number(p.katilimci_id || p.katilimci || p.id) === Number(katilimciId)) || null,
         getAdminKatilimciDetay(katilimciId).catch(() => null),
         getAdminKatilimciToplantilari(katilimciId).catch(() => []),
         getAdminKatilimciSosyalMedya(katilimciId).catch(() => []),
-        getAdminKatilimciTeslimleri(katilimciId).catch(() => [])
+        getAdminKatilimciTeslimleri(katilimciId).catch(() => []),
+        getAdminKatilimciAktiviteLoglari(katilimciId, 10).catch(() => [])
       ])
 
       const perfItem = item || {
@@ -3062,6 +3064,10 @@ function PerformansSection({ token, setToast }) {
         profil_fotografi_url: kDetay?.profil_fotografi_url || perfItem.profil_fotografi_url || baseItem?.profil_fotografi_url || '',
         profil_fotografi_file_id: kDetay?.profil_fotografi_file_id || perfItem.profil_fotografi_file_id || baseItem?.profil_fotografi_file_id || '',
         profil_guncelleme_tarihi: kDetay?.profil_guncelleme_tarihi || perfItem.profil_guncelleme_tarihi || baseItem?.profil_guncelleme_tarihi || null,
+        ilk_giris_tarihi: kDetay?.ilk_giris_tarihi || perfItem.ilk_giris_tarihi || baseItem?.ilk_giris_tarihi || null,
+        son_giris_tarihi: kDetay?.son_giris_tarihi || perfItem.son_giris_tarihi || baseItem?.son_giris_tarihi || null,
+        son_aktivite_tarihi: kDetay?.son_aktivite_tarihi || perfItem.son_aktivite_tarihi || baseItem?.son_aktivite_tarihi || null,
+        giris_sayisi: Number(kDetay?.giris_sayisi ?? perfItem.giris_sayisi ?? baseItem?.giris_sayisi ?? 0),
         takim_adi: kDetay?.takim_adi || perfItem.takim_adi || baseItem?.takim_adi || 'Takımsız',
         program_katilim_durumu: 'AKTIF'
       }
@@ -3072,7 +3078,8 @@ function PerformansSection({ token, setToast }) {
         toplanti_katilimlari: tList || [],
         sosyal_medya: sList || [],
         sosyal_medya_performanslari: sList || [],
-        teslimler: tesList || []
+        teslimler: tesList || [],
+        aktivite_loglari: aList || []
       })
 
       setScoreForm({
@@ -3197,6 +3204,7 @@ function PerformansSection({ token, setToast }) {
   const toplantiKatilimlari = Array.isArray(detail?.toplanti_katilimlari) ? detail.toplanti_katilimlari : []
   const sosyalMedyaList     = Array.isArray(detail?.sosyal_medya_performanslari) ? detail.sosyal_medya_performanslari : []
   const teslimlerList       = Array.isArray(detail?.teslimler) ? detail.teslimler : []
+  const aktiviteLoglari     = Array.isArray(detail?.aktivite_loglari) ? detail.aktivite_loglari : []
 
   // Güvenli Katılımcı ve Performans Nesneleri
   const katilimciObj = detail?.katilimci && typeof detail.katilimci === 'object' ? detail.katilimci : {}
@@ -3221,12 +3229,44 @@ function PerformansSection({ token, setToast }) {
         </div>
       )}
 
+      {/* ─── KATILIMCI ETKİLEŞİM & GİRİŞ ÖZETİ KARTLARI ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-soft">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Toplam Katılımcı</span>
+          <span className="text-2xl font-black text-gray-800">{safePerformansList.length}</span>
+        </div>
+        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 shadow-soft">
+          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">Giriş Yapan Katılımcılar</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-emerald-900">
+              {safePerformansList.filter(p => (Number(p.giris_sayisi) > 0) || Boolean(p.son_giris_tarihi)).length}
+            </span>
+            <span className="text-xs font-semibold text-emerald-700">/ {safePerformansList.length}</span>
+          </div>
+        </div>
+        <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 shadow-soft">
+          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block mb-1">Henüz Giriş Yapmayan</span>
+          <span className="text-2xl font-black text-amber-900">
+            {safePerformansList.filter(p => (!p.giris_sayisi || Number(p.giris_sayisi) === 0) && !p.son_giris_tarihi).length}
+          </span>
+        </div>
+        <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 shadow-soft">
+          <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider block mb-1">Bugün Aktif Olan</span>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-black text-blue-900">
+              {safePerformansList.filter(p => p.son_aktivite_tarihi && (new Date(p.son_aktivite_tarihi).toDateString() === new Date().toDateString())).length}
+            </span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+        </div>
+      </div>
+
       {/* LİSTE GÖRÜNÜMÜ (HER ZAMAN TAM GENİŞLİK) */}
       <div className="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden w-full">
         <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gray-50/50">
           <div className="flex items-center gap-2">
             <span className="text-base">⭐</span>
-            <h3 className="text-sm font-bold text-gray-800">Katılımcı Performans Listesi</h3>
+            <h3 className="text-sm font-bold text-gray-800">Katılımcı Performans & Giriş Listesi</h3>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -3256,18 +3296,18 @@ function PerformansSection({ token, setToast }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
-                {['#', 'Katılımcı', 'Takım', 'Bireysel Puan', 'Puan Dağılımı', 'İşlem'].map(h => (
+                {['#', 'Katılımcı', 'Takım', 'Giriş / Aktivite Durumu', 'Bireysel Puan', 'Puan Dağılımı', 'İşlem'].map(h => (
                   <th key={h} className="text-left px-4 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading
-                ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={6} />)
+                ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={7} />)
                 : filtered.length === 0
                 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-16 text-gray-400">
+                    <td colSpan={7} className="text-center py-16 text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <span className="text-4xl">⭐</span>
                         <p className="font-semibold text-gray-700">Henüz performans kaydı bulunmuyor.</p>
@@ -3314,6 +3354,47 @@ function PerformansSection({ token, setToast }) {
                       </td>
                       <td className="px-4 py-3.5 text-xs text-gray-600 whitespace-nowrap">
                         {tAdi ? <span className="bg-violet-50 text-violet border border-violet/20 font-semibold px-2 py-0.5 rounded-md">{tAdi}</span> : <span className="text-gray-400 italic">Takımsız</span>}
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        {(() => {
+                          const hasLoggedIn = (Number(item.giris_sayisi) > 0) || Boolean(item.son_giris_tarihi)
+                          const isToday = item.son_aktivite_tarihi && (new Date(item.son_aktivite_tarihi).toDateString() === new Date().toDateString())
+                          const girisSayisi = Number(item.giris_sayisi) || 0
+
+                          if (!hasLoggedIn) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                Henüz Giriş Yok
+                              </span>
+                            )
+                          }
+
+                          const sonGirisFormatted = item.son_giris_tarihi
+                            ? new Date(item.son_giris_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                            : '—'
+
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5">
+                                {isToday ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Bugün Aktif
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    Giriş Yaptı ({girisSayisi} kez)
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                Son: {sonGirisFormatted}
+                              </span>
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-100 border border-amber-200/80 px-2.5 py-1 rounded-full text-xs shadow-2xs">
@@ -3451,6 +3532,7 @@ function PerformansSection({ token, setToast }) {
             <div className="flex border-b border-gray-100 bg-gray-50/80 px-6 gap-2 overflow-x-auto flex-shrink-0">
               {[
                 { key: 'profil', label: '👤 Profil Detayları' },
+                { key: 'aktivite', label: `📊 Giriş & Aktivite (${aktiviteLoglari.length})` },
                 { key: 'puanlar', label: '⭐ Puan Düzenle & Notlar' },
                 { key: 'toplanti', label: `📅 Toplantılar (${toplantiKatilimlari.length})` },
                 { key: 'sosyal', label: `📱 Sosyal Medya (${sosyalMedyaList.length})` },
@@ -3532,8 +3614,49 @@ function PerformansSection({ token, setToast }) {
                     </div>
                   </div>
 
-                  {/* 3 Kolonlu Detay Kartları */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* 4 Kolonlu Detay Kartları */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+                    {/* Giriş & Aktivite Özeti */}
+                    <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3.5">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🔐</span> Platform Erişim & Giriş
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Giriş Durumu</span>
+                          {Number(katilimciObj.giris_sayisi) > 0 || katilimciObj.son_giris_tarihi ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Giriş Yaptı ({Number(katilimciObj.giris_sayisi) || 0} kez)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                              Henüz Giriş Yok
+                            </span>
+                          )}
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">İlk Giriş Tarihi</span>
+                          <span className="font-mono text-gray-800 text-xs">
+                            {katilimciObj.ilk_giris_tarihi ? new Date(katilimciObj.ilk_giris_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </span>
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Son Giriş Tarihi</span>
+                          <span className="font-mono text-gray-800 text-xs">
+                            {katilimciObj.son_giris_tarihi ? new Date(katilimciObj.son_giris_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </span>
+                        </div>
+                        <div className="bg-white border border-gray-200/70 rounded-xl p-3">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5">Son Aktivite Zamanı</span>
+                          <span className="font-mono text-gray-800 text-xs">
+                            {katilimciObj.son_aktivite_tarihi ? new Date(katilimciObj.son_aktivite_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* İletişim & Adres */}
                     <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3.5">
                       <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -3632,6 +3755,113 @@ function PerformansSection({ token, setToast }) {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── TAB: GİRİŞ & AKTİVİTE GEÇMİŞİ ─── */}
+              {!detailLoading && activeTab === 'aktivite' && (
+                <div className="space-y-6">
+                  {/* Özet Kartları */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Giriş Durumu</span>
+                      {Number(katilimciObj.giris_sayisi) > 0 || katilimciObj.son_giris_tarihi ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Giriş Yaptı
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          Henüz Giriş Yok
+                        </span>
+                      )}
+                    </div>
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Toplam Giriş Sayısı</span>
+                      <span className="text-xl font-black text-gray-800 tabular-nums">
+                        {Number(katilimciObj.giris_sayisi) || 0} <span className="text-xs font-semibold text-gray-400">kez</span>
+                      </span>
+                    </div>
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">İlk Giriş Tarihi</span>
+                      <span className="text-xs font-bold text-gray-700 font-mono block">
+                        {katilimciObj.ilk_giris_tarihi ? new Date(katilimciObj.ilk_giris_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </span>
+                    </div>
+                    <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Son Aktivite Zamanı</span>
+                      <span className="text-xs font-bold text-gray-700 font-mono block">
+                        {katilimciObj.son_aktivite_tarihi ? new Date(katilimciObj.son_aktivite_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Log Listesi */}
+                  <div className="bg-white border border-gray-200/80 rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xs">
+                    <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-gray-100">
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-800">Son 10 Oturum & Aktivite Logu</h4>
+                        <p className="text-xs text-gray-400 mt-0.5">Katılımcının sistem erişim hareketleri kronolojik olarak sıralanır</p>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-[11px] text-slate-600 font-medium">
+                        🛡️ KVKK & Gizlilik Uyumlu (IP Kaydedilmez)
+                      </div>
+                    </div>
+
+                    {aktiviteLoglari.length === 0 ? (
+                      <div className="bg-slate-50 border border-slate-100 rounded-2xl py-12 text-center text-gray-400 text-xs italic">
+                        Bu katılımcı için henüz aktivite logu kaydedilmemiş. Katılımcı sisteme giriş yaptığında veya panel açtığında kayıtlar burada listelenecektir.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider text-[10px] font-bold bg-gray-50/50">
+                              <th className="px-3 py-2.5 rounded-l-xl">Olay Tipi</th>
+                              <th className="px-3 py-2.5">Tarih & Saat</th>
+                              <th className="px-3 py-2.5">Sayfa / Rota</th>
+                              <th className="px-3 py-2.5 rounded-r-xl">Tarayıcı / Cihaz</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {aktiviteLoglari.map((log) => {
+                              const EVENT_MAP = {
+                                login: { label: 'Sisteme Giriş', icon: '🔑', cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+                                password_recovery_login: { label: 'Şifre Belirleme Girişi', icon: '🔓', cls: 'bg-purple-100 text-purple-800 border-purple-200' },
+                                panel_open: { label: 'Panel Açılışı', icon: '💻', cls: 'bg-blue-100 text-blue-800 border-blue-200' },
+                                activity_ping: { label: 'Aktivite Sinyali', icon: '💓', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+                              }
+                              const ev = EVENT_MAP[log.event_type] || { label: log.event_type || 'Aktivite', icon: '📌', cls: 'bg-slate-100 text-slate-700 border-slate-200' }
+                              const tarihFormatted = log.olusturulma_tarihi
+                                ? new Date(log.olusturulma_tarihi).toLocaleString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                                : '—'
+
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="px-3 py-3">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${ev.cls}`}>
+                                      <span>{ev.icon}</span>
+                                      <span>{ev.label}</span>
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-3 font-mono text-gray-600 whitespace-nowrap">
+                                    {tarihFormatted}
+                                  </td>
+                                  <td className="px-3 py-3 text-gray-500 font-mono text-[11px]">
+                                    {log.path || '/katilimci'}
+                                  </td>
+                                  <td className="px-3 py-3 text-gray-600">
+                                    {log.user_agent || 'Web Browser'}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

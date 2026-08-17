@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../config/supabaseClient'
-import { updateUserPassword, requestPasswordReset } from '../services/supabaseService'
+import { updateUserPassword, requestPasswordReset, recordParticipantActivity } from '../services/supabaseService'
 
 export default function ResetPassword() {
   // Page states: 'checking' | 'ready' | 'invalid' | 'success'
@@ -147,6 +147,7 @@ export default function ResetPassword() {
 
     try {
       await updateUserPassword(password)
+      recordParticipantActivity('password_recovery_login', '/reset-password').catch(() => {})
       setPageState('success')
 
       // URL query ve hash'i temizle

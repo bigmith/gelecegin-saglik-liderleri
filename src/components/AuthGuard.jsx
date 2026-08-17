@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { supabase } from '../config/supabaseClient'
-import { logoutUser } from '../services/supabaseService'
+import { logoutUser, recordParticipantActivity } from '../services/supabaseService'
 
 export default function AuthGuard({ children, allowedRoles }) {
   const [loading, setLoading] = useState(true)
@@ -52,6 +52,10 @@ export default function AuthGuard({ children, allowedRoles }) {
           localStorage.setItem('role', roleDisplayName)
           if (profile.ad_soyad) {
             localStorage.setItem('username', profile.ad_soyad)
+          }
+
+          if (role === 'katilimci') {
+            recordParticipantActivity('panel_open', location.pathname).catch(() => {})
           }
 
           setLoading(false)

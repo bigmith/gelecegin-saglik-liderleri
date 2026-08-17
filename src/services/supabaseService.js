@@ -205,7 +205,11 @@ export async function getKatilimcilar() {
       is_aciklamasi: k.is_aciklamasi || '',
       profil_fotografi_url: k.profil_fotografi_url || '',
       profil_fotografi_file_id: k.profil_fotografi_file_id || '',
-      profil_guncelleme_tarihi: k.profil_guncelleme_tarihi || null
+      profil_guncelleme_tarihi: k.profil_guncelleme_tarihi || null,
+      ilk_giris_tarihi: k.ilk_giris_tarihi || null,
+      son_giris_tarihi: k.son_giris_tarihi || null,
+      son_aktivite_tarihi: k.son_aktivite_tarihi || null,
+      giris_sayisi: Number(k.giris_sayisi) || 0
     }
   })
 }
@@ -1143,6 +1147,10 @@ export async function getAdminPerformansList() {
       profil_fotografi_url: k.profil_fotografi_url || '',
       profil_fotografi_file_id: k.profil_fotografi_file_id || '',
       profil_guncelleme_tarihi: k.profil_guncelleme_tarihi || null,
+      ilk_giris_tarihi: k.ilk_giris_tarihi || null,
+      son_giris_tarihi: k.son_giris_tarihi || null,
+      son_aktivite_tarihi: k.son_aktivite_tarihi || null,
+      giris_sayisi: Number(k.giris_sayisi) || 0,
       takim_id: k.takim_id || (k.takim?.id) || null,
       takim_adi: k.takim?.takim_adi || '—',
       bireysel_puan: Number(p.bireysel_puan) || 0,
@@ -1186,7 +1194,11 @@ export async function getAdminKatilimciDetay(katilimciId) {
     telefon: data.telefon || adayObj.telefon || '',
     universite: data.universite || adayObj.universite || '',
     sinif: data.sinif || adayObj.sinif || '',
-    takim_adi: data.takim?.takim_adi || '—'
+    takim_adi: data.takim?.takim_adi || '—',
+    ilk_giris_tarihi: data.ilk_giris_tarihi || null,
+    son_giris_tarihi: data.son_giris_tarihi || null,
+    son_aktivite_tarihi: data.son_aktivite_tarihi || null,
+    giris_sayisi: Number(data.giris_sayisi) || 0
   }
 }
 
@@ -1752,5 +1764,109 @@ export async function submitKatilimciTeslim({ gorev_id, teslim_linki, aciklama, 
 
   return normalizeTeslim(teslimRecord)
 }
+
+// ─── PARTICIPANT ACTIVITY TRACKING ─────────────────────────────────────────────
+
+/**
+ * Katılımcı login veya panel içi aktivitesini güvenli şekilde veritabanına kaydeder.
+ * Throttle mekanizması ile çok sık veya mükerrer çağrılar engellenir.
+ * KVKK/Gizlilik: IP adresi saklanmaz, sadeleştirilmiş tarayıcı bilgisi kullanılır.
+ * 
+ * @param {string} eventType - 'login' | 'panel_open' | 'password_recovery_login' | 'activity_ping'
+ * @param {string|null} path - İstek yapılan sayfa yolu (örn: '/katilimci')
+ */
+export async function recordParticipantActivity(eventType = 'panel_open', path = null) {
+  try {
+    if (typeof window === 'undefined') return null
+
+    // Sadece katılımcı rolündeki kullanıcılar için kayıt at
+    const role = (localStorage.getItem('role') || '').toLowerCase()
+    if (role === 'admin' || role === 'mentor') return null
+
+    const currentPath = path || (window.location ? window.location.pathname : null)
+    const now = Date.now()
+    const THROTTLE_5_MIN = 5 * 60 * 1000 // 5 dakika
+
+    // 1. Client-Side Throttle Koruması
+    if (eventType === 'activity_ping') {
+      const lastPing = Number(localStorage.getItem('last_activity_ping_time') || 0)
+      if (now - lastPing < THROTTLE_5_MIN) {
+        return null // 5 dakikadan önce tekrar ping atma
+      }
+      localStorage.setItem('last_activity_ping_time', String(now))
+    } else if (eventType === 'login' || eventType === 'password_recovery_login') {
+      const sessionKey = `last_login_recorded_${eventType}`
+      const lastSessionLogin = sessionStorage.getItem(sessionKey)
+      if (lastSessionLogin && (now - Number(lastSessionLogin) < 30000)) {
+        return null // Aynı session içinde 30 sn altındaki mükerrer çağrıları engelle
+      }
+      sessionStorage.setItem(sessionKey, String(now))
+    } else if (eventType === 'panel_open') {
+      const sessionOpenKey = `last_panel_open_${currentPath || 'root'}`
+      const lastPanelOpen = Number(sessionStorage.getItem(sessionOpenKey) || 0)
+      if (now - lastPanelOpen < 60000) { // Aynı sayfada 1 dakika içinde tekrar panel_open atma
+        return null
+      }
+      sessionStorage.setItem(sessionOpenKey, String(now))
+    }
+
+    // 2. Sadeleştirilmiş KVKK Uyumlu Tarayıcı Bilgisi
+    let simplifiedUserAgent = 'Web Browser'
+    if (typeof navigator !== 'undefined' && navigator.userAgent) {
+      const ua = navigator.userAgent
+      if (ua.includes('Edg/')) simplifiedUserAgent = 'Microsoft Edge'
+      else if (ua.includes('Chrome/')) simplifiedUserAgent = 'Google Chrome'
+      else if (ua.includes('Safari/') && !ua.includes('Chrome')) simplifiedUserAgent = 'Apple Safari'
+      else if (ua.includes('Firefox/')) simplifiedUserAgent = 'Mozilla Firefox'
+      else simplifiedUserAgent = ua.slice(0, 80)
+    }
+
+    // 3. Güvenli DB RPC Çağrısı
+    const { data, error } = await supabase.rpc('record_participant_activity', {
+      p_event_type: eventType,
+      p_path: currentPath,
+      p_user_agent: simplifiedUserAgent
+    })
+
+    if (error) {
+      // Hata kullanıcı deneyimini bozmasın
+      console.warn('recordParticipantActivity warning:', error.message)
+      return null
+    }
+
+    return data
+  } catch (err) {
+    // Sessiz hata yakalama
+    return null
+  }
+}
+
+/**
+ * Admin Panel için katılımcının son oturum ve aktivite loglarını getirir.
+ * 
+ * @param {number|string} katilimciId - Hedef katılımcı ID
+ * @param {number} limit - Getirilecek kayıt sayısı (varsayılan: 10)
+ */
+export async function getAdminKatilimciAktiviteLoglari(katilimciId, limit = 10) {
+  if (!katilimciId) return []
+  try {
+    const { data, error } = await supabase
+      .from('core_katilimci_oturumlog')
+      .select('*')
+      .eq('katilimci_id', katilimciId)
+      .order('olusturulma_tarihi', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      console.warn('getAdminKatilimciAktiviteLoglari warning:', error)
+      return []
+    }
+    return data || []
+  } catch (err) {
+    console.error('getAdminKatilimciAktiviteLoglari error:', err)
+    return []
+  }
+}
+
 
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabaseClient'
-import { loginUser, logoutUser, requestPasswordReset, updateUserPassword } from '../services/supabaseService'
+import { loginUser, logoutUser, requestPasswordReset, updateUserPassword, recordParticipantActivity } from '../services/supabaseService'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -68,6 +68,8 @@ export default function Login() {
       } else if (userRole === 'mentor') {
         navigate('/mentor', { replace: true })
       } else if (userRole === 'katilimci') {
+        // Katılımcı login aktivite kaydı
+        recordParticipantActivity('login', '/login').catch(() => {})
         navigate('/katilimci', { replace: true })
       } else {
         setError('Hesabınıza tanımlı geçerli bir rol bulunamadı.')

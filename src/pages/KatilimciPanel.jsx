@@ -13,6 +13,7 @@ import {
   getKatilimciPerformansMe,
   submitIcerikDna,
   submitKatilimciTeslim,
+  recordParticipantActivity,
   logoutUser
 } from '../services/supabaseService'
 import { PROGRAM_WEEKS, PROGRAM_SUMMARY } from '../data/programSchedule'
@@ -1122,6 +1123,16 @@ export default function KatilimciPanel() {
 
   useEffect(() => {
     fetchData()
+    recordParticipantActivity('panel_open', '/katilimci').catch(() => {})
+
+    // Her 5 dakikada bir arka plan aktivite sinyali (activity_ping) gönder
+    const pingInterval = setInterval(() => {
+      recordParticipantActivity('activity_ping', '/katilimci').catch(() => {})
+    }, 5 * 60 * 1000)
+
+    return () => {
+      clearInterval(pingInterval)
+    }
   }, [])
 
   const handleLogout = async () => {
