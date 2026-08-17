@@ -1,6 +1,7 @@
 /**
  * Geleceğin Dijital Sağlık Liderleri
  * 3 Haftalık Eğitim & Uygulama Programı Statik Verisi ve Görev Şablonları
+ * Güncel müfredat.pdf ile birebir senkronize edilmiştir.
  */
 
 export const PROGRAM_SUMMARY = {
@@ -17,9 +18,9 @@ export const PROGRAM_TASKS = [
     taskWeek: 1,
     taskType: 'saha_gorevi',
     typeLabel: 'Haftanın Saha Görevi',
-    taskDescription: 'Antibiyotik direncini iki farklı kitle için yaz. Versiyon 1: Eğitimli kesime, veri ve otorite odaklı. Versiyon 2: Ortaokul-lise ve yaşlı kesime, jargonsuz, samimi ve hikayesel. Katılımcı istediği versiyonu çekip paylaşmakta özgürdür.',
-    deliverableHint: 'Bir senaryo metni veya video teslimi.',
-    evaluationHint: 'Hedef kitle uyumu, dil sadeliği, TİTCK uyumu ve anlatım netliği.',
+    taskDescription: 'Antibiyotik direncini iki farklı kitle için yazmak. Versiyon 1: Eğitimli kesime (veri ve otorite odaklı). Versiyon 2: Ortaokul-Lise ve Yaşlı kesime (jargonsuz, samimi ve hikayesel). Katılımcı istediği versiyonu çekip paylaşmakta özgürdür.',
+    deliverableHint: 'Senaryo metni veya çekilmiş video teslimi.',
+    evaluationHint: 'Çift hedef kitle ayrımı, TİTCK kurallarına uyum, jargonsuzlaştırma ve anlatım güveni.',
   },
   {
     taskKey: 'week2-hook-ai-senaryo',
@@ -27,9 +28,9 @@ export const PROGRAM_TASKS = [
     taskWeek: 2,
     taskType: 'saha_gorevi',
     typeLabel: 'Haftanın Saha Görevi',
-    taskDescription: 'İzleyiciyi ilk üç saniyede yakalayacak, etik kurallara uygun beş farklı yaratıcı giriş cümlesi yaz. Bu kancaları yapay zekaya vererek kendi üslubuna uygun bir taslak senaryo oluştur. Videonun sonuna izleyiciyi yoruma, kaydetmeye veya DM’den mesaj atmaya yönlendirecek güçlü bir eylem çağrısı ekle.',
-    deliverableHint: '5 hook, AI destekli senaryo taslağı ve CTA metni.',
-    evaluationHint: 'Kanca gücü, etik uyum, hedef kitleye uygunluk ve CTA netliği.',
+    taskDescription: 'İzleyiciyi ilk üç saniyede yakalayacak, dikkat çekici ve etik kurallara tamamen uygun beş farklı yaratıcı giriş cümlesi (hook) yazmak. Bunları yapay zekaya vererek kendi üsluplarına uygun bir taslak senaryo oluşturmak. Ardından, yeni başlayan veya deneyimli fark etmeksizin herkesin uygulayacağı şekilde; videonun sonuna izleyiciyi yoruma, kaydetmeye veya DM\'den mesaj atmaya yönlendirecek güçlü bir eylem çağrısı (CTA) kurgulayarak senaryoyu bitirmek.',
+    deliverableHint: '5 yaratıcı hook, AI destekli taslak senaryo ve güçlü CTA kurgusu.',
+    evaluationHint: 'İlk 3 saniye kanca gücü, etik ve mevzuat uyumu, üslup tutarlılığı ve CTA etkinliği.',
   },
   {
     taskKey: 'week3-who-sandvic-final',
@@ -37,9 +38,9 @@ export const PROGRAM_TASKS = [
     taskWeek: 3,
     taskType: 'final_gorevi',
     typeLabel: 'Final Görevi',
-    taskDescription: 'Yaygın bir sağlık mitini, örneğin antibiyotiklerle ilgili bir miti, seçip Dünya Sağlık Örgütünün sandviç metoduna uygun şekilde altmış saniyelik dikey video hazırla ve kameraya çek.',
-    deliverableHint: '60 saniyelik dikey video.',
-    evaluationHint: 'Yanlış bilgiyle mücadele, WHO sandviç metoduna uyum, kamera anlatımı ve güven veren dil.',
+    taskDescription: 'Yaygın bir sağlık mitini (örneğin antibiyotiklerle ilgili) seçip, Dünya Sağlık Örgütünün sandviç metoduna uygun şekilde altmış saniyelik dikey bir video hazırlamak ve kameraya çekmek.',
+    deliverableHint: '60 saniyelik dikey formatta hazırlanmış video veya video linki.',
+    evaluationHint: 'WHO Sandviç Metodu (Gerçek - Mit - Gerçek) kurgusu, kamera önü beden dili ve güven veren hitabet.',
   }
 ]
 
@@ -55,7 +56,7 @@ export const PROGRAM_WEEKS = [
     format: [
       'Bölüm 1 (15-20 dk): Konsept Açılışı ve Stratejik Yorumlama.',
       'Küçük Ara (10 dk)',
-      'Bölüm 2 ve 3 (İki adet 30’ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
+      'Bölüm 2 ve 3 (İki adet 30\'ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
     ],
     days: [
       {
@@ -64,21 +65,21 @@ export const PROGRAM_WEEKS = [
         sessions: [
           {
             sessionNumber: 1,
-            title: 'Popüler Kültür Endüstrisi ve Sağlık Algısı',
+            title: 'Hedef Kitlenin Sağlık Algısı ve Popüler Kültür',
             duration: '15-20 dk',
-            description: 'Sağlık alanında değil, genel olarak popüler kültür endüstrisinin kitleleri nasıl yönlendirdiği; hızlı tüketim kültürünün insanların sağlık kararlarını ve “antibiyotik hemen iyileştirsin” beklentisini nasıl manipüle ettiği.'
+            description: 'İçerik üreteceğimiz kitle kimlerden oluşuyor ve popüler kültür bu kitlenin sağlık kararlarını nasıl yönlendiriyor? "Hızlı tüketim" kültürünün, hedef kitlemiz üzerinde yarattığı "antibiyotik hemen iyileştirsin" şeklindeki manipülatif beklentilerini ve algılarını analiz ediyoruz.'
           },
           {
             sessionNumber: 2,
             title: 'Hedef Kitle Analizi ve Çift Hedef Kitle Mimarisi',
             duration: '30 dk',
-            description: 'Hedef kitle nedir ve nokta atışı nasıl belirlenir? Aynı tıbbi gerçeğin, örneğin antibiyotik direncinin, farklı demografilere nasıl uyarlandığı. Tıbbi jargonu rafa kaldırıp dili doğrudan ortaokul seviyesine indirme taktikleri. Bu oturum “Kitleyi belirledik, peki onlara nasıl sesleneceğiz?” geçişiyle bir sonraki oturuma bağlanır.'
+            description: 'Hedef kitle nokta atışı nasıl belirlenir? Aynı tıbbi gerçeğin (antibiyotik direnci) farklı demografilere nasıl uyarlandığı. Tıbbi jargonu rafa kaldırıp dili doğrudan ortaokul seviyesine indirme taktikleri. (Bu aşamada "Kitleyi belirledik, peki onlara nasıl sesleneceğiz?" diyerek bir sonraki oturuma bağlanılır).'
           },
           {
             sessionNumber: 3,
-            title: 'Diksiyon ve Kamera Önü Hitabeti',
+            title: 'Hedef Kitleye Özel İletişim ve Hitabet',
             duration: '30 dk',
-            description: 'Belirlenen kitleye uygun sesleniş biçimleri. Akademik monotoniyi kırmak; vurgu, tonlama, nefes kontrolü ve kelimeleri yutmadan güven veren bir diksiyonla hitap etme teknikleri.'
+            description: 'Belirlenen kitleye uygun sesleniş biçimleri. Klasik bir diksiyon dersinden ziyade; akademik monotoniyi kırmak, vurgu, tonlama, nefes kontrolü ve kelimeleri yutmadan, direkt olarak hedef kitlenin anlayacağı ve güven duyacağı bir hitabetin teknikleri.'
           }
         ]
       },
@@ -90,20 +91,20 @@ export const PROGRAM_WEEKS = [
             sessionNumber: 1,
             title: 'Yasal Kırmızı Çizgiler',
             duration: '15-20 dk',
-            description: 'Türk Tabipleri Birliği disiplin kuralları ve reklam yasakları. Antibiyotik gibi reçeteli ilaçları konuşurken TİTCK kuralları kapsamında dikkat edilmesi gereken noktalar.'
+            description: 'Masada Türk Tabipleri Birliği disiplin kuralları ve reklam yasakları var. Antibiyotik gibi reçeteli ilaçları konuşurken TİTCK kuralları kapsamında nelere dikkat edileceği.'
           },
           {
             sessionNumber: 2,
-            title: 'Türkiye’de ve Dünyada Antibiyotik Direnci',
+            title: 'Türkiye\'de ve Dünyada Antibiyotik Direnci (Konuk: Resul Bey)',
             duration: '30 dk',
             guest: 'Resul Bey',
-            description: 'Resul Bey’in sunumuyla antibiyotik direnci gündemi; dünyadaki ve Türkiye’deki mücadele süreçleri, sahada karşılaşılan söylemler ve regülasyonlar.'
+            description: 'Resul Bey\'in sunumuyla antibiyotik direnci gündemi; dünyadaki ve Türkiye\'deki mücadele süreçleri, sahada karşılaşılan söylemler ve regülasyonlar.'
           },
           {
             sessionNumber: 3,
             title: 'Canlı Vaka ve Hitabet Atölyesi',
             duration: '30 dk',
-            description: 'Eğitmenlerin derse önceden getirdiği, yasal ihlaller ve zor telaffuz edilen tıbbi jargon içeren 3 adet kötü metin üzerinden canlı çalışma yapılır. Katılımcılar bu metinleri TİTCK kurallarına göre temizler ve ardından diksiyon/vurgu tekniklerini kullanarak yüksek sesle, kameraya konuşur gibi okur.'
+            description: 'Eğitmenlerin derse önceden getirdiği, yasal ihlallerle ve zor telaffuz edilen tıbbi jargona boğulmuş 3 adet "kötü" metin üzerinden canlı çalışma yapılır. Katılımcılar sınıfta bu metinleri TİTCK kurallarına göre temizler ve ardından diksiyon/vurgu tekniklerini kullanarak yüksek sesle, kameraya konuşur gibi okur.'
           }
         ]
       }
@@ -122,7 +123,7 @@ export const PROGRAM_WEEKS = [
     format: [
       'Bölüm 1 (15-20 dk): Konsept Açılışı ve Stratejik Yorumlama.',
       'Küçük Ara (10 dk)',
-      'Bölüm 2 ve 3 (İki adet 30’ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
+      'Bölüm 2 ve 3 (İki adet 30\'ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
     ],
     days: [
       {
@@ -133,19 +134,19 @@ export const PROGRAM_WEEKS = [
             sessionNumber: 1,
             title: 'Güven Dili ve Nötr İletişim',
             duration: '15-20 dk',
-            description: 'Sağlık mesajlarında panik veya korku yaratmadan, örneğin “antibiyotik bitiyor, öleceğiz” gibi ifadelerden kaçınarak kitlelere nasıl güven verileceği.'
+            description: 'Sağlık mesajlarında panik veya korku (örneğin "antibiyotik bitiyor, öleceğiz") yaratmadan kitlelere nasıl güven verileceği.'
           },
           {
             sessionNumber: 2,
             title: 'PAS Formülü ve İlk Üç Saniye Kuralı',
             duration: '30 dk',
-            description: 'Yurtdışında bilim ve sağlık iletişiminde kullanılan PAS, yani Problem-Agitate-Solve / Problem-Acı-Çözüm kurgusu. Videolarda kritik ilk üç saniye kuralı ve izleyiciyi yakalama sanatı.'
+            description: 'Yurtdışında bilim ve sağlık iletişiminde altın standart olan PAS (Problem-Agitate-Solve / Problem-Acı-Çözüm) kurgusunun anlatımı. Bu formülle videolardaki o kritik ilk üç saniye kuralı ve izleyiciyi yakalama sanatı.'
           },
           {
             sessionNumber: 3,
-            title: 'Kriz Yönetimi ve Sadık Topluluk İnşası',
+            title: 'Kriz Yönetimi ve Sadık Topluluk (Superfan) İnşası',
             duration: '30 dk',
-            description: 'Agresif trolleri krize çevirmeden topluluk yönetimiyle eritme taktikleri. Pasif takipçi yerine içeriği savunan ve etkileşimi besleyen sadık bir kemik kitle, yani superfan topluluğu oluşturmanın psikolojik ve algoritmik dinamikleri.'
+            description: 'Agresif trolleri krize çevirmeden topluluk yönetimiyle eritme taktikleri. Ek olarak, sadece pasif takipçi değil, içeriği savunan ve etkileşimi besleyen sadık bir kemik kitle (superfan) yaratmanın psikolojik ve algoritmik dinamikleri.'
           }
         ]
       },
@@ -157,19 +158,19 @@ export const PROGRAM_WEEKS = [
             sessionNumber: 1,
             title: 'Yapay Zeka Etiği',
             duration: '15-20 dk',
-            description: 'Yapay zekanın yalnızca üretim sürecini hızlandıran bir yardımcı olarak kullanılması. Tıbbi bilgilerin doğruluğunun tamamen katılımcının bilimsel süzgecinden ve onayından geçmesi gerektiği.'
+            description: 'Yapay zeka sadece hamalımız olup taslağı çıkaracak. Tıbbi bilgilerin doğruluğunun tamamen katılımcının bilimsel süzgecinden ve onayından geçeceği kuralı.'
           },
           {
             sessionNumber: 2,
-            title: 'Doğru Komut Yazımı',
+            title: 'Doğru Komut (Prompt) Yazımı',
             duration: '30 dk',
-            description: 'Yapay zeka araçlarına doğru komutlar vererek sıkıcı bir klinik metni kısa sürede video senaryosuna dönüştürmek.'
+            description: 'Yapay zeka araçlarına doğru komutlar vererek sıkıcı bir klinik metni saniyeler içinde video senaryosuna dönüştürmek.'
           },
           {
             sessionNumber: 3,
             title: 'Görselleştirme',
             duration: '30 dk',
-            description: 'Tasarım programlarıyla görsel veri tasarımlarını hazırlamak ve içerik üretim sürecini hızlandırmak.'
+            description: 'Ardından tasarım programlarıyla görsel veri tasarımlarını halletmek.'
           }
         ]
       }
@@ -188,12 +189,12 @@ export const PROGRAM_WEEKS = [
     format: [
       'Bölüm 1 (15-20 dk): Konsept Açılışı ve Stratejik Yorumlama.',
       'Küçük Ara (10 dk)',
-      'Bölüm 2 ve 3 (İki adet 30’ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
+      'Bölüm 2 ve 3 (İki adet 30\'ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
     ],
     days: [
       {
         dayName: 'Salı',
-        title: 'Yanlış Bilgi ile Mücadele ve İtibar Yönetimi',
+        title: 'Yanlış Bilgi ile Mücadele (İnfodemi) ve İtibar Yönetimi',
         sessions: [
           {
             sessionNumber: 1,
@@ -205,13 +206,13 @@ export const PROGRAM_WEEKS = [
             sessionNumber: 2,
             title: 'WHO Sandviç Metodu',
             duration: '30 dk',
-            description: 'Yanlış bilgiyi, karşı tarafı savunmaya geçirmeden ve tetiklemeden çürütme sanatı. Önce gerçeği, sonra yanlış iddiayı, ardından tekrar gerçeği anlatan sandviç metodu.'
+            description: 'Yanlış bilgiyi, karşı tarafı savunmaya geçirmeden ve tetiklemeden çürütme sanatı. Önce gerçeği, sonra yanlış iddiayı, ardından tekrar gerçeği anlattığımız sandviç metodu.'
           },
           {
             sessionNumber: 3,
-            title: 'İtibar, Dijital Ayak İzi ve Tükenmişlik',
+            title: 'İtibar, Dijital Ayak İzi ve Tükenmişlik (Burnout)',
             duration: '30 dk',
-            description: 'Sadece kriz anında trollere cevap vermek değil; geçmişteki hatalı paylaşımların dijitalden nasıl temizleneceği ve sosyal medyada içerik üretirken oluşan psikolojik tükenmişlikten korunma yolları.'
+            description: 'Sadece kriz anında trollere cevap vermek değil; geçmişteki hatalı paylaşımların dijitalden nasıl temizleneceği (Unutulma Hakkı) ve sosyal medyada içerik üretirken oluşan psikolojik tükenmişlikten (burnout) korunma yolları.'
           }
         ]
       },

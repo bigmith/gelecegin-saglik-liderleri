@@ -1681,9 +1681,73 @@ serve(async (req) => {
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: compare_dna_mock_profiles (DNA Personalization Differentiation Test)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'compare_dna_mock_profiles') {
+      const mockSetA = payload?.setA || {}
+      const mockSetB = payload?.setB || {}
+
+      const invokeDnaFunction = async (answers: Record<string, any>, name: string) => {
+        const edgeRes = await fetch(`${supabaseUrl}/functions/v1/ai-content-dna`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'apikey': serviceRoleKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            cevaplar: answers,
+            test_mode: true
+          })
+        })
+        return await edgeRes.json()
+      }
+
+      const [resA, resB] = await Promise.all([
+        invokeDnaFunction(mockSetA, 'Mock A'),
+        invokeDnaFunction(mockSetB, 'Mock B')
+      ])
+
+      const cardA = resA?.data?.scorecard
+      const cardB = resB?.data?.scorecard
+      const archA = resA?.data?.archetype
+      const archB = resB?.data?.archetype
+      const textA = resA?.data?.rapor_metni || ''
+      const textB = resB?.data?.rapor_metni || ''
+
+      const isScoresDifferent = JSON.stringify(cardA) !== JSON.stringify(cardB)
+      const isArchetypesDifferent = archA !== archB
+      const isTextSignificantlyDifferent = textA !== textB && textA.length > 500 && textB.length > 500
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          test_a: {
+            archetype: archA,
+            scorecard: cardA,
+            text_length: textA.length,
+            sample_snippet: textA.slice(0, 350)
+          },
+          test_b: {
+            archetype: archB,
+            scorecard: cardB,
+            text_length: textB.length,
+            sample_snippet: textB.slice(0, 350)
+          },
+          differentiation_analysis: {
+            scores_differentiated: isScoresDifferent,
+            archetypes_differentiated: isArchetypesDifferent,
+            reports_differentiated: isTextSignificantlyDifferent,
+            verdict: isScoresDifferent && isArchetypesDifferent && isTextSignificantlyDifferent ? 'PASS - Highly Differentiated' : 'FAIL'
+          }
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
