@@ -1269,9 +1269,233 @@ serve(async (req) => {
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_participant_email_hotfix (HOTFIX-PARTICIPANT-EMAIL-01 Audit)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'audit_participant_email_hotfix') {
+      const oldEmail = 'defnetufan4@gamil.com'
+      const newEmail = 'defnetufan4@gmail.com'
+
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = authUsersData?.users || []
+
+      const oldAuth = authUsers.find(u => (u.email || '').toLowerCase() === oldEmail)
+      const newAuth = authUsers.find(u => (u.email || '').toLowerCase() === newEmail)
+
+      const { data: oldProfile } = await adminClient.from('profiles').select('*').ilike('email', oldEmail).maybeSingle()
+      const { data: newProfile } = await adminClient.from('profiles').select('*').ilike('email', newEmail).maybeSingle()
+
+      const { data: oldAday } = await adminClient.from('core_aday').select('*').ilike('eposta', oldEmail).maybeSingle()
+      const { data: newAday } = await adminClient.from('core_aday').select('*').ilike('eposta', newEmail).maybeSingle()
+
+      let oldKatilimci = null
+      if (oldAday?.id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', oldAday.id).maybeSingle()
+        oldKatilimci = k
+      } else if (oldProfile?.core_katilimci_id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', oldProfile.core_katilimci_id).maybeSingle()
+        oldKatilimci = k
+      }
+
+      let newKatilimci = null
+      if (newAday?.id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', newAday.id).maybeSingle()
+        newKatilimci = k
+      } else if (newProfile?.core_katilimci_id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', newProfile.core_katilimci_id).maybeSingle()
+        newKatilimci = k
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          wrong_email: {
+            email: oldEmail,
+            has_auth_user: Boolean(oldAuth),
+            auth_user_id: oldAuth?.id || null,
+            last_sign_in_at: oldAuth?.last_sign_in_at || null,
+            has_profile: Boolean(oldProfile),
+            profile_role: oldProfile?.role || null,
+            profile_core_katilimci_id: oldProfile?.core_katilimci_id || null,
+            has_core_aday: Boolean(oldAday),
+            core_aday_id: oldAday?.id || null,
+            core_aday_ad_soyad: oldAday ? `${oldAday.ad} ${oldAday.soyad}` : null,
+            core_aday_durumu: oldAday?.basvuru_durumu || null,
+            has_core_katilimci: Boolean(oldKatilimci),
+            core_katilimci_id: oldKatilimci?.id || null
+          },
+          correct_email: {
+            email: newEmail,
+            has_auth_user: Boolean(newAuth),
+            auth_user_id: newAuth?.id || null,
+            has_profile: Boolean(newProfile),
+            has_core_aday: Boolean(newAday),
+            has_core_katilimci: Boolean(newKatilimci)
+          },
+          can_proceed_safely: Boolean(oldAuth || oldProfile || oldAday) && !newAuth && !newProfile && !newAday
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: execute_participant_email_hotfix (HOTFIX-PARTICIPANT-EMAIL-01 Execute)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'execute_participant_email_hotfix') {
+      const oldEmail = 'defnetufan4@gamil.com'
+      const newEmail = 'defnetufan4@gmail.com'
+
+      // 1. Audit Check
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = authUsersData?.users || []
+
+      const oldAuth = authUsers.find(u => (u.email || '').toLowerCase() === oldEmail)
+      const newAuth = authUsers.find(u => (u.email || '').toLowerCase() === newEmail)
+
+      if (newAuth && newAuth.id !== oldAuth?.id) {
+        return jsonRes(req, {
+          ok: false,
+          error: `Çakışma tespit edildi: ${newEmail} zaten farklı bir auth user ID (${newAuth.id}) ile kayıtlı. Otomatik işlem durduruldu.`
+        }, 409)
+      }
+
+      const { data: oldProfile } = await adminClient.from('profiles').select('*').ilike('email', oldEmail).maybeSingle()
+      const { data: oldAday } = await adminClient.from('core_aday').select('*').ilike('eposta', oldEmail).maybeSingle()
+
+      let targetKatilimciId = oldProfile?.core_katilimci_id
+      if (!targetKatilimciId && oldAday?.id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('id').eq('aday_id', oldAday.id).maybeSingle()
+        targetKatilimciId = k?.id
+      }
+
+      // 2. Update Auth User Email
+      let authUpdated = false
+      if (oldAuth) {
+        const { error: authUpdErr } = await adminClient.auth.admin.updateUserById(oldAuth.id, {
+          email: newEmail,
+          email_confirm: true
+        })
+        if (authUpdErr) {
+          return jsonRes(req, {
+            ok: false,
+            error: 'Auth user e-posta güncelleme hatası: ' + authUpdErr.message
+          }, 500)
+        }
+        authUpdated = true
+      }
+
+      // 3. Update profiles
+      let profileUpdated = false
+      if (oldAuth?.id || oldProfile?.id) {
+        const pId = oldAuth?.id || oldProfile?.id
+        const { error: pErr } = await adminClient
+          .from('profiles')
+          .update({ email: newEmail })
+          .eq('id', pId)
+        if (pErr) console.warn('profiles update error:', pErr)
+        else profileUpdated = true
+      }
+
+      // 4. Update core_aday
+      let adayUpdated = false
+      if (oldAday?.id) {
+        const { error: aErr } = await adminClient
+          .from('core_aday')
+          .update({ eposta: newEmail })
+          .eq('id', oldAday.id)
+        if (aErr) console.warn('core_aday update error:', aErr)
+        else adayUpdated = true
+      }
+
+      // 5. Send single reset password email via Brevo REST API
+      let resetMailSent = false
+      let brevoMessageId = null
+      let mailError = null
+
+      const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
+      if (brevoApiKey && brevoApiKey.trim()) {
+        const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
+        const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
+          type: 'recovery',
+          email: newEmail,
+          options: { redirectTo }
+        })
+
+        if (linkErr) {
+          mailError = 'Recovery link üretilemedi: ' + linkErr.message
+        } else if (linkData?.properties?.action_link) {
+          const actionLink = linkData.properties.action_link
+          const userName = oldAday ? `${oldAday.ad} ${oldAday.soyad}`.trim() : (oldProfile?.ad_soyad || 'Defne Tufan')
+          const htmlContent = getResetPasswordHtml(userName, actionLink)
+
+          const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+              'api-key': brevoApiKey,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              sender: {
+                email: 'saglikliderleri@markamutfagi.co',
+                name: 'Geleceğin Dijital Sağlık Liderleri'
+              },
+              to: [
+                {
+                  email: newEmail,
+                  name: userName
+                }
+              ],
+              subject: 'Geleceğin Dijital Sağlık Liderleri | Şifreni Belirle',
+              htmlContent: htmlContent
+            })
+          })
+
+          if (brevoRes.ok) {
+            const bData = await brevoRes.json().catch(() => ({}))
+            resetMailSent = true
+            brevoMessageId = bData?.messageId || 'sent'
+          } else {
+            const bErr = await brevoRes.json().catch(() => ({}))
+            mailError = `Brevo API HTTP ${brevoRes.status}: ${bErr?.message || brevoRes.statusText}`
+          }
+        }
+      } else {
+        mailError = 'BREVO_API_KEY bulunamadı'
+      }
+
+      // 6. Final verification checks
+      const { data: checkOldAday } = await adminClient.from('core_aday').select('id').ilike('eposta', oldEmail).maybeSingle()
+      const { data: checkNewAday } = await adminClient.from('core_aday').select('id, ad, soyad, eposta, basvuru_durumu').ilike('eposta', newEmail).maybeSingle()
+      const { data: checkNewProfile } = await adminClient.from('profiles').select('id, email, role, core_katilimci_id').ilike('email', newEmail).maybeSingle()
+      const { data: finalAuthList } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const finalAuth = (finalAuthList?.users || []).find(u => (u.email || '').toLowerCase() === newEmail)
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          hotfix_executed: true,
+          old_email: oldEmail,
+          new_email: newEmail,
+          auth_user_updated: authUpdated,
+          auth_user_id: finalAuth?.id || oldAuth?.id,
+          profile_updated: profileUpdated,
+          core_aday_updated: adayUpdated,
+          core_aday_id: checkNewAday?.id,
+          core_aday_durumu: checkNewAday?.basvuru_durumu,
+          core_katilimci_id: targetKatilimciId,
+          relations_preserved: Boolean(checkNewProfile?.core_katilimci_id === targetKatilimciId),
+          remaining_wrong_records: Boolean(checkOldAday),
+          single_reset_mail_sent: resetMailSent,
+          mail_sent_to: newEmail,
+          brevo_message_id: brevoMessageId,
+          mail_error: mailError
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
