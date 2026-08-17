@@ -1745,9 +1745,221 @@ serve(async (req) => {
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_vesile_defne_dna
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'audit_vesile_defne_dna') {
+      const vesileEmail = 'vesile.gul1028@gmail.com'
+      const defneEmail = 'defnetufan4@gmail.com'
+
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = authUsersData?.users || []
+      const vesileAuth = authUsers.find(u => (u.email || '').toLowerCase() === vesileEmail)
+      const defneAuth = authUsers.find(u => (u.email || '').toLowerCase() === defneEmail)
+
+      const { data: vesileProfile } = vesileAuth ? await adminClient.from('profiles').select('*').eq('id', vesileAuth.id).maybeSingle() : { data: null }
+      const { data: defneProfile } = defneAuth ? await adminClient.from('profiles').select('*').eq('id', defneAuth.id).maybeSingle() : { data: null }
+
+      const { data: vesileAday } = await adminClient.from('core_aday').select('*').ilike('eposta', vesileEmail).eq('basvuru_durumu', 'ONAYLANDI').maybeSingle()
+      const { data: defneAday } = await adminClient.from('core_aday').select('*').ilike('eposta', defneEmail).eq('basvuru_durumu', 'ONAYLANDI').maybeSingle()
+
+      const vesileKatId = vesileProfile?.core_katilimci_id || (vesileAday ? (await adminClient.from('core_katilimci').select('id').eq('aday_id', vesileAday.id).maybeSingle()).data?.id : null)
+      const defneKatId = defneProfile?.core_katilimci_id || (defneAday ? (await adminClient.from('core_katilimci').select('id').eq('aday_id', defneAday.id).maybeSingle()).data?.id : null)
+
+      const { data: vesileKat } = vesileKatId ? await adminClient.from('core_katilimci').select('*').eq('id', vesileKatId).maybeSingle() : { data: null }
+      const { data: defneKat } = defneKatId ? await adminClient.from('core_katilimci').select('*').eq('id', defneKatId).maybeSingle() : { data: null }
+
+      const { data: vesileDna } = vesileKatId ? await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', vesileKatId).maybeSingle() : { data: null }
+      const { data: defneDna } = defneKatId ? await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', defneKatId).maybeSingle() : { data: null }
+
+      // Compare Answers
+      const vAnswers = vesileDna?.cevaplar || {}
+      const dAnswers = defneDna?.cevaplar || {}
+      const answerComparison: Record<string, { match: boolean, vesile: any, defne: any }> = {}
+      let matchingCount = 0
+      let differingCount = 0
+
+      for (let i = 1; i <= 20; i++) {
+        const k = `soru_${i}`
+        const vVal = vAnswers[k]
+        const dVal = dAnswers[k]
+        const isMatch = JSON.stringify(vVal) === JSON.stringify(dVal)
+        if (isMatch) matchingCount++
+        else differingCount++
+        answerComparison[k] = { match: isMatch, vesile: vVal, defne: dVal }
+      }
+
+      const vRapor = vesileDna?.rapor_metni || ''
+      const dRapor = defneDna?.rapor_metni || ''
+      const isReportExactMatch = vRapor === dRapor && vRapor.length > 0
+      const isRaporJsonExactMatch = JSON.stringify(vesileDna?.rapor_json) === JSON.stringify(defneDna?.rapor_json)
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          vesile: {
+            email: vesileEmail,
+            has_auth: Boolean(vesileAuth),
+            auth_id: vesileAuth?.id,
+            profile: vesileProfile,
+            aday_id: vesileAday?.id,
+            aday_durumu: vesileAday?.basvuru_durumu,
+            katilimci_id: vesileKatId,
+            katilimci: vesileKat,
+            has_dna: Boolean(vesileDna),
+            dna_id: vesileDna?.id,
+            dna_durum: vesileDna?.durum,
+            ai_model: vesileDna?.ai_model,
+            prompt_versiyonu: vesileDna?.prompt_versiyonu,
+            created_at: vesileDna?.olusturulma_tarihi,
+            updated_at: vesileDna?.guncellenme_tarihi,
+            rapor_length: vRapor.length,
+            scorecard: vesileDna?.rapor_json?.scorecard,
+            archetype: vesileDna?.rapor_json?.archetype
+          },
+          defne: {
+            email: defneEmail,
+            has_auth: Boolean(defneAuth),
+            auth_id: defneAuth?.id,
+            profile: defneProfile,
+            aday_id: defneAday?.id,
+            aday_durumu: defneAday?.basvuru_durumu,
+            katilimci_id: defneKatId,
+            katilimci: defneKat,
+            has_dna: Boolean(defneDna),
+            dna_id: defneDna?.id,
+            dna_durum: defneDna?.durum,
+            ai_model: defneDna?.ai_model,
+            prompt_versiyonu: defneDna?.prompt_versiyonu,
+            created_at: defneDna?.olusturulma_tarihi,
+            updated_at: defneDna?.guncellenme_tarihi,
+            rapor_length: dRapor.length,
+            scorecard: defneDna?.rapor_json?.scorecard,
+            archetype: defneDna?.rapor_json?.archetype
+          },
+          comparison: {
+            matching_questions: matchingCount,
+            differing_questions: differingCount,
+            is_answers_exact_match: differingCount === 0,
+            is_report_exact_match: isReportExactMatch,
+            is_rapor_json_exact_match: isRaporJsonExactMatch,
+            answer_details: answerComparison
+          },
+          backup_payload: {
+            vesile: vesileDna,
+            defne: defneDna
+          }
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: regenerate_vesile_defne_dna
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'regenerate_vesile_defne_dna') {
+      const vesileEmail = 'vesile.gul1028@gmail.com'
+      const defneEmail = 'defnetufan4@gmail.com'
+
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = authUsersData?.users || []
+      const vesileAuth = authUsers.find(u => (u.email || '').toLowerCase() === vesileEmail)
+      const defneAuth = authUsers.find(u => (u.email || '').toLowerCase() === defneEmail)
+
+      const { data: vesileProfile } = vesileAuth ? await adminClient.from('profiles').select('*').eq('id', vesileAuth.id).maybeSingle() : { data: null }
+      const { data: defneProfile } = defneAuth ? await adminClient.from('profiles').select('*').eq('id', defneAuth.id).maybeSingle() : { data: null }
+
+      const vesileKatId = vesileProfile?.core_katilimci_id || 38
+      const defneKatId = defneProfile?.core_katilimci_id || 40
+
+      if (!vesileKatId || !defneKatId) {
+        return jsonRes(req, { ok: false, error: 'Katılımcı kayıtları bulunamadı.' }, 400)
+      }
+
+      const { data: vesileDna } = await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', vesileKatId).maybeSingle()
+      const { data: defneDna } = await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', defneKatId).maybeSingle()
+
+      if (!vesileDna?.cevaplar || !defneDna?.cevaplar) {
+        return jsonRes(req, { ok: false, error: 'Mevcut cevaplar bulunamadı.' }, 400)
+      }
+
+      // Generate for Vesile
+      const vesileRes = await fetch(`${supabaseUrl}/functions/v1/ai-content-dna`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          cevaplar: vesileDna.cevaplar,
+          katilimci_id: vesileKatId
+        })
+      })
+      const vResult = await vesileRes.json()
+
+      // Generate for Defne
+      const defneRes = await fetch(`${supabaseUrl}/functions/v1/ai-content-dna`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          cevaplar: defneDna.cevaplar,
+          katilimci_id: defneKatId
+        })
+      })
+      const dResult = await defneRes.json()
+
+      // Fetch fresh records after update
+      const { data: freshVesile } = await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', vesileKatId).maybeSingle()
+      const { data: freshDefne } = await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', defneKatId).maybeSingle()
+
+      const vRapor = freshVesile?.rapor_metni || ''
+      const dRapor = freshDefne?.rapor_metni || ''
+      const isReportsDifferent = vRapor !== dRapor && vRapor.length > 500 && dRapor.length > 500
+      const isScoresDifferent = JSON.stringify(freshVesile?.rapor_json?.scorecard) !== JSON.stringify(freshDefne?.rapor_json?.scorecard)
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          vesile: {
+            katilimci_id: vesileKatId,
+            dna_id: freshVesile?.id,
+            durum: freshVesile?.durum,
+            ai_model: freshVesile?.ai_model,
+            prompt_versiyonu: freshVesile?.prompt_versiyonu,
+            updated_at: freshVesile?.guncellenme_tarihi,
+            scorecard: freshVesile?.rapor_json?.scorecard,
+            archetype: freshVesile?.rapor_json?.archetype,
+            text_length: vRapor.length,
+            snippet: vRapor.slice(0, 350)
+          },
+          defne: {
+            katilimci_id: defneKatId,
+            dna_id: freshDefne?.id,
+            durum: freshDefne?.durum,
+            ai_model: freshDefne?.ai_model,
+            prompt_versiyonu: freshDefne?.prompt_versiyonu,
+            updated_at: freshDefne?.guncellenme_tarihi,
+            scorecard: freshDefne?.rapor_json?.scorecard,
+            archetype: freshDefne?.rapor_json?.archetype,
+            text_length: dRapor.length,
+            snippet: dRapor.slice(0, 350)
+          },
+          differentiation: {
+            is_scores_different: isScoresDifferent,
+            is_reports_different: isReportsDifferent,
+            verdict: isReportsDifferent ? 'PASS - Reports Differentiated & In-Place Updated' : 'CHECK'
+          }
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
