@@ -695,6 +695,22 @@ export default function KatilimciPanel() {
 
   // Haftalık Program State (Decoupled from tasks)
   const [programHaftalari, setProgramHaftalari] = useState([])
+  const [programLoading, setProgramLoading] = useState(false)
+  const [programError, setProgramError] = useState(null)
+
+  const fetchProgramHaftalari = async (showSpinner = true) => {
+    if (showSpinner) setProgramLoading(true)
+    setProgramError(null)
+    try {
+      const data = await getAktifProgramHaftalari()
+      setProgramHaftalari(data || [])
+    } catch (err) {
+      console.warn('Program haftaları çekilemedi:', err)
+      setProgramError(err?.message || 'Program bilgileri alınamadı. Lütfen tekrar deneyin.')
+    } finally {
+      if (showSpinner) setProgramLoading(false)
+    }
+  }
 
   // Performans State
   const [performans, setPerformans] = useState(null)
@@ -849,10 +865,18 @@ export default function KatilimciPanel() {
         katilimciId ? getKatilimciTeslimlerMe(katilimciId).catch(() => []) : [],
         katilimciId ? getKatilimciDnaMe(katilimciId).catch(() => null) : null,
         katilimciId ? getKatilimciPerformansMe(katilimciId).catch(() => null) : null,
-        getAktifProgramHaftalari().catch(() => []),
+        getAktifProgramHaftalari().catch((err) => {
+          console.warn('Initial getAktifProgramHaftalari warning:', err)
+          return null
+        }),
       ])
 
-      setProgramHaftalari(pHaftalar || [])
+      if (pHaftalar !== null) {
+        setProgramHaftalari(pHaftalar || [])
+        setProgramError(null)
+      } else {
+        fetchProgramHaftalari(false)
+      }
 
       // Görevler ile teslimleri eşleştir
       const veriler = rawGorevler.map(g => {
@@ -1142,6 +1166,28 @@ export default function KatilimciPanel() {
     }
   }, [])
 
+  // Aktif sekme 'program' olduğunda haftaları otomatik tazele
+  useEffect(() => {
+    if (activeTab === 'program') {
+      fetchProgramHaftalari(programHaftalari.length === 0)
+    }
+  }, [activeTab])
+
+  // Pencere odaklandığında veya sekme görünür olduğunda programı arka planda tazele
+  useEffect(() => {
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible' && activeTab === 'program') {
+        fetchProgramHaftalari(false)
+      }
+    }
+    window.addEventListener('focus', handleFocusOrVisible)
+    document.addEventListener('visibilitychange', handleFocusOrVisible)
+    return () => {
+      window.removeEventListener('focus', handleFocusOrVisible)
+      document.removeEventListener('visibilitychange', handleFocusOrVisible)
+    }
+  }, [activeTab])
+
   const handleLogout = async () => {
     await logoutUser()
     navigate('/login', { replace: true })
@@ -1257,6 +1303,7 @@ export default function KatilimciPanel() {
           <div>
             <h1 className="text-lg font-bold text-slate-800">
               {activeTab === 'genel' && '📊 Genel Bakış'}
+              {activeTab === 'program' && '📅 Haftalık Program'}
               {activeTab === 'gorevler' && '📋 Görevlerim & Teslimler'}
               {activeTab === 'dna' && '🧬 İçerik DNA Testi'}
               {activeTab === 'profil' && '👤 Profil & Takım Bilgilerim'}
@@ -1527,7 +1574,7 @@ export default function KatilimciPanel() {
               {activeTab === 'program' && (
                 <div className="space-y-8 animate-fade-in">
                   
-                  {/* Başlık & Açıklama */}
+                  {/* Başlık & Açıklama & Yenile Butonu */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2.5">
@@ -1538,6 +1585,19 @@ export default function KatilimciPanel() {
                         Canlı eğitimler, uygulamalı atölyeler, saha görevleri ve eğitim linkleri bu alanda paylaşılır.
                       </p>
                     </div>
+
+                    <button
+                      id="btn-refresh-program"
+                      type="button"
+                      onClick={() => fetchProgramHaftalari(true)}
+                      disabled={programLoading}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-2xs transition-all self-start sm:self-auto disabled:opacity-50"
+                    >
+                      <span className={programLoading ? 'animate-spin inline-block' : 'inline-block'}>
+                        <Ic.Refresh c="w-3.5 h-3.5" />
+                      </span>
+                      <span>{programLoading ? 'Yenileniyor...' : 'Programı Yenile'}</span>
+                    </button>
                   </div>
 
                   {/* Üst 4'lü Özet Kartları */}
@@ -1584,15 +1644,51 @@ export default function KatilimciPanel() {
                   </div>
 
                   {/* Haftalar Listesi (Decoupled from tasks) */}
-                  {programHaftalari.length === 0 ? (
-                    <div className="bg-white rounded-3xl p-12 text-center shadow-soft border border-slate-100 space-y-3">
+                  {programLoading && programHaftalari.length === 0 ? (
+                    <div className="bg-white rounded-3xl p-12 text-center shadow-soft border border-slate-100 space-y-4 animate-pulse">
+                      <div className="w-16 h-16 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-2xl mx-auto shadow-2xs">
+                        ⏳
+                      </div>
+                      <h3 className="text-base font-bold text-slate-800">Haftalık program yükleniyor...</h3>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                        Canlı ders bilgileri ve haftalık oturumlar alınıyor.
+                      </p>
+                    </div>
+                  ) : programError && programHaftalari.length === 0 ? (
+                    <div className="bg-white rounded-3xl p-12 text-center shadow-soft border border-red-100 space-y-4">
+                      <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center text-2xl mx-auto shadow-2xs">
+                        ⚠️
+                      </div>
+                      <h3 className="text-base font-bold text-slate-800">Program bilgileri alınamadı</h3>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                        {programError}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => fetchProgramHaftalari(true)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-bold text-xs shadow-sm transition-all"
+                      >
+                        <Ic.Refresh c="w-3.5 h-3.5" />
+                        Tekrar Dene
+                      </button>
+                    </div>
+                  ) : programHaftalari.length === 0 ? (
+                    <div className="bg-white rounded-3xl p-12 text-center shadow-soft border border-slate-100 space-y-4">
                       <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl mx-auto shadow-2xs">
                         📅
                       </div>
                       <h3 className="text-base font-bold text-slate-800">Haftalık program henüz açılmadı</h3>
                       <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                        Eğitim haftaları admin tarafından açıldığında burada görünecektir.
+                        Eğitim haftaları admin tarafından açıldığında canlı ders Zoom bağlantıları ve oturum detayları burada görünecektir.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => fetchProgramHaftalari(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
+                      >
+                        <Ic.Refresh c="w-3.5 h-3.5" />
+                        Programı Yenile
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-8">
@@ -1771,42 +1867,52 @@ export default function KatilimciPanel() {
 
                                       {/* 3 Oturum Kartları */}
                                       <div className="space-y-3 flex-1">
-                                        {(dayData.sessions || []).map((session, sIdx) => (
-                                          <div
-                                            key={sIdx}
-                                            className={`bg-white border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all space-y-1.5 ${
-                                              isTuesday ? 'border-amber-100 hover:border-amber-200' : 'border-indigo-100 hover:border-indigo-200'
-                                            }`}
-                                          >
-                                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                                              <div className="flex items-center gap-1.5">
-                                                <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
-                                                  isTuesday
-                                                    ? 'bg-orange-100 text-orange-700'
-                                                    : 'bg-indigo-100 text-indigo-700'
-                                                }`}>
-                                                  {session.sessionNumber}
-                                                </span>
-                                                <h5 className="font-extrabold text-slate-800 text-xs">
-                                                  {session.title}
-                                                </h5>
-                                              </div>
-                                              <div className="flex items-center gap-1.5">
-                                                {session.guest && (
-                                                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
-                                                    🎙️ {session.guest}
-                                                  </span>
-                                                )}
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                                  ⏱️ {session.duration}
-                                                </span>
-                                              </div>
-                                            </div>
-                                            <p className="text-[11px] text-slate-600 leading-relaxed pl-6">
-                                              {session.description}
-                                            </p>
+                                        {(dayData.sessions || []).length === 0 ? (
+                                          <div className="bg-white/80 border border-slate-200/60 rounded-2xl p-4 text-center text-xs text-slate-500 italic">
+                                            Oturum içerikleri yakında güncellenecek
                                           </div>
-                                        ))}
+                                        ) : (
+                                          (dayData.sessions || []).map((session, sIdx) => (
+                                            <div
+                                              key={sIdx}
+                                              className={`bg-white border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all space-y-1.5 ${
+                                                isTuesday ? 'border-amber-100 hover:border-amber-200' : 'border-indigo-100 hover:border-indigo-200'
+                                              }`}
+                                            >
+                                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
+                                                    isTuesday
+                                                      ? 'bg-orange-100 text-orange-700'
+                                                      : 'bg-indigo-100 text-indigo-700'
+                                                  }`}>
+                                                    {session.sessionNumber}
+                                                  </span>
+                                                  <h5 className="font-extrabold text-slate-800 text-xs">
+                                                    {session.title}
+                                                  </h5>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                  {session.guest && (
+                                                    <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                                                      🎙️ {session.guest}
+                                                    </span>
+                                                  )}
+                                                  {session.duration && (
+                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                                      ⏱️ {session.duration}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              {session.description && (
+                                                <p className="text-[11px] text-slate-600 leading-relaxed pl-6">
+                                                  {session.description}
+                                                </p>
+                                              )}
+                                            </div>
+                                          ))
+                                        )}
                                       </div>
                                     </div>
                                   )

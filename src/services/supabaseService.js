@@ -467,12 +467,12 @@ export async function getProgramHaftalariAdmin() {
 
   // Edge function fallback
   try {
-    const res = await callAdminAction('get_program_haftalari', {})
+    const res = await callAdminActionPublic('get_program_haftalari', {})
     if (res?.ok && Array.isArray(res?.data) && res.data.length > 0) {
       return res.data
     }
   } catch (err) {
-    console.warn('callAdminAction get_program_haftalari fallback error:', err)
+    console.warn('callAdminActionPublic get_program_haftalari fallback error:', err)
   }
 
   // Fallback default state from PROGRAM_WEEKS
@@ -531,7 +531,7 @@ export async function updateProgramHafta(identifier, payload = {}) {
   }
 
   // Edge function fallback
-  const res = await callAdminAction('update_program_hafta', {
+  const res = await callAdminActionPublic('update_program_hafta', {
     hafta: typeof identifier === 'number' && identifier <= 3 ? identifier : undefined,
     id: typeof identifier === 'number' && identifier > 3 ? identifier : undefined,
     ...cleanPayload
@@ -541,7 +541,10 @@ export async function updateProgramHafta(identifier, payload = {}) {
 }
 
 export async function getAktifProgramHaftalari() {
-  let dbHaftalar = []
+  let dbHaftalar = null
+  let lastError = null
+
+  // 1. Direct Supabase Query
   try {
     const { data, error } = await supabase
       .from('core_program_hafta')
@@ -551,32 +554,58 @@ export async function getAktifProgramHaftalari() {
 
     if (!error && Array.isArray(data)) {
       dbHaftalar = data
+    } else if (error) {
+      lastError = error
+      console.warn('Direct getAktifProgramHaftalari query returned error:', error.message)
     }
   } catch (err) {
+    lastError = err
     console.warn('Direct getAktifProgramHaftalari failed, attempting edge function:', err)
   }
 
-  if (dbHaftalar.length === 0) {
+  // 2. Edge Function Fallback if direct query errored or returned null
+  if (dbHaftalar === null) {
     try {
       const res = await callAdminActionPublic('get_aktif_program_haftalari', {})
       if (res?.ok && Array.isArray(res?.data)) {
         dbHaftalar = res.data
+      } else if (res?.error) {
+        lastError = new Error(res.error)
       }
     } catch (e) {
-      // Ignored
+      lastError = e
+      console.warn('callAdminActionPublic get_aktif_program_haftalari failed:', e)
     }
+  }
+
+  // If both failed and we still don't have dbHaftalar
+  if (dbHaftalar === null) {
+    throw new Error(lastError?.message || 'Aktif program haftaları sunucudan alınamadı.')
   }
 
   // Merge DB active records with static PROGRAM_WEEKS details
   return dbHaftalar.map(dbH => {
-    const staticWeek = PROGRAM_WEEKS.find(sw => sw.week === dbH.hafta)
+    const haftaNo = Number(dbH.hafta)
+    const staticWeek = PROGRAM_WEEKS.find(sw => Number(sw.week) === haftaNo)
+
+    const rawDays = (staticWeek?.days && staticWeek.days.length > 0)
+      ? staticWeek.days
+      : [
+          { dayName: 'Salı', title: `${haftaNo}. Hafta Salı Eğitimi`, sessions: [] },
+          { dayName: 'Perşembe', title: `${haftaNo}. Hafta Perşembe Eğitimi`, sessions: [] }
+        ]
+
     return {
       id: dbH.id,
-      hafta: dbH.hafta,
-      week: dbH.hafta,
-      title: dbH.baslik || staticWeek?.title || `${dbH.hafta}. Hafta`,
+      hafta: haftaNo,
+      week: haftaNo,
+      title: dbH.baslik || staticWeek?.title || `${haftaNo}. Hafta`,
       goal: dbH.hedef || staticWeek?.goal || '',
-      format: staticWeek?.format || [],
+      format: staticWeek?.format || [
+        'Bölüm 1 (15-20 dk): Konsept Açılışı ve Stratejik Yorumlama.',
+        'Küçük Ara (10 dk)',
+        'Bölüm 2 ve 3 (İki adet 30\'ar dk): Derinlemesine Eğitim ve Uygulamalı Atölye.'
+      ],
       aktif: Boolean(dbH.aktif),
       sali_aktif: dbH.sali_aktif !== false,
       persembe_aktif: dbH.persembe_aktif !== false,
@@ -588,11 +617,12 @@ export async function getAktifProgramHaftalari() {
       persembe_calendar_url: dbH.persembe_calendar_url || 'https://us06web.zoom.us/meeting/tZYod-qorDMtHtzzqHwbZr2npVRPFj35VvdH/ics?icsToken=DIrwF6pseC-HkaBijgAALAAAAENRjQhmZPyBHQIRw8tiRuKCJymxuIe4URp3AwAxkMkOLwQ7zG50BRXIrIiCDvW9nBBjYLgKXMFFJoUPtTAwMDAwMg&meetingMasterEventId=rNVKAcW4T3uK3iSqgflUhA',
       persembe_meeting_id: dbH.persembe_meeting_id || '825 0302 8748',
       persembe_passcode: dbH.persembe_passcode || '386049',
-      days: (staticWeek?.days || []).map(d => {
-        const isTuesday = d.dayName.toLowerCase().includes('salı')
-        const isThursday = d.dayName.toLowerCase().includes('perşembe')
+      days: rawDays.map(d => {
+        const isTuesday = (d.dayName || '').toLowerCase().includes('salı')
+        const isThursday = (d.dayName || '').toLowerCase().includes('perşembe')
         return {
           ...d,
+          sessions: d.sessions || [],
           aktif: isTuesday ? (dbH.sali_aktif !== false) : isThursday ? (dbH.persembe_aktif !== false) : true,
           time: '19:00 İstanbul',
           zoom_url: isTuesday ? dbH.sali_zoom_url : isThursday ? dbH.persembe_zoom_url : null,
