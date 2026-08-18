@@ -621,15 +621,34 @@ serve(async (req) => {
       }
 
       // Record activity in oturum log if participant
-      const { data: profile } = await adminClient.from('profiles').select('id, core_katilimci_id').eq('id', authUser.id).maybeSingle()
-      if (profile?.core_katilimci_id) {
-        await adminClient.from('core_katilimci_oturumlog').insert({
-          katilimci_id: profile.core_katilimci_id,
-          eylem: 'password_set_via_48h_token',
-          ip_adresi: req.headers.get('x-real-ip') || req.headers.get('x-forwarded-for') || null,
-          user_agent: req.headers.get('user-agent') || null,
-          tarih: new Date().toISOString()
-        }).catch(() => {})
+      try {
+        let katId = null
+        const { data: profile } = await adminClient.from('profiles').select('id, core_katilimci_id').eq('id', authUser.id).maybeSingle()
+        if (profile?.core_katilimci_id) {
+          katId = profile.core_katilimci_id
+        } else {
+          // Self-heal: find participant ID from core_aday
+          const { data: aday } = await adminClient.from('core_aday').select('id').ilike('eposta', email).maybeSingle()
+          if (aday?.id) {
+            const { data: kat } = await adminClient.from('core_katilimci').select('id').eq('aday_id', aday.id).maybeSingle()
+            if (kat?.id) {
+              katId = kat.id
+              await adminClient.from('profiles').update({ core_katilimci_id: kat.id, role: 'katilimci' }).eq('id', authUser.id)
+            }
+          }
+        }
+
+        if (katId) {
+          await adminClient.from('core_katilimci_oturumlog').insert({
+            katilimci_id: katId,
+            eylem: 'password_set_via_48h_token',
+            ip_adresi: req.headers.get('x-real-ip') || req.headers.get('x-forwarded-for') || null,
+            user_agent: req.headers.get('user-agent') || null,
+            tarih: new Date().toISOString()
+          })
+        }
+      } catch (logErr) {
+        console.warn('Oturum log warning in set_password_with_token:', logErr)
       }
 
       return jsonRes(req, {
@@ -2216,9 +2235,11 @@ serve(async (req) => {
     // ACTION: test_gemini_models
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'test_gemini_models') {
-      const { data: cols } = await adminClient.rpc('exec_sql', {
-        sql_query: `ALTER TABLE core_icerikdnatesti ALTER COLUMN prompt_versiyonu TYPE varchar(100);`
-      }).catch(() => ({ data: null }))
+      try {
+        await adminClient.rpc('exec_sql', {
+          sql_query: `ALTER TABLE core_icerikdnatesti ALTER COLUMN prompt_versiyonu TYPE varchar(100);`
+        })
+      } catch (_) {}
       
       return jsonRes(req, { ok: true, altered: true })
     }
@@ -2668,9 +2689,287 @@ ${formattedPromptAnswers}`
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_all_participants_login_status (Full participant login audit)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'audit_all_participants_login_status') {
+      const EXCLUDE_EMAILS = ['akyasan.6178@gmail.com']
+
+      // 1. Fetch approved candidates
+      const { data: adaylarData } = await adminClient
+        .from('core_aday')
+        .select('*')
+        .eq('basvuru_durumu', 'ONAYLANDI')
+        .order('id', { ascending: true })
+
+      const adaylar = (adaylarData || []).filter(a => !EXCLUDE_EMAILS.includes((a.eposta || '').toLowerCase()))
+
+      // 2. Fetch all participants, profiles, performances, oturumlogs
+      const { data: katilimcilar } = await adminClient.from('core_katilimci').select('*')
+      const { data: profiles } = await adminClient.from('profiles').select('*')
+      const { data: performances } = await adminClient.from('core_katilimciperformans').select('*')
+      const { data: oturumLogs } = await adminClient.from('core_katilimci_oturumlog').select('*')
+
+      // 3. Fetch Auth Users
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = authUsersData?.users || []
+
+      const audits: any[] = []
+      let loggedInCount = 0
+      let neverLoggedInCount = 0
+      let needsHealingCount = 0
+      let rojdaAudit: any = null
+
+      for (const aday of adaylar) {
+        const email = (aday.eposta || '').trim().toLowerCase()
+        const authUser = authUsers.find(u => (u.email || '').toLowerCase() === email)
+        const profile = profiles?.find(p => p.id === authUser?.id || (p.email || '').toLowerCase() === email)
+        const katilimci = katilimcilar?.find(k => k.aday_id === aday.id || (profile?.core_katilimci_id && k.id === profile.core_katilimci_id))
+        const perf = katilimci ? performances?.find(p => p.katilimci_id === katilimci.id) : null
+        const userLogs = katilimci ? (oturumLogs?.filter(l => l.katilimci_id === katilimci.id) || []) : []
+
+        const hasLoggedIn = Boolean(authUser?.last_sign_in_at || (katilimci?.giris_sayisi && katilimci.giris_sayisi > 0) || katilimci?.son_giris_tarihi || userLogs.length > 0)
+        const needsHealing = Boolean(!profile?.core_katilimci_id || !katilimci || !perf)
+
+        if (hasLoggedIn) loggedInCount++
+        else neverLoggedInCount++
+
+        if (needsHealing) needsHealingCount++
+
+        const candidateName = aday.ad_soyad || (aday.ad && aday.soyad ? `${aday.ad} ${aday.soyad}`.trim() : email.split('@')[0])
+
+        const record = {
+          ad_soyad: candidateName,
+          email: email,
+          auth_user: {
+            exists: Boolean(authUser),
+            id: authUser?.id || null,
+            email_confirmed: Boolean(authUser?.email_confirmed_at),
+            last_sign_in_at: authUser?.last_sign_in_at || null,
+            password_set_at: authUser?.user_metadata?.password_set_at || null,
+            has_48h_reset_token: Boolean(authUser?.user_metadata?.reset_token)
+          },
+          profile: {
+            exists: Boolean(profile),
+            role: profile?.role || null,
+            core_katilimci_id: profile?.core_katilimci_id || null
+          },
+          core_katilimci: {
+            exists: Boolean(katilimci),
+            id: katilimci?.id || null,
+            program_katilim_durumu: katilimci?.program_katilim_durumu || null,
+            ilk_giris_tarihi: katilimci?.ilk_giris_tarihi || null,
+            son_giris_tarihi: katilimci?.son_giris_tarihi || null,
+            son_aktivite_tarihi: katilimci?.son_aktivite_tarihi || null,
+            giris_sayisi: katilimci?.giris_sayisi || 0
+          },
+          core_aday: {
+            id: aday.id,
+            durum: aday.basvuru_durumu
+          },
+          performance: {
+            exists: Boolean(perf),
+            id: perf?.id || null,
+            toplam_puan: perf?.toplam_puan || 0
+          },
+          oturum_logs_count: userLogs.length,
+          login_status: hasLoggedIn ? 'LOGGED_IN' : 'NEVER_LOGGED_IN',
+          needs_action: !hasLoggedIn,
+          needs_healing: needsHealing
+        }
+
+        audits.push(record)
+
+        if (email.includes('rojda')) {
+          rojdaAudit = record
+        }
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          total_approved_candidates: adaylar.length,
+          logged_in_count: loggedInCount,
+          never_logged_in_count: neverLoggedInCount,
+          needs_healing_count: needsHealingCount,
+          needs_action_count: neverLoggedInCount,
+          rojda_bayram_audit: rojdaAudit,
+          participants: audits
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: heal_and_resend_pending_resets (Self heal + Resend 48h reset mail to not-logged-in participants)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'heal_and_resend_pending_resets') {
+      const EXCLUDE_EMAILS = ['akyasan.6178@gmail.com']
+      const targetEmails = payload?.target_emails as string[] | undefined
+      const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
+
+      if (!brevoApiKey) {
+        return jsonRes(req, { ok: false, error: 'BREVO_API_KEY bulunamadı.' }, 400)
+      }
+
+      // 1. Fetch approved candidates
+      const { data: adaylarData } = await adminClient
+        .from('core_aday')
+        .select('*')
+        .eq('basvuru_durumu', 'ONAYLANDI')
+
+      let adaylar = (adaylarData || []).filter(a => !EXCLUDE_EMAILS.includes((a.eposta || '').toLowerCase()))
+      if (targetEmails && targetEmails.length > 0) {
+        const normTargets = targetEmails.map(e => e.trim().toLowerCase())
+        adaylar = adaylar.filter(a => normTargets.includes((a.eposta || '').toLowerCase()))
+      }
+
+      // 2. Fetch Auth Users, profiles, core_katilimci, performances
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = authUsersData?.users || []
+      const { data: katilimcilar } = await adminClient.from('core_katilimci').select('*')
+      const { data: profiles } = await adminClient.from('profiles').select('*')
+
+      const sendResults: any[] = []
+      let sentCount = 0
+      let failedCount = 0
+      let healedCount = 0
+
+      for (const aday of adaylar) {
+        const email = (aday.eposta || '').trim().toLowerCase()
+        let authUser = authUsers.find(u => (u.email || '').toLowerCase() === email)
+        let profile = profiles?.find(p => p.id === authUser?.id || (p.email || '').toLowerCase() === email)
+        let katilimci = katilimcilar?.find(k => k.aday_id === aday.id || (profile?.core_katilimci_id && k.id === profile.core_katilimci_id))
+
+        // Check if user already successfully logged in (skip if already logged in unless forced via target_emails)
+        const hasLoggedIn = Boolean(authUser?.last_sign_in_at || (katilimci?.giris_sayisi && katilimci.giris_sayisi > 0))
+        if (hasLoggedIn && (!targetEmails || targetEmails.length === 0)) {
+          continue // skip active users
+        }
+
+        // Self-Healing
+        let healed = false
+        if (katilimci && profile && profile.core_katilimci_id !== katilimci.id) {
+          await adminClient.from('profiles').update({ core_katilimci_id: katilimci.id, role: 'katilimci' }).eq('id', profile.id)
+          healed = true
+        }
+
+        if (katilimci) {
+          const { data: existingPerf } = await adminClient.from('core_katilimciperformans').select('id').eq('katilimci_id', katilimci.id).maybeSingle()
+          if (!existingPerf) {
+            await adminClient.from('core_katilimciperformans').insert({
+              katilimci_id: katilimci.id,
+              toplam_puan: 0,
+              gorev_puani: 0,
+              etkilesim_puani: 0,
+              toplanti_puani: 0
+            })
+            healed = true
+          }
+        }
+
+        if (healed) healedCount++
+
+        // Generate 48h resilient token
+        const randomBytes = new Uint8Array(24)
+        crypto.getRandomValues(randomBytes)
+        const secureToken = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+        const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+
+        if (!authUser) {
+          const tempPassword = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('') + 'A1!'
+          const { data: createdAuth } = await adminClient.auth.admin.createUser({
+            email,
+            password: tempPassword,
+            email_confirm: true,
+            user_metadata: {
+              reset_token: secureToken,
+              reset_token_expires_at: expiresAt
+            }
+          })
+          authUser = createdAuth?.user
+        } else {
+          await adminClient.auth.admin.updateUserById(authUser.id, {
+            user_metadata: {
+              ...(authUser.user_metadata || {}),
+              reset_token: secureToken,
+              reset_token_expires_at: expiresAt
+            }
+          })
+        }
+
+        const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
+        const { data: linkData } = await adminClient.auth.admin.generateLink({
+          type: 'recovery',
+          email,
+          options: { redirectTo }
+        })
+        const hashedToken = linkData?.properties?.hashed_token || ''
+        const actionLink = `https://saglikliderleri.markamutfagi.co/reset-password?token=${secureToken}&email=${encodeURIComponent(email)}${hashedToken ? `&token_hash=${hashedToken}` : ''}&type=recovery`
+
+        const candidateName = aday.ad_soyad || (aday.ad && aday.soyad ? `${aday.ad} ${aday.soyad}`.trim() : email.split('@')[0])
+        const htmlContent = getResetPasswordHtml(candidateName, actionLink)
+
+        try {
+          const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'api-key': brevoApiKey
+            },
+            body: JSON.stringify({
+              sender: { name: 'Dijital Sağlık Liderleri', email: 'saglikliderleri@markamutfagi.co' },
+              to: [{ email, name: candidateName }],
+              subject: 'Geleceğin Dijital Sağlık Liderleri — Şifrenizi Belirleyin',
+              htmlContent
+            })
+          })
+
+          if (brevoRes.ok) {
+            const bJson = await brevoRes.json()
+            sentCount++
+            sendResults.push({
+              email,
+              name: candidateName,
+              success: true,
+              message_id: bJson?.messageId || 'SENT',
+              healed
+            })
+          } else {
+            failedCount++
+            sendResults.push({
+              email,
+              name: candidateName,
+              success: false,
+              error: `Brevo HTTP ${brevoRes.status}`,
+              healed
+            })
+          }
+        } catch (e: any) {
+          failedCount++
+          sendResults.push({
+            email,
+            name: candidateName,
+            success: false,
+            error: e?.message || String(e),
+            healed
+          })
+        }
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          sent_count: sentCount,
+          failed_count: failedCount,
+          healed_count: healedCount,
+          results: sendResults
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
@@ -2681,3 +2980,4 @@ ${formattedPromptAnswers}`
     return jsonRes(req, { ok: false, error: err?.message || String(err) }, 500)
   }
 })
+
