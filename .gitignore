@@ -39,3 +39,6 @@ service-account*.json
 credentials*.json
 supabase/functions/.env
 
+# Data / CSV
+*.csv
+

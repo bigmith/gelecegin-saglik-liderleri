@@ -62,16 +62,16 @@ function getResetPasswordHtml(userName: string, actionLink: string): string {
                 <tr>
                   <td align="center">
                     <a href="${actionLink}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #f97316 0%, #ec4899 100%); color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 700; padding: 14px 34px; border-radius: 12px; box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35);">
-                      Şifremi Belirle →
+                      Şifremi Belirle (48 Saat Geçerli) →
                     </a>
                   </td>
                 </tr>
               </table>
 
               <!-- Security Notice -->
-              <div style="background-color: #fff7ed; border-left: 4px solid #f97316; border-radius: 8px; padding: 12px 16px; margin: 24px 0 20px;">
-                <p style="margin: 0; color: #9a3412; font-size: 12px; line-height: 1.5;">
-                  <strong>Güvenlik Uyarısı:</strong> Bu bağlantı sadece size özel ve tek kullanımlıktır. Güvenliğiniz için lütfen bağlantıyı üçüncü kişilerle paylaşmayınız.
+              <div style="background-color: #fff7ed; border-left: 4px solid #f97316; border-radius: 8px; padding: 14px 16px; margin: 24px 0 20px;">
+                <p style="margin: 0; color: #9a3412; font-size: 13px; line-height: 1.5;">
+                  <strong>⏳ 48 Saatlik Geçerlilik &amp; Güvenlik:</strong> Bu bağlantı size özel oluşturulmuş olup <strong>48 saat boyunca</strong> geçerlidir. Süre bitimine kadar dilediğiniz an şifrenizi oluşturabilirsiniz.
                 </p>
               </div>
 
@@ -408,7 +408,8 @@ serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ACTION: send_password_reset_via_brevo (Brevo REST API Email Sender)
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: send_password_reset_via_brevo (Brevo REST API Email Sender - 48h Resilient Link)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'send_password_reset_via_brevo') {
       const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
@@ -424,42 +425,64 @@ serve(async (req) => {
         return jsonRes(req, { ok: false, error: 'email alanı zorunludur.' }, 400)
       }
 
-      // 1. Generate password recovery link safely via Admin API
+      // 1. Generate 48-hour cryptographically secure token
+      const randomBytes = new Uint8Array(24)
+      crypto.getRandomValues(randomBytes)
+      const secureToken = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() // 48 hours validity
+
+      // 2. Fetch or create Auth user & attach 48h token to metadata
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      let authUser = (authUsersData?.users || []).find(u => (u.email || '').toLowerCase() === email)
+
+      if (!authUser) {
+        const tempPassword = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('') + 'A1!'
+        const { data: createdAuth, error: createErr } = await adminClient.auth.admin.createUser({
+          email,
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: {
+            reset_token: secureToken,
+            reset_token_expires_at: expiresAt
+          }
+        })
+        if (createErr) {
+          return jsonRes(req, { ok: false, error: 'Auth user oluşturulamadı: ' + createErr.message }, 500)
+        }
+        authUser = createdAuth.user!
+      } else {
+        await adminClient.auth.admin.updateUserById(authUser.id, {
+          user_metadata: {
+            ...(authUser.user_metadata || {}),
+            reset_token: secureToken,
+            reset_token_expires_at: expiresAt
+          }
+        })
+      }
+
+      // 3. Generate standard Supabase recovery link for dual fallback
       const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
-      const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
+      const { data: linkData } = await adminClient.auth.admin.generateLink({
         type: 'recovery',
         email,
-        options: {
-          redirectTo
-        }
+        options: { redirectTo }
       })
+      const hashedToken = linkData?.properties?.hashed_token || ''
 
-      if (linkErr) {
-        return jsonRes(req, {
-          ok: false,
-          error: 'Kurtarma bağlantısı üretilemedi: ' + linkErr.message
-        }, 500)
-      }
+      // 4. Construct direct SPA link (immune to scanner bot GET consumption)
+      const actionLink = `https://saglikliderleri.markamutfagi.co/reset-password?token=${secureToken}&email=${encodeURIComponent(email)}${hashedToken ? `&token_hash=${hashedToken}` : ''}&type=recovery`
 
-      const actionLink = linkData?.properties?.action_link
-      if (!actionLink) {
-        return jsonRes(req, {
-          ok: false,
-          error: 'Kurtarma bağlantısı alınamadı.'
-        }, 500)
-      }
-
-      // 2. Fetch user's profile for personal greeting
+      // 5. Fetch user's profile for personal greeting
       const { data: profile } = await adminClient
         .from('profiles')
         .select('ad_soyad')
         .eq('email', email)
         .maybeSingle()
 
-      const userName = profile?.ad_soyad || email.split('@')[0]
+      const userName = profile?.ad_soyad || authUser.user_metadata?.ad_soyad || email.split('@')[0]
       const htmlContent = getResetPasswordHtml(userName, actionLink)
 
-      // 3. Send email via Brevo REST API
+      // 6. Send email via Brevo REST API
       const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
@@ -478,7 +501,7 @@ serve(async (req) => {
               name: userName
             }
           ],
-          subject: 'Geleceğin Dijital Sağlık Liderleri | Şifreni Belirle',
+          subject: 'Geleceğin Dijital Sağlık Liderleri | Şifreni Belirle (48 Saat Geçerli)',
           htmlContent: htmlContent
         })
       })
@@ -491,7 +514,8 @@ serve(async (req) => {
             success: true,
             email,
             provider: 'brevo',
-            messageId: brevoData?.messageId || undefined
+            messageId: brevoData?.messageId || undefined,
+            expires_at: expiresAt
           }
         })
       } else {
@@ -501,6 +525,272 @@ serve(async (req) => {
           error: `Brevo API Hatası (HTTP ${brevoRes.status}): ${errData?.message || brevoRes.statusText}`
         }, brevoRes.status >= 400 && brevoRes.status < 600 ? brevoRes.status : 500)
       }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: validate_reset_token (Verify if 48h reset token is valid & unexpired)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'validate_reset_token') {
+      const email = (payload?.email || '').trim().toLowerCase()
+      const token = (payload?.token || '').trim()
+
+      if (!email || !token) {
+        return jsonRes(req, { ok: false, valid: false, error: 'email ve token zorunludur.' }, 400)
+      }
+
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUser = (authUsersData?.users || []).find(u => (u.email || '').toLowerCase() === email)
+
+      if (!authUser) {
+        return jsonRes(req, { ok: true, valid: false, reason: 'user_not_found', message: 'Kullanıcı bulunamadı.' })
+      }
+
+      const storedToken = authUser.user_metadata?.reset_token
+      const expiresAtStr = authUser.user_metadata?.reset_token_expires_at
+
+      if (!storedToken || storedToken !== token) {
+        return jsonRes(req, { ok: true, valid: false, reason: 'invalid_token', message: 'Doğrulama bağlantısı geçersiz veya daha önce kullanılmış.' })
+      }
+
+      if (!expiresAtStr || new Date(expiresAtStr).getTime() < Date.now()) {
+        return jsonRes(req, { ok: true, valid: false, reason: 'expired_token', message: 'Doğrulama bağlantısının 48 saatlik süresi dolmuş.' })
+      }
+
+      const { data: profile } = await adminClient.from('profiles').select('ad_soyad, role').eq('id', authUser.id).maybeSingle()
+
+      return jsonRes(req, {
+        ok: true,
+        valid: true,
+        data: {
+          email,
+          ad_soyad: profile?.ad_soyad || authUser.user_metadata?.ad_soyad || email.split('@')[0],
+          role: profile?.role || 'katilimci',
+          expires_at: expiresAtStr
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: set_password_with_token (Set password using validated 48h token)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'set_password_with_token') {
+      const email = (payload?.email || '').trim().toLowerCase()
+      const token = (payload?.token || '').trim()
+      const password = (payload?.password || '').trim()
+
+      if (!email || !token || !password) {
+        return jsonRes(req, { ok: false, error: 'email, token ve password alanları zorunludur.' }, 400)
+      }
+
+      if (password.length < 6) {
+        return jsonRes(req, { ok: false, error: 'Şifre en az 6 karakter olmalıdır.' }, 400)
+      }
+
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUser = (authUsersData?.users || []).find(u => (u.email || '').toLowerCase() === email)
+
+      if (!authUser) {
+        return jsonRes(req, { ok: false, error: 'Kullanıcı bulunamadı.' }, 404)
+      }
+
+      const storedToken = authUser.user_metadata?.reset_token
+      const expiresAtStr = authUser.user_metadata?.reset_token_expires_at
+
+      if (!storedToken || storedToken !== token) {
+        return jsonRes(req, { ok: false, error: 'Doğrulama bağlantısı geçersiz veya daha önce kullanılmış. Lütfen yeni bir bağlantı talep edin.' }, 400)
+      }
+
+      if (!expiresAtStr || new Date(expiresAtStr).getTime() < Date.now()) {
+        return jsonRes(req, { ok: false, error: 'Doğrulama bağlantısının 48 saatlik süresi dolmuş. Lütfen yeni bir bağlantı talep edin.' }, 400)
+      }
+
+      // Update password in Supabase Auth & invalidate single-use 48h token
+      const { error: updateErr } = await adminClient.auth.admin.updateUserById(authUser.id, {
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          ...(authUser.user_metadata || {}),
+          reset_token: null,
+          reset_token_expires_at: null,
+          password_set_at: new Date().toISOString()
+        }
+      })
+
+      if (updateErr) {
+        return jsonRes(req, { ok: false, error: 'Şifre güncellenemedi: ' + updateErr.message }, 500)
+      }
+
+      // Record activity in oturum log if participant
+      const { data: profile } = await adminClient.from('profiles').select('id, core_katilimci_id').eq('id', authUser.id).maybeSingle()
+      if (profile?.core_katilimci_id) {
+        await adminClient.from('core_katilimci_oturumlog').insert({
+          katilimci_id: profile.core_katilimci_id,
+          eylem: 'password_set_via_48h_token',
+          ip_adresi: req.headers.get('x-real-ip') || req.headers.get('x-forwarded-for') || null,
+          user_agent: req.headers.get('user-agent') || null,
+          tarih: new Date().toISOString()
+        }).catch(() => {})
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          success: true,
+          email,
+          message: 'Şifreniz başarıyla kaydedildi. Giriş yapabilirsiniz.'
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: resend_all_participant_invitations (Mass Send 48h invitations to all participants)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'resend_all_participant_invitations') {
+      const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
+      if (!brevoApiKey || !brevoApiKey.trim()) {
+        return jsonRes(req, { ok: false, error: 'BREVO_API_KEY secret eksik.' }, 400)
+      }
+
+      // 1. Fetch participants, adaylar, profiles, auth users
+      const { data: adaylar } = await adminClient.from('core_aday').select('*')
+      const { data: katilimcilar } = await adminClient.from('core_katilimci').select('*')
+      const { data: profiles } = await adminClient.from('profiles').select('*')
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUsers = authUsersData?.users || []
+
+      // 2. Filter real participants
+      const targets: Array<{ katilimci_id: number, aday_id: number | null, ad_soyad: string, email: string }> = []
+      for (const k of (katilimcilar || [])) {
+        const aday = (adaylar || []).find(a => a.id === k.aday_id)
+        const profile = (profiles || []).find(p => p.core_katilimci_id === k.id || (aday && (p.email || '').toLowerCase() === (aday.eposta || '').toLowerCase()))
+        const email = ((aday?.eposta || profile?.email || '')).trim().toLowerCase()
+        const adSoyad = aday ? `${aday.ad || ''} ${aday.soyad || ''}`.trim() : (profile?.ad_soyad || `Katılımcı #${k.id}`)
+
+        if (!email) continue
+        if (email.includes('test') || email.includes('gdsl.com') || email === 'akyasan.6178@gmail.com') continue
+
+        if (!targets.find(t => t.email === email)) {
+          targets.push({
+            katilimci_id: k.id,
+            aday_id: aday?.id || null,
+            ad_soyad: adSoyad,
+            email: email
+          })
+        }
+      }
+
+      const results = []
+      let successCount = 0
+      let failCount = 0
+
+      for (const target of targets) {
+        try {
+          const email = target.email
+          const userName = target.ad_soyad
+
+          // Generate 48h token
+          const randomBytes = new Uint8Array(24)
+          crypto.getRandomValues(randomBytes)
+          const secureToken = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+          const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+
+          let authUser = authUsers.find(u => (u.email || '').toLowerCase() === email)
+          if (!authUser) {
+            const tempPassword = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('') + 'A1!'
+            const { data: createdAuth, error: cErr } = await adminClient.auth.admin.createUser({
+              email,
+              password: tempPassword,
+              email_confirm: true,
+              user_metadata: {
+                ad_soyad: userName,
+                role: 'katilimci',
+                reset_token: secureToken,
+                reset_token_expires_at: expiresAt
+              }
+            })
+            if (!cErr && createdAuth?.user) {
+              authUser = createdAuth.user
+            }
+          } else {
+            await adminClient.auth.admin.updateUserById(authUser.id, {
+              user_metadata: {
+                ...(authUser.user_metadata || {}),
+                reset_token: secureToken,
+                reset_token_expires_at: expiresAt
+              }
+            })
+          }
+
+          // Generate Supabase OTP for dual fallback
+          const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
+          const { data: linkData } = await adminClient.auth.admin.generateLink({
+            type: 'recovery',
+            email,
+            options: { redirectTo }
+          })
+          const hashedToken = linkData?.properties?.hashed_token || ''
+
+          const actionLink = `https://saglikliderleri.markamutfagi.co/reset-password?token=${secureToken}&email=${encodeURIComponent(email)}${hashedToken ? `&token_hash=${hashedToken}` : ''}&type=recovery`
+          const htmlContent = getResetPasswordHtml(userName, actionLink)
+
+          const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+              'api-key': brevoApiKey,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              sender: {
+                email: 'saglikliderleri@markamutfagi.co',
+                name: 'Geleceğin Dijital Sağlık Liderleri'
+              },
+              to: [{ email: email, name: userName }],
+              subject: 'Geleceğin Dijital Sağlık Liderleri | Şifreni Belirle (48 Saat Geçerli)',
+              htmlContent: htmlContent
+            })
+          })
+
+          if (brevoRes.ok) {
+            const bData = await brevoRes.json().catch(() => ({}))
+            successCount++
+            results.push({
+              email,
+              ad_soyad: userName,
+              status: 'sent',
+              messageId: bData?.messageId || 'sent',
+              expires_at: expiresAt
+            })
+          } else {
+            const bErr = await brevoRes.json().catch(() => ({}))
+            failCount++
+            results.push({
+              email,
+              ad_soyad: userName,
+              status: 'failed',
+              error: `Brevo HTTP ${brevoRes.status}: ${bErr?.message || brevoRes.statusText}`
+            })
+          }
+        } catch (err: any) {
+          failCount++
+          results.push({
+            email: target.email,
+            ad_soyad: target.ad_soyad,
+            status: 'failed',
+            error: err?.message || String(err)
+          })
+        }
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          total: targets.length,
+          sent: successCount,
+          failed: failCount,
+          results
+        }
+      })
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2203,7 +2493,7 @@ ${formattedPromptAnswers}`
 
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 

@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../config/supabaseClient'
-import { updateUserPassword, requestPasswordReset, recordParticipantActivity } from '../services/supabaseService'
+import {
+  updateUserPassword,
+  requestPasswordReset,
+  validateResetToken,
+  setPasswordWithToken,
+  recordParticipantActivity
+} from '../services/supabaseService'
 
 export default function ResetPassword() {
   // Page states: 'checking' | 'ready' | 'invalid' | 'success'
@@ -11,6 +17,11 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState(null)
   const [statusMessage, setStatusMessage] = useState(null)
+
+  // 48h Direct Token states
+  const [urlToken, setUrlToken] = useState(null)
+  const [targetEmail, setTargetEmail] = useState('')
+  const [userName, setUserName] = useState('')
 
   // Resend link state
   const [resendEmail, setResendEmail] = useState('')
@@ -23,22 +34,72 @@ export default function ResetPassword() {
     let isMounted = true
 
     async function initSession() {
-      // 1. URL Query kontrolü (?code=... veya ?token_hash=... veya ?error=...)
+      // 1. URL Query kontrolü
       const searchParams = new URLSearchParams(window.location.search)
-      const code = searchParams.get('code')
+      const token = searchParams.get('token')
+      const email = searchParams.get('email') || ''
       const tokenHash = searchParams.get('token_hash')
+      const code = searchParams.get('code')
       const type = searchParams.get('type')
-      const errorDesc = searchParams.get('error_description') || searchParams.get('error')
 
-      if (errorDesc) {
+      // Query veya Hash içindeki olası hataları kontrol et
+      const hashStr = window.location.hash || ''
+      const hashParams = new URLSearchParams(hashStr.replace(/^#/, ''))
+      
+      const errorDesc = searchParams.get('error_description') ||
+                        searchParams.get('error') ||
+                        hashParams.get('error_description') ||
+                        hashParams.get('error')
+
+      if (email) {
+        setTargetEmail(email)
+        setResendEmail(email)
+      }
+
+      // ── DURUM A: 48 Saatlik Güvenli Kriptografik Token Varsa ──
+      if (token && email) {
+        setUrlToken(token)
+        try {
+          const valRes = await validateResetToken({ token, email })
+          if (valRes?.valid) {
+            if (isMounted) {
+              if (valRes.data?.ad_soyad) setUserName(valRes.data.ad_soyad)
+              setPageState('ready')
+            }
+            return
+          } else {
+            if (isMounted) {
+              setStatusMessage(valRes?.message || 'Doğrulama bağlantısının 48 saatlik süresi dolmuş veya daha önce kullanılmış.')
+              setPageState('invalid')
+            }
+            return
+          }
+        } catch (tokenErr) {
+          console.warn('Token validation check fallback:', tokenErr)
+          // Ağ hatasında formun açılmasına izin ver
+          if (isMounted) {
+            setPageState('ready')
+          }
+          return
+        }
+      }
+
+      // ── DURUM B: Hata Açıklaması Varsa ve 48h Token Yoksa ──
+      if (errorDesc && !token) {
         if (isMounted) {
-          setStatusMessage(errorDesc)
+          let userFriendlyError = errorDesc
+          if (errorDesc.includes('otp_expired') || errorDesc.includes('expired')) {
+            userFriendlyError = 'E-postadaki bağlantının süresi dolmuş. Lütfen aşağıdan yeni bir 48 saatlik bağlantı talep edin.'
+          } else if (errorDesc.includes('access_denied')) {
+            userFriendlyError = 'Bağlantı tek kullanımlıktır ve daha önce kullanılmış olabilir.'
+          }
+          setStatusMessage(userFriendlyError)
           setPageState('invalid')
         }
         return
       }
 
-      // 1.A: PKCE Flow (exchangeCodeForSession)
+      // ── DURUM C: PKCE Flow (exchangeCodeForSession) ──
       if (code) {
         try {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code)
@@ -51,8 +112,8 @@ export default function ResetPassword() {
         }
       }
 
-      // 1.B: Token Hash OTP Verify
-      if (tokenHash && (type === 'recovery' || type === 'magiclink' || type === 'email')) {
+      // ── DURUM D: Token Hash OTP Verify ──
+      if (tokenHash && (type === 'recovery' || type === 'magiclink' || type === 'email' || !type)) {
         try {
           const { data, error } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
@@ -67,11 +128,9 @@ export default function ResetPassword() {
         }
       }
 
-      // 2. URL Hash kontrolü (#access_token=...&refresh_token=...)
-      const hash = window.location.hash || ''
-      if (hash.includes('access_token')) {
+      // ── DURUM E: URL Hash Kontrolü (#access_token=...&refresh_token=...) ──
+      if (hashStr.includes('access_token')) {
         try {
-          const hashParams = new URLSearchParams(hash.replace(/^#/, ''))
           const accessToken = hashParams.get('access_token')
           const refreshToken = hashParams.get('refresh_token')
           if (accessToken && refreshToken) {
@@ -89,7 +148,7 @@ export default function ResetPassword() {
         }
       }
 
-      // 3. Mevcut aktif session kontrolü
+      // ── DURUM F: Mevcut Aktif Session Kontrolü ──
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {
@@ -100,16 +159,19 @@ export default function ResetPassword() {
         console.warn('Get session attempt:', err)
       }
 
-      // 4. Kısa bir süre onAuthStateChange event'ini bekle
+      // ── DURUM G: 2.5 Saniye Bekleme ve Son Karar ──
       const timer = setTimeout(async () => {
         if (!isMounted) return
         const { data: { session: finalSession } } = await supabase.auth.getSession()
         if (finalSession) {
           setPageState('ready')
+        } else if (token) {
+          // Token var ise yine de hazır kabul et
+          setPageState('ready')
         } else {
           setPageState('invalid')
         }
-      }, 1200)
+      }, 2500)
 
       return () => clearTimeout(timer)
     }
@@ -146,7 +208,18 @@ export default function ResetPassword() {
     setLoading(true)
 
     try {
-      await updateUserPassword(password)
+      // 1. Yol: 48 Saatlik Güvenli Token ile Güncelleme
+      if (urlToken && targetEmail) {
+        await setPasswordWithToken({
+          token: urlToken,
+          email: targetEmail,
+          password: password
+        })
+      } else {
+        // 2. Yol: Aktif Supabase Oturumu ile Güncelleme
+        await updateUserPassword(password)
+      }
+
       recordParticipantActivity('password_recovery_login', '/reset-password').catch(() => {})
       setPageState('success')
 
@@ -185,7 +258,7 @@ export default function ResetPassword() {
       await requestPasswordReset(resendEmail)
       setResendStatus({
         type: 'success',
-        msg: 'Yeni şifre sıfırlama bağlantısı e-posta adresinize gönderildi. Lütfen gelen kutunuzu kontrol edin.'
+        msg: 'Yeni 48 saat geçerli şifre belirleme bağlantısı e-posta adresinize gönderildi. Lütfen gelen kutunuzu kontrol edin.'
       })
     } catch (err) {
       setResendStatus({
@@ -222,7 +295,7 @@ export default function ResetPassword() {
           <div className="py-8 space-y-4 animate-fade-in">
             <div className="w-10 h-10 border-3 border-orange-400 border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-sm font-semibold text-slate-600">Doğrulama oturumu kontrol ediliyor...</p>
-            <p className="text-xs text-slate-400">Lütfen bekleyin, bağlantınız güvenle doğrulanıyor.</p>
+            <p className="text-xs text-slate-400">Lütfen bekleyin, 48 saatlik bağlantınız güvenle doğrulanıyor.</p>
           </div>
         )}
 
@@ -248,6 +321,12 @@ export default function ResetPassword() {
         {/* ── DURUM 3: ŞİFRE BELİRLEME FORMU (READY) ── */}
         {pageState === 'ready' && (
           <div className="animate-fade-in">
+            {/* 48h Security Badge */}
+            <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 bg-orange-50 border border-orange-200/80 rounded-full text-[11px] font-semibold text-orange-800">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              {userName ? `${userName} için 48 Saatlik Güvenli Oturum Aktif` : (targetEmail ? `${targetEmail} için Güvenli Oturum Aktif` : '48 Saatlik Güvenli Oturum Aktif')}
+            </div>
+
             {formError && (
               <div className="mb-5 bg-red-50 text-red-600 text-xs sm:text-sm py-3 px-4 rounded-xl border border-red-100 text-left">
                 {formError}
@@ -303,13 +382,13 @@ export default function ResetPassword() {
                 <span>Bağlantı Geçersiz veya Süresi Dolmuş</span>
               </div>
               <p className="text-xs text-amber-700 leading-relaxed">
-                {statusMessage || 'Doğrulama oturumu bulunamadı. E-postadaki bağlantı tek kullanımlıktır ve süresi dolmuş olabilir. Lütfen aşağıdan yeni bir bağlantı talep edin.'}
+                {statusMessage || 'Doğrulama oturumu bulunamadı veya bağlantının 48 saatlik kullanım süresi dolmuş. Lütfen aşağıdan yeni bir bağlantı talep edin.'}
               </p>
             </div>
 
             <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3">
               <p className="text-xs font-semibold text-slate-700">
-                Yeni Şifre Sıfırlama Bağlantısı İste:
+                Yeni 48 Saatlik Bağlantı İste:
               </p>
               {resendStatus && (
                 <div className={`p-3 rounded-xl border text-xs leading-relaxed ${

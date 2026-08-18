@@ -68,17 +68,61 @@ export async function logoutUser() {
   }
 }
 
-export async function requestPasswordReset(email) {
-  const cleanEmail = email.trim().toLowerCase()
-  const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://saglikliderleri.markamutfagi.co'
-  const redirectTo = `${origin}/reset-password`
-  const { data, error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-    redirectTo
+export async function callAdminActionPublic(action, payload = {}) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wczupupflxvfnjbjkfrj.supabase.co'
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+  const res = await fetch(`${supabaseUrl}/functions/v1/admin-actions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify({ action, payload }),
   })
-  if (error) {
-    throw new Error(error.message || 'Şifre sıfırlama e-postası gönderilemedi.')
+
+  const data = await res.json()
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `İşlem gerçekleştirilemedi (HTTP ${res.status})`)
   }
   return data
+}
+
+export async function requestPasswordReset(email) {
+  const cleanEmail = email.trim().toLowerCase()
+  try {
+    // 1. Brevo REST API üzerinden 48 saatlik dayanıklı token linki gönder
+    const res = await callAdminActionPublic('send_password_reset_via_brevo', { email: cleanEmail })
+    return res.data
+  } catch (err) {
+    console.warn('Brevo 48h reset request failed, falling back to Supabase auth:', err)
+    // Fallback: Standart Supabase auth reset
+    const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://saglikliderleri.markamutfagi.co'
+    const redirectTo = `${origin}/reset-password`
+    const { data, error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo
+    })
+    if (error) {
+      throw new Error(error.message || 'Şifre sıfırlama e-postası gönderilemedi.')
+    }
+    return data
+  }
+}
+
+export async function validateResetToken({ token, email }) {
+  return await callAdminActionPublic('validate_reset_token', { token, email })
+}
+
+export async function setPasswordWithToken({ token, email, password }) {
+  return await callAdminActionPublic('set_password_with_token', { token, email, password })
+}
+
+export async function resendAllParticipantInvitations() {
+  return await callAdminActionPublic('resend_all_participant_invitations', {})
+}
+
+export async function resendSingleParticipantInvitation(email) {
+  return await callAdminActionPublic('send_password_reset_via_brevo', { email: (email || '').trim().toLowerCase() })
 }
 
 export async function updateUserPassword(newPassword) {
