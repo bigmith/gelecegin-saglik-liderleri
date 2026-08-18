@@ -847,6 +847,76 @@ serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: get_program_haftalari (Admin: Fetch all program weeks)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'get_program_haftalari') {
+      const { data, error } = await adminClient
+        .from('core_program_hafta')
+        .select('*')
+        .order('hafta', { ascending: true })
+
+      if (error) {
+        return jsonRes(req, { ok: false, error: error.message }, 500)
+      }
+      return jsonRes(req, { ok: true, data: data || [] })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: get_aktif_program_haftalari (Public / Participant: Fetch active program weeks)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'get_aktif_program_haftalari') {
+      const { data, error } = await adminClient
+        .from('core_program_hafta')
+        .select('*')
+        .eq('aktif', true)
+        .order('hafta', { ascending: true })
+
+      if (error) {
+        return jsonRes(req, { ok: false, error: error.message }, 500)
+      }
+      return jsonRes(req, { ok: true, data: data || [] })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: update_program_hafta (Admin: Update a program week)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'update_program_hafta') {
+      const hafta = payload?.hafta
+      const id = payload?.id
+      const updates: any = {
+        guncellenme_tarihi: new Date().toISOString()
+      }
+
+      const allowedFields = [
+        'baslik', 'hedef', 'aktif', 'sali_aktif', 'persembe_aktif',
+        'sali_zoom_url', 'sali_calendar_url', 'sali_meeting_id', 'sali_passcode',
+        'persembe_zoom_url', 'persembe_calendar_url', 'persembe_meeting_id', 'persembe_passcode'
+      ]
+
+      for (const field of allowedFields) {
+        if (payload && payload[field] !== undefined) {
+          updates[field] = payload[field]
+        }
+      }
+
+      let query = adminClient.from('core_program_hafta').update(updates)
+      if (id) {
+        query = query.eq('id', id)
+      } else if (hafta) {
+        query = query.eq('hafta', Number(hafta))
+      } else {
+        return jsonRes(req, { ok: false, error: 'hafta veya id parametresi zorunludur.' }, 400)
+      }
+
+      const { data, error } = await query.select().single()
+      if (error) {
+        return jsonRes(req, { ok: false, error: error.message }, 500)
+      }
+
+      return jsonRes(req, { ok: true, data })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // ACTION: clean_task_environment (Clean tasks, deliveries, dna, mentor notes)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'clean_task_environment') {
@@ -2493,7 +2563,7 @@ ${formattedPromptAnswers}`
 
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 

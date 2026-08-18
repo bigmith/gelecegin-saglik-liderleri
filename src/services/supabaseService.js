@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabaseClient'
+import { PROGRAM_WEEKS } from '../data/programSchedule'
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 export async function loginUser(email, password) {
@@ -447,6 +448,162 @@ export async function deleteGorev(id) {
     throw error
   }
   return true
+}
+
+// ─── HAFTALIK PROGRAM (CANLI EĞİTİM OTURUMLARI) ───────────────────────────────
+export async function getProgramHaftalariAdmin() {
+  try {
+    const { data, error } = await supabase
+      .from('core_program_hafta')
+      .select('*')
+      .order('hafta', { ascending: true })
+
+    if (!error && data && data.length > 0) {
+      return data
+    }
+  } catch (err) {
+    console.warn('Direct supabase getProgramHaftalariAdmin fallback to edge function:', err)
+  }
+
+  // Edge function fallback
+  try {
+    const res = await callAdminAction('get_program_haftalari', {})
+    if (res?.ok && Array.isArray(res?.data) && res.data.length > 0) {
+      return res.data
+    }
+  } catch (err) {
+    console.warn('callAdminAction get_program_haftalari fallback error:', err)
+  }
+
+  // Fallback default state from PROGRAM_WEEKS
+  return PROGRAM_WEEKS.map(w => ({
+    hafta: w.week,
+    baslik: w.title,
+    hedef: w.goal,
+    aktif: false,
+    sali_aktif: true,
+    persembe_aktif: true,
+    sali_zoom_url: 'https://us06web.zoom.us/j/89490424441?pwd=t3edWpY1m0Vh37kg9I7AsV0nyll1nP.1',
+    sali_calendar_url: 'https://us06web.zoom.us/meeting/tZ0pfumsrD8uHtUo3YmaRUGtvjRbabuDiGT6/ics?icsToken=DGEu-nEGL9lk-0t6SAAALAAAAKeEbH7SUK7pA9n6NqViJmw2dxqO3xbOjJ5QtLRvx5btCFOfYK5LVn8Q9ayNm7XpvhT6ovT-QG1BK0jQ8DAwMDAwMg&meetingMasterEventId=BmN668jBQsClNpVfaeI5FA',
+    sali_meeting_id: '894 9042 4441',
+    sali_passcode: '028359',
+    persembe_zoom_url: 'https://us06web.zoom.us/j/82503028748?pwd=tFq1DRiTRRP0NhXtR4tRbb5akbeQh6.1',
+    persembe_calendar_url: 'https://us06web.zoom.us/meeting/tZYod-qorDMtHtzzqHwbZr2npVRPFj35VvdH/ics?icsToken=DIrwF6pseC-HkaBijgAALAAAAENRjQhmZPyBHQIRw8tiRuKCJymxuIe4URp3AwAxkMkOLwQ7zG50BRXIrIiCDvW9nBBjYLgKXMFFJoUPtTAwMDAwMg&meetingMasterEventId=rNVKAcW4T3uK3iSqgflUhA',
+    persembe_meeting_id: '825 0302 8748',
+    persembe_passcode: '386049'
+  }))
+}
+
+export async function updateProgramHafta(identifier, payload = {}) {
+  const updates = {
+    ...payload,
+    guncellenme_tarihi: new Date().toISOString()
+  }
+
+  const validFields = [
+    'baslik', 'hedef', 'aktif', 'sali_aktif', 'persembe_aktif',
+    'sali_zoom_url', 'sali_calendar_url', 'sali_meeting_id', 'sali_passcode',
+    'persembe_zoom_url', 'persembe_calendar_url', 'persembe_meeting_id', 'persembe_passcode',
+    'guncellenme_tarihi'
+  ]
+  const cleanPayload = {}
+  for (const key of validFields) {
+    if (updates[key] !== undefined) {
+      cleanPayload[key] = updates[key]
+    }
+  }
+
+  try {
+    let query = supabase.from('core_program_hafta').update(cleanPayload)
+    if (typeof identifier === 'number') {
+      if (identifier <= 3) {
+        query = query.eq('hafta', identifier)
+      } else {
+        query = query.eq('id', identifier)
+      }
+    } else {
+      query = query.eq('hafta', Number(identifier))
+    }
+    const { data, error } = await query.select().single()
+    if (!error && data) return data
+  } catch (err) {
+    console.warn('Direct updateProgramHafta failed, trying edge function:', err)
+  }
+
+  // Edge function fallback
+  const res = await callAdminAction('update_program_hafta', {
+    hafta: typeof identifier === 'number' && identifier <= 3 ? identifier : undefined,
+    id: typeof identifier === 'number' && identifier > 3 ? identifier : undefined,
+    ...cleanPayload
+  })
+  if (res?.ok && res?.data) return res.data
+  return cleanPayload
+}
+
+export async function getAktifProgramHaftalari() {
+  let dbHaftalar = []
+  try {
+    const { data, error } = await supabase
+      .from('core_program_hafta')
+      .select('*')
+      .eq('aktif', true)
+      .order('hafta', { ascending: true })
+
+    if (!error && Array.isArray(data)) {
+      dbHaftalar = data
+    }
+  } catch (err) {
+    console.warn('Direct getAktifProgramHaftalari failed, attempting edge function:', err)
+  }
+
+  if (dbHaftalar.length === 0) {
+    try {
+      const res = await callAdminActionPublic('get_aktif_program_haftalari', {})
+      if (res?.ok && Array.isArray(res?.data)) {
+        dbHaftalar = res.data
+      }
+    } catch (e) {
+      // Ignored
+    }
+  }
+
+  // Merge DB active records with static PROGRAM_WEEKS details
+  return dbHaftalar.map(dbH => {
+    const staticWeek = PROGRAM_WEEKS.find(sw => sw.week === dbH.hafta)
+    return {
+      id: dbH.id,
+      hafta: dbH.hafta,
+      week: dbH.hafta,
+      title: dbH.baslik || staticWeek?.title || `${dbH.hafta}. Hafta`,
+      goal: dbH.hedef || staticWeek?.goal || '',
+      format: staticWeek?.format || [],
+      aktif: Boolean(dbH.aktif),
+      sali_aktif: dbH.sali_aktif !== false,
+      persembe_aktif: dbH.persembe_aktif !== false,
+      sali_zoom_url: dbH.sali_zoom_url || 'https://us06web.zoom.us/j/89490424441?pwd=t3edWpY1m0Vh37kg9I7AsV0nyll1nP.1',
+      sali_calendar_url: dbH.sali_calendar_url || 'https://us06web.zoom.us/meeting/tZ0pfumsrD8uHtUo3YmaRUGtvjRbabuDiGT6/ics?icsToken=DGEu-nEGL9lk-0t6SAAALAAAAKeEbH7SUK7pA9n6NqViJmw2dxqO3xbOjJ5QtLRvx5btCFOfYK5LVn8Q9ayNm7XpvhT6ovT-QG1BK0jQ8DAwMDAwMg&meetingMasterEventId=BmN668jBQsClNpVfaeI5FA',
+      sali_meeting_id: dbH.sali_meeting_id || '894 9042 4441',
+      sali_passcode: dbH.sali_passcode || '028359',
+      persembe_zoom_url: dbH.persembe_zoom_url || 'https://us06web.zoom.us/j/82503028748?pwd=tFq1DRiTRRP0NhXtR4tRbb5akbeQh6.1',
+      persembe_calendar_url: dbH.persembe_calendar_url || 'https://us06web.zoom.us/meeting/tZYod-qorDMtHtzzqHwbZr2npVRPFj35VvdH/ics?icsToken=DIrwF6pseC-HkaBijgAALAAAAENRjQhmZPyBHQIRw8tiRuKCJymxuIe4URp3AwAxkMkOLwQ7zG50BRXIrIiCDvW9nBBjYLgKXMFFJoUPtTAwMDAwMg&meetingMasterEventId=rNVKAcW4T3uK3iSqgflUhA',
+      persembe_meeting_id: dbH.persembe_meeting_id || '825 0302 8748',
+      persembe_passcode: dbH.persembe_passcode || '386049',
+      days: (staticWeek?.days || []).map(d => {
+        const isTuesday = d.dayName.toLowerCase().includes('salı')
+        const isThursday = d.dayName.toLowerCase().includes('perşembe')
+        return {
+          ...d,
+          aktif: isTuesday ? (dbH.sali_aktif !== false) : isThursday ? (dbH.persembe_aktif !== false) : true,
+          time: '19:00 İstanbul',
+          zoom_url: isTuesday ? dbH.sali_zoom_url : isThursday ? dbH.persembe_zoom_url : null,
+          calendar_url: isTuesday ? dbH.sali_calendar_url : isThursday ? dbH.persembe_calendar_url : null,
+          meeting_id: isTuesday ? dbH.sali_meeting_id : isThursday ? dbH.persembe_meeting_id : null,
+          passcode: isTuesday ? dbH.sali_passcode : isThursday ? dbH.persembe_passcode : null
+        }
+      }),
+      fieldTask: staticWeek?.fieldTask || null
+    }
+  })
 }
 
 // ─── TESLİMLER ─────────────────────────────────────────────────────────────────

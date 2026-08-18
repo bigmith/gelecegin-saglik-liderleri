@@ -34,9 +34,11 @@ import {
   getParticipantAvatarSrc,
   resendAllParticipantInvitations,
   resendSingleParticipantInvitation,
+  getProgramHaftalariAdmin,
+  updateProgramHafta,
   logoutUser
 } from '../services/supabaseService'
-import { PROGRAM_TASKS } from '../data/programSchedule'
+import { PROGRAM_TASKS, PROGRAM_WEEKS } from '../data/programSchedule'
 import DnaReportRenderer from '../components/DnaReportRenderer'
 
 const DURUM_MAP = {
@@ -53,6 +55,7 @@ const Ic = {
   MentorIcon: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M11.484 2.17a.75.75 0 011.032 0 11.209 11.209 0 007.877 3.08.75.75 0 01.722.515 12.74 12.74 0 01.635 3.985c0 5.942-4.064 10.933-9.563 12.348a.749.749 0 01-.374 0C6.314 20.683 2.25 15.692 2.25 9.75c0-1.39.223-2.73.635-3.985a.75.75 0 01.722-.516l.143.001c2.996 0 5.718-1.17 7.734-3.08z" clipRule="evenodd" /></svg>,
   Team:      ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M8.25 6.75a3.75 3.75 0 117.5 0 3.75 3.75 0 01-7.5 0zM15.75 9.75a3 3 0 116 0 3 3 0 01-6 0zM2.25 9.75a3 3 0 116 0 3 3 0 01-6 0zM6.31 15.117A6.745 6.745 0 0112 12a6.745 6.745 0 016.709 7.498.75.75 0 01-.372.568A12.696 12.696 0 0112 21.75c-2.305 0-4.47-.612-6.337-1.684a.75.75 0 01-.372-.568 6.787 6.787 0 011.019-4.38z" clipRule="evenodd" /><path d="M5.082 14.254a8.287 8.287 0 00-1.308 5.135 9.687 9.687 0 01-1.764-.44l-.115-.04a.563.563 0 01-.373-.487l-.01-.121a3.75 3.75 0 013.57-4.047zM20.226 19.389a8.287 8.287 0 00-1.308-5.135 3.75 3.75 0 013.57 4.047l-.01.121a.563.563 0 01-.373.486l-.115.04c-.567.2-1.156.349-1.764.441z" /></svg>,
   Task:      ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M7.502 6h7.128A3.375 3.375 0 0118 9.375v9.375a3 3 0 003-3V6.108c0-1.505-1.125-2.811-2.664-2.94a48.972 48.972 0 00-.673-.05A3 3 0 0015 1.5h-1.5a3 3 0 00-2.663 1.618c-.225.015-.45.032-.673.05C8.662 3.295 7.554 4.542 7.502 6zM13.5 3A1.5 1.5 0 0012 4.5h4.5A1.5 1.5 0 0015 3h-1.5z" clipRule="evenodd" /><path fillRule="evenodd" d="M3 9.375C3 8.339 3.84 7.5 4.875 7.5h9.75c1.036 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875h-9.75A1.875 1.875 0 013 20.625V9.375zm9.586 4.594a.75.75 0 00-1.172-.938l-2.476 3.096-.908-.907a.75.75 0 00-1.06 1.06l1.5 1.5a.75.75 0 001.116-.062l3-3.75z" clipRule="evenodd" /></svg>,
+  Calendar:  ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path d="M12.75 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM7.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM8.25 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM9.75 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM10.5 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12.75 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM14.25 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 13.5a.75.75 0 100-1.5.75.75 0 000 1.5z" /><path fillRule="evenodd" d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zm13.5 9a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5v-7.5z" clipRule="evenodd" /></svg>,
   Dashboard: ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" /><path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.432z" /></svg>,
   Logout:    ({ c = 'w-5 h-5' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M7.5 3.75A1.5 1.5 0 006 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3h-6a3 3 0 01-3-3V5.25a3 3 0 013-3h6a3 3 0 013 3V9A.75.75 0 0115 9V5.25a1.5 1.5 0 00-1.5-1.5h-6zm10.72 4.72a.75.75 0 011.06 0l3 3a.75.75 0 010 1.06l-3 3a.75.75 0 11-1.06-1.06l1.72-1.72H9a.75.75 0 010-1.5h10.94l-1.72-1.72a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>,
   Check:     ({ c = 'w-4 h-4' }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={c}><path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" /></svg>,
@@ -73,6 +76,7 @@ const Ic = {
 /* ════════════════════════════════════════
    YARDIMCI BİLEŞENLER
 ════════════════════════════════════════ */
+
 function StatusBadge({ apiDurum }) {
   const d = DURUM_MAP[apiDurum] ?? { label: apiDurum ?? 'Bilinmiyor', cls: 'bg-gray-100 text-gray-500 border-gray-200', dot: 'bg-gray-400' }
   return (
@@ -435,6 +439,90 @@ export default function AdminPanel() {
   const [sendingInvites, setSendingInvites]           = useState(false)
   const [sendingSingleInvite, setSendingSingleInvite] = useState(null)
 
+  // Haftalık Program (Canlı Eğitimler & Zoom) State
+  const [programHaftalari, setProgramHaftalari]       = useState([])
+  const [savingHaftaNo, setSavingHaftaNo]             = useState(null)
+  const [haftaEdits, setHaftaEdits]                   = useState({})
+
+  const handleHaftaFieldChange = (haftaNo, field, value) => {
+    setHaftaEdits(prev => ({
+      ...prev,
+      [haftaNo]: {
+        ...(prev[haftaNo] || {}),
+        [field]: value
+      }
+    }))
+  }
+
+  const handleToggleHaftaAktif = async (haftaObj) => {
+    const haftaNo = haftaObj.hafta
+    const newAktif = !haftaObj.aktif
+    setSavingHaftaNo(haftaNo)
+    try {
+      await updateProgramHafta(haftaNo, { aktif: newAktif })
+      setProgramHaftalari(prev => prev.map(h => h.hafta === haftaNo ? { ...h, aktif: newAktif } : h))
+      setToast({
+        msg: `${haftaNo}. Hafta ${newAktif ? 'katılımcılara açıldı (Aktif edildi) 🟢' : 'katılımcılara kapatıldı (Pasif yapıldı) 🔒'}`,
+        type: newAktif ? 'success' : 'info'
+      })
+    } catch (e) {
+      setToast({ msg: `Hafta durumu güncellenemedi: ${e.message}`, type: 'error' })
+    } finally {
+      setSavingHaftaNo(null)
+    }
+  }
+
+  const handleToggleGunAktif = async (haftaObj, gunKey) => {
+    const haftaNo = haftaObj.hafta
+    const newVal = haftaObj[gunKey] === false ? true : false
+    setSavingHaftaNo(haftaNo)
+    try {
+      await updateProgramHafta(haftaNo, { [gunKey]: newVal })
+      setProgramHaftalari(prev => prev.map(h => h.hafta === haftaNo ? { ...h, [gunKey]: newVal } : h))
+      const gunAd = gunKey.includes('sali') ? 'Salı' : 'Perşembe'
+      setToast({
+        msg: `${haftaNo}. Hafta ${gunAd} canlı eğitimi ${newVal ? 'aktif edildi' : 'pasif yapıldı'}`,
+        type: 'success'
+      })
+    } catch (e) {
+      setToast({ msg: `Gün durumu güncellenemedi: ${e.message}`, type: 'error' })
+    } finally {
+      setSavingHaftaNo(null)
+    }
+  }
+
+  const handleSaveHaftaDetails = async (haftaObj) => {
+    const haftaNo = haftaObj.hafta
+    const edits = haftaEdits[haftaNo] || {}
+    setSavingHaftaNo(haftaNo)
+    try {
+      const payload = {
+        baslik: edits.baslik !== undefined ? edits.baslik : haftaObj.baslik,
+        hedef: edits.hedef !== undefined ? edits.hedef : haftaObj.hedef,
+        sali_zoom_url: edits.sali_zoom_url !== undefined ? edits.sali_zoom_url : haftaObj.sali_zoom_url,
+        sali_calendar_url: edits.sali_calendar_url !== undefined ? edits.sali_calendar_url : haftaObj.sali_calendar_url,
+        sali_meeting_id: edits.sali_meeting_id !== undefined ? edits.sali_meeting_id : haftaObj.sali_meeting_id,
+        sali_passcode: edits.sali_passcode !== undefined ? edits.sali_passcode : haftaObj.sali_passcode,
+        persembe_zoom_url: edits.persembe_zoom_url !== undefined ? edits.persembe_zoom_url : haftaObj.persembe_zoom_url,
+        persembe_calendar_url: edits.persembe_calendar_url !== undefined ? edits.persembe_calendar_url : haftaObj.persembe_calendar_url,
+        persembe_meeting_id: edits.persembe_meeting_id !== undefined ? edits.persembe_meeting_id : haftaObj.persembe_meeting_id,
+        persembe_passcode: edits.persembe_passcode !== undefined ? edits.persembe_passcode : haftaObj.persembe_passcode,
+      }
+      await updateProgramHafta(haftaNo, payload)
+      setProgramHaftalari(prev => prev.map(h => h.hafta === haftaNo ? { ...h, ...payload } : h))
+      setHaftaEdits(prev => {
+        const next = { ...prev }
+        delete next[haftaNo]
+        return next
+      })
+      setToast({ msg: `${haftaNo}. Hafta canlı eğitim bilgileri ve Zoom linkleri kaydedildi! ✅`, type: 'success' })
+    } catch (e) {
+      setToast({ msg: `Kayıt başarısız: ${e.message}`, type: 'error' })
+    } finally {
+      setSavingHaftaNo(null)
+    }
+  }
+
   const handleResendAllInvitations = async () => {
     if (!window.confirm('Tüm aktif katılımcılara 48 saat geçerli şifre belirleme davet e-postalarını yeniden göndermek istiyor musunuz?')) return
     setSendingInvites(true)
@@ -475,13 +563,14 @@ export default function AdminPanel() {
     setLoading(true)
     setError(null)
     try {
-      const [aD, tD, kD, gD, mD, tesD] = await Promise.all([
+      const [aD, tD, kD, gD, mD, tesD, pHD] = await Promise.all([
         getAdaylar(),
         getTakimlar(),
         getKatilimcilar(),
         getGorevler(),
         getMentorlar(),
         getTeslimler(),
+        getProgramHaftalariAdmin().catch(() => []),
       ])
       setAdaylar(aD)
       setTakimlar(tD)
@@ -489,6 +578,7 @@ export default function AdminPanel() {
       setGorevler(gD)
       setMentorlar(mD)
       setTeslimler(tesD)
+      setProgramHaftalari(pHD || [])
     } catch (e) {
       console.error('Supabase fetchAll error:', e)
       setError(e.message || 'Veriler yüklenirken bir hata oluştu.')
@@ -857,12 +947,13 @@ export default function AdminPanel() {
         <nav className="flex-1 px-4 py-3 md:py-6 overflow-x-auto md:overflow-x-visible flex md:flex-col gap-1">
           <p className="hidden md:block text-[10px] text-gray-400 font-semibold uppercase tracking-widest px-4 mb-3">Menü</p>
           {[
-            { key: 'adaylar',  label: 'Adaylar',  icon: <Ic.Users /> },
-            { key: 'takimlar', label: 'Takımlar', icon: <Ic.Team /> },
-            { key: 'gorevler', label: 'Görevler', icon: <Ic.Task /> },
-            { key: 'mentorlar', label: 'Mentorlar', icon: <Ic.MentorIcon /> },
-            { key: 'performans', label: 'Performans', icon: <Ic.Star /> },
-            { key: 'dna',      label: 'DNA Analizleri', icon: <Ic.Dna /> },
+            { key: 'adaylar',    label: 'Adaylar',          icon: <Ic.Users /> },
+            { key: 'takimlar',   label: 'Takımlar',         icon: <Ic.Team /> },
+            { key: 'gorevler',   label: 'Görevler',         icon: <Ic.Task /> },
+            { key: 'program',    label: 'Haftalık Program', icon: <Ic.Calendar /> },
+            { key: 'mentorlar',  label: 'Mentorlar',        icon: <Ic.MentorIcon /> },
+            { key: 'performans', label: 'Performans',       icon: <Ic.Star /> },
+            { key: 'dna',        label: 'DNA Analizleri',   icon: <Ic.Dna /> },
           ].map(({ key, ...rest }) => (
             <NavItem key={key} {...rest} active={menu === key} onClick={() => setMenu(key)} />
           ))}
@@ -891,12 +982,13 @@ export default function AdminPanel() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-gray-800">
-                {menu === 'adaylar'   && '👥 Aday Yönetimi'}
-                {menu === 'takimlar'  && '🏆 Takım Yönetimi'}
-                {menu === 'gorevler'  && '📋 Görev Yönetimi'}
-                {menu === 'mentorlar' && '🛡️ Mentor Yönetimi'}
+                {menu === 'adaylar'    && '👥 Aday Yönetimi'}
+                {menu === 'takimlar'   && '🏆 Takım Yönetimi'}
+                {menu === 'gorevler'   && '📋 Görev Yönetimi'}
+                {menu === 'program'    && '🗓️ Haftalık Canlı Eğitim Programı'}
+                {menu === 'mentorlar'  && '🛡️ Mentor Yönetimi'}
                 {menu === 'performans' && '⭐ Katılımcı Performans Yönetimi'}
-                {menu === 'dna'       && '🧬 İçerik DNA Analizleri'}
+                {menu === 'dna'        && '🧬 İçerik DNA Analizleri'}
               </h1>
               <p className="text-sm text-gray-400 mt-0.5">
                 {new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -1969,6 +2061,368 @@ export default function AdminPanel() {
                     </div>
                   )
               }
+            </section>
+          )}
+
+          {/* ══════════ HAFTALIK PROGRAM SEKMESİ ══════════ */}
+          {menu === 'program' && (
+            <section className="space-y-8">
+              {/* Başlık & Bilgilendirme */}
+              <div className="bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 rounded-3xl p-6 sm:p-8 text-white shadow-soft relative overflow-hidden">
+                <div className="relative z-10 space-y-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-black tracking-wider uppercase">
+                    <span>🗓️</span> Canlı Ders & Canlı Oturum Yönetimi
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                    Haftalık Eğitim Programı & Canlı Yayınlar
+                  </h2>
+                  <p className="text-xs sm:text-sm text-white/90 max-w-2xl leading-relaxed">
+                    Salı ve Perşembe 19:00 canlı Zoom derslerini, takvim davetlerini ve haftaların katılımcı görünürlüğünü buradan bağımsız yönetebilirsiniz. Bir haftayı aktif ettiğinizde katılımcılar haftanın oturumlarını ve Zoom bağlantılarını anında görür. Görev sistemi bu alandan bağımsız çalışır.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 Hafta Kartları */}
+              <div className="space-y-8">
+                {([1, 2, 3]).map((haftaNo) => {
+                  const dbHafta = programHaftalari.find(h => Number(h.hafta) === haftaNo) || {
+                    hafta: haftaNo,
+                    baslik: `${haftaNo}. Hafta`,
+                    hedef: '',
+                    aktif: false,
+                    sali_aktif: true,
+                    persembe_aktif: true,
+                    sali_zoom_url: 'https://us06web.zoom.us/j/89490424441?pwd=t3edWpY1m0Vh37kg9I7AsV0nyll1nP.1',
+                    sali_calendar_url: 'https://us06web.zoom.us/meeting/tZ0pfumsrD8uHtUo3YmaRUGtvjRbabuDiGT6/ics?icsToken=DGEu-nEGL9lk-0t6SAAALAAAAKeEbH7SUK7pA9n6NqViJmw2dxqO3xbOjJ5QtLRvx5btCFOfYK5LVn8Q9ayNm7XpvhT6ovT-QG1BK0jQ8DAwMDAwMg&meetingMasterEventId=BmN668jBQsClNpVfaeI5FA',
+                    sali_meeting_id: '894 9042 4441',
+                    sali_passcode: '028359',
+                    persembe_zoom_url: 'https://us06web.zoom.us/j/82503028748?pwd=tFq1DRiTRRP0NhXtR4tRbb5akbeQh6.1',
+                    persembe_calendar_url: 'https://us06web.zoom.us/meeting/tZYod-qorDMtHtzzqHwbZr2npVRPFj35VvdH/ics?icsToken=DIrwF6pseC-HkaBijgAALAAAAENRjQhmZPyBHQIRw8tiRuKCJymxuIe4URp3AwAxkMkOLwQ7zG50BRXIrIiCDvW9nBBjYLgKXMFFJoUPtTAwMDAwMg&meetingMasterEventId=rNVKAcW4T3uK3iSqgflUhA',
+                    persembe_meeting_id: '825 0302 8748',
+                    persembe_passcode: '386049'
+                  }
+                  const staticWeek = PROGRAM_WEEKS.find(w => w.week === haftaNo)
+                  const edits = haftaEdits[haftaNo] || {}
+                  const isSaving = savingHaftaNo === haftaNo
+
+                  const currentBaslik = edits.baslik !== undefined ? edits.baslik : (dbHafta.baslik || staticWeek?.title || '')
+                  const currentHedef = edits.hedef !== undefined ? edits.hedef : (dbHafta.hedef || staticWeek?.goal || '')
+                  const currentSaliZoom = edits.sali_zoom_url !== undefined ? edits.sali_zoom_url : (dbHafta.sali_zoom_url || '')
+                  const currentSaliCal = edits.sali_calendar_url !== undefined ? edits.sali_calendar_url : (dbHafta.sali_calendar_url || '')
+                  const currentSaliMid = edits.sali_meeting_id !== undefined ? edits.sali_meeting_id : (dbHafta.sali_meeting_id || '')
+                  const currentSaliPass = edits.sali_passcode !== undefined ? edits.sali_passcode : (dbHafta.sali_passcode || '')
+                  const currentPersembeZoom = edits.persembe_zoom_url !== undefined ? edits.persembe_zoom_url : (dbHafta.persembe_zoom_url || '')
+                  const currentPersembeCal = edits.persembe_calendar_url !== undefined ? edits.persembe_calendar_url : (dbHafta.persembe_calendar_url || '')
+                  const currentPersembeMid = edits.persembe_meeting_id !== undefined ? edits.persembe_meeting_id : (dbHafta.persembe_meeting_id || '')
+                  const currentPersembePass = edits.persembe_passcode !== undefined ? edits.persembe_passcode : (dbHafta.persembe_passcode || '')
+
+                  const saliDay = staticWeek?.days?.find(d => d.dayName.toLowerCase().includes('salı'))
+                  const persembeDay = staticWeek?.days?.find(d => d.dayName.toLowerCase().includes('perşembe'))
+
+                  return (
+                    <div
+                      key={haftaNo}
+                      className="bg-white rounded-3xl border border-gray-100 shadow-soft overflow-hidden transition-all"
+                    >
+                      {/* Hafta Başlığı & Durum Toggle Barı */}
+                      <div className="bg-gradient-to-r from-orange-50/80 via-pink-50/60 to-purple-50/40 p-6 sm:p-7 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="bg-gradient-to-r from-coral to-orange-400 text-white text-xs font-black px-3.5 py-1 rounded-full shadow-xs tracking-wide">
+                              {haftaNo}. HAFTA
+                            </span>
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                              dbHafta.aktif
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}>
+                              <span className={`w-2 h-2 rounded-full ${dbHafta.aktif ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                              {dbHafta.aktif ? 'Katılımcı Panelinde Görünüyor (Aktif)' : 'Katılımcı Panelinde Gizli (Pasif)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Aktif / Pasif Butonu */}
+                        <div className="flex items-center gap-3">
+                          <button
+                            id={`btn-toggle-hafta-${haftaNo}`}
+                            type="button"
+                            onClick={() => handleToggleHaftaAktif(dbHafta)}
+                            disabled={isSaving}
+                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all ${
+                              dbHafta.aktif
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-emerald-200'
+                            } disabled:opacity-50`}
+                          >
+                            {isSaving ? (
+                              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : dbHafta.aktif ? (
+                              <span>🔒 Haftayı Katılımcılara Kapat</span>
+                            ) : (
+                              <span>🔓 Haftayı Katılımcılara Aç</span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-6 sm:p-8 space-y-6">
+                        {/* Hafta Başlık & Hedef Edit */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                          <div className="lg:col-span-6 space-y-1.5">
+                            <label className="block text-xs font-bold text-gray-700">
+                              Hafta Başlığı
+                            </label>
+                            <input
+                              type="text"
+                              value={currentBaslik}
+                              onChange={(e) => handleHaftaFieldChange(haftaNo, 'baslik', e.target.value)}
+                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-800 focus:outline-none focus:border-coral focus:ring-2 focus:ring-coral/10 bg-white"
+                              placeholder="Hafta Başlığı"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-6 space-y-1.5">
+                            <label className="block text-xs font-bold text-gray-700">
+                              Haftanın Hedefi (Kazanım)
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={currentHedef}
+                              onChange={(e) => handleHaftaFieldChange(haftaNo, 'hedef', e.target.value)}
+                              className="w-full px-4 py-2 rounded-xl border border-gray-200 text-xs font-medium text-gray-800 focus:outline-none focus:border-coral focus:ring-2 focus:ring-coral/10 bg-white"
+                              placeholder="Haftanın hedefi..."
+                            />
+                          </div>
+                        </div>
+
+                        {/* Günler ve Zoom Yönetimi (Salı & Perşembe) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-2">
+                          {/* SALI EĞİTİMİ KARTI */}
+                          <div className="bg-gradient-to-b from-amber-50/50 via-orange-50/20 to-white rounded-3xl p-6 sm:p-7 border-2 border-amber-200/80 space-y-5 shadow-2xs relative">
+                            <div className="flex items-center justify-between gap-3 pb-3 border-b border-amber-200/60">
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-black text-white bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1 rounded-xl uppercase tracking-wider shadow-2xs">
+                                  🗓️ 1. Gün · Salı Canlı Eğitimi
+                                </span>
+                                <p className="text-xs font-bold text-gray-700 pt-1">
+                                  {saliDay?.title || 'Salı Eğitimi'} · 19:00 İstanbul
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleGunAktif(dbHafta, 'sali_aktif')}
+                                className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                                  dbHafta.sali_aktif !== false
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}
+                              >
+                                {dbHafta.sali_aktif !== false ? '🟢 Canlı Açık' : '⚪ Canlı Pasif'}
+                              </button>
+                            </div>
+
+                            {/* Salı Oturum Müfredat Özeti */}
+                            <div className="bg-white/90 p-3.5 rounded-2xl border border-amber-100 space-y-2">
+                              <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                                📚 Müfredat Oturumları (3 Oturum):
+                              </p>
+                              <div className="space-y-1 text-xs text-slate-700">
+                                {(saliDay?.sessions || []).map((s, i) => (
+                                  <div key={i} className="flex items-start gap-1.5 leading-snug">
+                                    <span className="text-orange-500 font-bold">•</span>
+                                    <span className="font-semibold">{s.sessionNumber}. {s.title}</span>
+                                    <span className="text-[10px] text-slate-400">({s.duration})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Salı Zoom Linkleri & ID/Parola */}
+                            <div className="space-y-3.5">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                  Salı Zoom Katılım Linki
+                                </label>
+                                <input
+                                  type="text"
+                                  value={currentSaliZoom}
+                                  onChange={(e) => handleHaftaFieldChange(haftaNo, 'sali_zoom_url', e.target.value)}
+                                  className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                  placeholder="https://us06web.zoom.us/j/..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                  Salı Takvime Ekle (iCalendar .ics) Linki
+                                </label>
+                                <input
+                                  type="text"
+                                  value={currentSaliCal}
+                                  onChange={(e) => handleHaftaFieldChange(haftaNo, 'sali_calendar_url', e.target.value)}
+                                  className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                  placeholder="https://us06web.zoom.us/meeting/.../ics?..."
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                    Salı Meeting ID
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={currentSaliMid}
+                                    onChange={(e) => handleHaftaFieldChange(haftaNo, 'sali_meeting_id', e.target.value)}
+                                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                    placeholder="894 9042 4441"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                    Salı Parola
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={currentSaliPass}
+                                    onChange={(e) => handleHaftaFieldChange(haftaNo, 'sali_passcode', e.target.value)}
+                                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                    placeholder="028359"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* PERŞEMBE EĞİTİMİ KARTI */}
+                          <div className="bg-gradient-to-b from-indigo-50/50 via-violet-50/20 to-white rounded-3xl p-6 sm:p-7 border-2 border-indigo-200/80 space-y-5 shadow-2xs relative">
+                            <div className="flex items-center justify-between gap-3 pb-3 border-b border-indigo-200/60">
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-black text-white bg-gradient-to-r from-indigo-600 to-violet px-3 py-1 rounded-xl uppercase tracking-wider shadow-2xs">
+                                  🗓️ 2. Gün · Perşembe Canlı Eğitimi
+                                </span>
+                                <p className="text-xs font-bold text-gray-700 pt-1">
+                                  {persembeDay?.title || 'Perşembe Eğitimi'} · 19:00 İstanbul
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleGunAktif(dbHafta, 'persembe_aktif')}
+                                className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                                  dbHafta.persembe_aktif !== false
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}
+                              >
+                                {dbHafta.persembe_aktif !== false ? '🟢 Canlı Açık' : '⚪ Canlı Pasif'}
+                              </button>
+                            </div>
+
+                            {/* Perşembe Oturum Müfredat Özeti */}
+                            <div className="bg-white/90 p-3.5 rounded-2xl border border-indigo-100 space-y-2">
+                              <p className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider">
+                                📚 Müfredat Oturumları (3 Oturum):
+                              </p>
+                              <div className="space-y-1 text-xs text-slate-700">
+                                {(persembeDay?.sessions || []).map((s, i) => (
+                                  <div key={i} className="flex items-start gap-1.5 leading-snug">
+                                    <span className="text-indigo-500 font-bold">•</span>
+                                    <span className="font-semibold">{s.sessionNumber}. {s.title}</span>
+                                    {s.guest && <span className="text-[10px] text-purple-700 font-bold">(🎙️ {s.guest})</span>}
+                                    <span className="text-[10px] text-slate-400">({s.duration})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Perşembe Zoom Linkleri & ID/Parola */}
+                            <div className="space-y-3.5">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                  Perşembe Zoom Katılım Linki
+                                </label>
+                                <input
+                                  type="text"
+                                  value={currentPersembeZoom}
+                                  onChange={(e) => handleHaftaFieldChange(haftaNo, 'persembe_zoom_url', e.target.value)}
+                                  className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                  placeholder="https://us06web.zoom.us/j/..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                  Perşembe Takvime Ekle (iCalendar .ics) Linki
+                                </label>
+                                <input
+                                  type="text"
+                                  value={currentPersembeCal}
+                                  onChange={(e) => handleHaftaFieldChange(haftaNo, 'persembe_calendar_url', e.target.value)}
+                                  className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                  placeholder="https://us06web.zoom.us/meeting/.../ics?..."
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                    Perşembe Meeting ID
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={currentPersembeMid}
+                                    onChange={(e) => handleHaftaFieldChange(haftaNo, 'persembe_meeting_id', e.target.value)}
+                                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                    placeholder="825 0302 8748"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                    Perşembe Parola
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={currentPersembePass}
+                                    onChange={(e) => handleHaftaFieldChange(haftaNo, 'persembe_passcode', e.target.value)}
+                                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-coral bg-white"
+                                    placeholder="386049"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Kaydet Butonu */}
+                        <div className="flex items-center justify-end pt-4 border-t border-gray-100">
+                          <button
+                            id={`btn-save-hafta-${haftaNo}`}
+                            type="button"
+                            onClick={() => handleSaveHaftaDetails(dbHafta)}
+                            disabled={isSaving}
+                            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-coral hover:bg-coral-dark text-white font-bold text-xs shadow-md shadow-orange-200 hover:shadow-lg transition-all disabled:opacity-60"
+                          >
+                            {isSaving ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Kaydediliyor...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>💾</span>
+                                <span>{haftaNo}. Hafta Bilgilerini Kaydet</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </section>
           )}
 

@@ -11,6 +11,7 @@ import {
   getKatilimciTeslimlerMe,
   getKatilimciDnaMe,
   getKatilimciPerformansMe,
+  getAktifProgramHaftalari,
   submitIcerikDna,
   submitKatilimciTeslim,
   recordParticipantActivity,
@@ -692,6 +693,9 @@ export default function KatilimciPanel() {
   const [not, setNot] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Haftalık Program State (Decoupled from tasks)
+  const [programHaftalari, setProgramHaftalari] = useState([])
+
   // Performans State
   const [performans, setPerformans] = useState(null)
   const [performansError, setPerformansError] = useState(null)
@@ -839,13 +843,16 @@ export default function KatilimciPanel() {
 
       const katilimciId = meData?.katilimci?.id
 
-      // 2. Görevler, Kendi Teslimleri, DNA ve Performans Bilgisi
-      const [rawGorevler, teslimler, dData, pData] = await Promise.all([
+      // 2. Görevler, Kendi Teslimleri, DNA, Performans ve Aktif Program Haftaları
+      const [rawGorevler, teslimler, dData, pData, pHaftalar] = await Promise.all([
         getGorevler().catch(() => []),
         katilimciId ? getKatilimciTeslimlerMe(katilimciId).catch(() => []) : [],
         katilimciId ? getKatilimciDnaMe(katilimciId).catch(() => null) : null,
         katilimciId ? getKatilimciPerformansMe(katilimciId).catch(() => null) : null,
+        getAktifProgramHaftalari().catch(() => []),
       ])
+
+      setProgramHaftalari(pHaftalar || [])
 
       // Görevler ile teslimleri eşleştir
       const veriler = rawGorevler.map(g => {
@@ -1576,293 +1583,325 @@ export default function KatilimciPanel() {
                     </div>
                   </div>
 
-                  {/* Haftalar Listesi */}
-                  {(() => {
-                    const activeWeeks = PROGRAM_WEEKS.filter(weekData => {
-                      return (gorevler || []).some(g =>
-                        g.program_task_key === weekData.fieldTask.taskKey ||
-                        g.gorev_adi === weekData.fieldTask.title ||
-                        g.gorev_adi === weekData.fieldTask.taskTitle ||
-                        Number(g.program_week || g.hafta) === Number(weekData.week)
-                      )
-                    })
+                  {/* Haftalar Listesi (Decoupled from tasks) */}
+                  {programHaftalari.length === 0 ? (
+                    <div className="bg-white rounded-3xl p-12 text-center shadow-soft border border-slate-100 space-y-3">
+                      <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl mx-auto shadow-2xs">
+                        📅
+                      </div>
+                      <h3 className="text-base font-bold text-slate-800">Haftalık program henüz açılmadı</h3>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                        Eğitim haftaları admin tarafından açıldığında burada görünecektir.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-8">
+                      {programHaftalari.map((weekData) => {
+                        const activeTask = (gorevler || []).find(g =>
+                          g.program_task_key === weekData.fieldTask?.taskKey ||
+                          g.gorev_adi === weekData.fieldTask?.title ||
+                          g.gorev_adi === weekData.fieldTask?.taskTitle ||
+                          Number(g.program_week || g.hafta) === Number(weekData.hafta || weekData.week)
+                        )
 
-                    if (activeWeeks.length === 0) {
-                      return (
-                        <div className="bg-white rounded-3xl p-12 text-center shadow-soft border border-slate-100 space-y-3">
-                          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl mx-auto shadow-2xs">
-                            📅
-                          </div>
-                          <h3 className="text-base font-bold text-slate-800">Program Haftaları Henüz Açılmadı</h3>
-                          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                            Eğitim programı ve haftalık saha görevleri oturumlar başladıkça admin tarafından erişime açılacaktır. Açılan haftalar otomatik olarak bu alanda görünecektir.
-                          </p>
-                        </div>
-                      )
-                    }
-
-                    return (
-                      <div className="space-y-8">
-                        {activeWeeks.map((weekData) => {
-                          const activeTask = (gorevler || []).find(g =>
-                            g.program_task_key === weekData.fieldTask.taskKey ||
-                            g.gorev_adi === weekData.fieldTask.title ||
-                            g.gorev_adi === weekData.fieldTask.taskTitle ||
-                            Number(g.program_week || g.hafta) === Number(weekData.week)
-                          )
-
-                          return (
-                            <div
-                              key={weekData.week}
-                              className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden transition-all"
-                            >
-                              {/* Hafta Başlık & Materyal Barı */}
-                              <div className="bg-gradient-to-r from-orange-50/90 via-pink-50/70 to-purple-50/50 p-6 sm:p-7 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
-                                <div className="space-y-1.5 min-w-0">
-                                  <div className="flex items-center gap-2.5 flex-wrap">
-                                    <span className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-black px-3.5 py-1 rounded-full shadow-xs tracking-wide">
-                                      {weekData.week}. HAFTA
-                                    </span>
-                                    <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">
-                                      {weekData.title}
-                                    </h3>
-                                  </div>
-                                </div>
-
-                                {/* Materyal Butonu / Durumu */}
-                                <div className="flex flex-wrap items-center gap-2.5">
-                                  {activeTask?.material_url ? (
-                                    <a
-                                      href={activeTask.material_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all"
-                                    >
-                                      <span>📄</span>
-                                      <span>{activeTask.material_title || 'Eğitim Materyalini Aç'} ({activeTask.material_type || 'PDF'}) ↗</span>
-                                    </a>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80">
-                                      <span>📄</span>
-                                      <span>Materyal yakında eklenecek</span>
-                                    </span>
-                                  )}
+                        return (
+                          <div
+                            key={weekData.hafta || weekData.week}
+                            className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden transition-all"
+                          >
+                            {/* Hafta Başlık & Materyal Barı */}
+                            <div className="bg-gradient-to-r from-orange-50/90 via-pink-50/70 to-purple-50/50 p-6 sm:p-7 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-5">
+                              <div className="space-y-1.5 min-w-0">
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                  <span className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-black px-3.5 py-1 rounded-full shadow-xs tracking-wide">
+                                    {weekData.hafta || weekData.week}. HAFTA
+                                  </span>
+                                  <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">
+                                    {weekData.title}
+                                  </h3>
                                 </div>
                               </div>
 
-                        <div className="p-6 sm:p-7 space-y-6">
-                          {/* Haftanın Hedefi & Format */}
-                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                            {/* Hedef */}
-                            <div className="lg:col-span-8 bg-amber-50/60 border border-amber-200/70 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5">
-                              <div className="w-8 h-8 rounded-xl bg-amber-200/80 text-amber-900 flex items-center justify-center font-bold text-base shrink-0 mt-0.5 shadow-2xs">
-                                🎯
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <h4 className="text-xs font-extrabold text-amber-900 uppercase tracking-wider">Haftanın Hedefi</h4>
-                                <p className="text-xs sm:text-[13px] text-amber-950/90 leading-relaxed">
-                                  {weekData.goal}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Format / Akış */}
-                            <div className="lg:col-span-4 bg-slate-50 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-2">
-                              <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                <span>⏱️</span> Oturum Akış Planı
-                              </h4>
-                              <div className="space-y-1.5">
-                                {weekData.format.map((fmt, i) => (
-                                  <div key={i} className="text-[11px] text-slate-600 flex items-start gap-1.5 leading-snug">
-                                    <span className="text-orange-500 font-bold">•</span>
-                                    <span>{fmt}</span>
-                                  </div>
-                                ))}
+                              {/* Materyal Butonu / Durumu */}
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                {activeTask?.material_url ? (
+                                  <a
+                                    href={activeTask.material_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet to-purple-600 hover:from-violet/90 hover:to-purple-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all"
+                                  >
+                                    <span>📄</span>
+                                    <span>{activeTask.material_title || 'Eğitim Materyalini Aç'} ({activeTask.material_type || 'PDF'}) ↗</span>
+                                  </a>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80">
+                                    <span>📄</span>
+                                    <span>Materyal yakında eklenecek</span>
+                                  </span>
+                                )}
                               </div>
                             </div>
-                          </div>
 
-                          {/* Günler ve Oturumlar (Salı & Perşembe Belirgin Ayrımı - BÖLÜM 5) */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-2">
-                            {weekData.days.map((dayData, dayIdx) => {
-                              const isTuesday = dayData.dayName.toLowerCase().includes('salı')
-                              const isThursday = dayData.dayName.toLowerCase().includes('perşembe')
-
-                              return (
-                                <div
-                                  key={dayIdx}
-                                  className={`rounded-3xl p-6 sm:p-7 space-y-5 flex flex-col shadow-xs relative overflow-hidden transition-all border-2 ${
-                                    isTuesday
-                                      ? 'bg-gradient-to-b from-amber-50/60 via-orange-50/30 to-white border-amber-200/90'
-                                      : 'bg-gradient-to-b from-indigo-50/60 via-violet-50/30 to-white border-indigo-200/90'
-                                  }`}
-                                >
-                                  {/* Üst Dekoratif Çizgi */}
-                                  <div className={`absolute top-0 left-0 right-0 h-1.5 ${
-                                    isTuesday
-                                      ? 'bg-gradient-to-r from-amber-400 to-orange-500'
-                                      : 'bg-gradient-to-r from-indigo-500 to-purple-600'
-                                  }`} />
-
-                                  {/* Gün Başlığı */}
-                                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b ${
-                                    isTuesday ? 'border-amber-200/80' : 'border-indigo-200/80'
-                                  }`}>
-                                    <div className="space-y-1">
-                                      <span className={`inline-flex items-center gap-1 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs uppercase tracking-wider ${
-                                        isTuesday
-                                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-200'
-                                          : 'bg-gradient-to-r from-indigo-600 to-violet text-white shadow-indigo-200'
-                                      }`}>
-                                        🗓️ {isTuesday ? '1. GÜN · SALI EĞİTİMİ' : isThursday ? '2. GÜN · PERŞEMBE EĞİTİMİ' : `${dayData.dayName} EĞİTİMİ`}
-                                      </span>
-                                      <h4 className="text-sm sm:text-base font-black text-slate-800 tracking-tight pt-1">
-                                        {dayData.title}
-                                      </h4>
-                                    </div>
-                                    <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border self-start sm:self-auto ${
-                                      isTuesday
-                                        ? 'text-amber-800 bg-amber-100/90 border-amber-200'
-                                        : 'text-indigo-800 bg-indigo-100/90 border-indigo-200'
-                                    }`}>
-                                      3 Oturum
-                                    </span>
+                            <div className="p-6 sm:p-7 space-y-6">
+                              {/* Haftanın Hedefi & Format */}
+                              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                                {/* Hedef */}
+                                <div className="lg:col-span-8 bg-amber-50/60 border border-amber-200/70 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5">
+                                  <div className="w-8 h-8 rounded-xl bg-amber-200/80 text-amber-900 flex items-center justify-center font-bold text-base shrink-0 mt-0.5 shadow-2xs">
+                                    🎯
                                   </div>
+                                  <div className="space-y-1 min-w-0">
+                                    <h4 className="text-xs font-extrabold text-amber-900 uppercase tracking-wider">Haftanın Hedefi</h4>
+                                    <p className="text-xs sm:text-[13px] text-amber-950/90 leading-relaxed">
+                                      {weekData.goal}
+                                    </p>
+                                  </div>
+                                </div>
 
-                                  {/* 3 Oturum Kartları */}
-                                  <div className="space-y-3 flex-1">
-                                    {dayData.sessions.map((session, sIdx) => (
-                                      <div
-                                        key={sIdx}
-                                        className={`bg-white border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all space-y-1.5 ${
-                                          isTuesday ? 'border-amber-100 hover:border-amber-200' : 'border-indigo-100 hover:border-indigo-200'
-                                        }`}
-                                      >
-                                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
-                                              isTuesday
-                                                ? 'bg-orange-100 text-orange-700'
-                                                : 'bg-indigo-100 text-indigo-700'
-                                            }`}>
-                                              {session.sessionNumber}
-                                            </span>
-                                            <h5 className="font-extrabold text-slate-800 text-xs">
-                                              {session.title}
-                                            </h5>
-                                          </div>
-                                          <div className="flex items-center gap-1.5">
-                                            {session.guest && (
-                                              <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
-                                                🎙️ {session.guest}
-                                              </span>
-                                            )}
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                              ⏱️ {session.duration}
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <p className="text-[11px] text-slate-600 leading-relaxed pl-6">
-                                          {session.description}
-                                        </p>
+                                {/* Format / Akış */}
+                                <div className="lg:col-span-4 bg-slate-50 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-2">
+                                  <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span>⏱️</span> Oturum Akış Planı
+                                  </h4>
+                                  <div className="space-y-1.5">
+                                    {(weekData.format || []).map((fmt, i) => (
+                                      <div key={i} className="text-[11px] text-slate-600 flex items-start gap-1.5 leading-snug">
+                                        <span className="text-orange-500 font-bold">•</span>
+                                        <span>{fmt}</span>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
-                              )
-                            })}
-                          </div>
+                              </div>
 
-                          {/* Haftanın Saha / Final Görevi */}
-                          {(() => {
-                            const isTaskActive = (gorevler || []).some(g =>
-                              g.program_task_key === weekData.fieldTask.taskKey ||
-                              g.gorev_adi === weekData.fieldTask.title ||
-                              g.gorev_adi === weekData.fieldTask.taskTitle ||
-                              (Number(g.hafta) === Number(weekData.week) && g.gorev_adi?.toLowerCase().includes((weekData.fieldTask.taskTitle || weekData.fieldTask.title || '').toLowerCase()))
-                            )
+                              {/* Günler ve Oturumlar (Salı & Perşembe Canlı Dersleri ve Zoom Bilgileri) */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-2">
+                                {(weekData.days || []).map((dayData, dayIdx) => {
+                                  const isTuesday = dayData.dayName.toLowerCase().includes('salı')
+                                  const isThursday = dayData.dayName.toLowerCase().includes('perşembe')
 
-                            return (
-                              <div className={`border rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
-                                isTaskActive
-                                  ? 'bg-gradient-to-r from-orange-50/90 via-pink-50/80 to-purple-50/70 border-orange-200/90 shadow-sm'
-                                  : 'bg-slate-50/70 border-slate-200/80'
-                              }`}>
-                                <div className="flex items-start gap-4">
-                                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${
-                                    isTaskActive
-                                      ? 'bg-gradient-to-br from-orange-400 to-pink-500 text-white'
-                                      : 'bg-slate-200 text-slate-500'
-                                  }`}>
-                                    {weekData.fieldTask.type.includes('Final') ? '🏆' : '🚀'}
-                                  </div>
-                                  <div className="space-y-1.5 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
-                                        isTaskActive
-                                          ? 'text-orange-800 bg-orange-200/70 border-orange-300/80'
-                                          : 'text-slate-600 bg-slate-200 border-slate-300'
+                                  return (
+                                    <div
+                                      key={dayIdx}
+                                      className={`rounded-3xl p-6 sm:p-7 space-y-5 flex flex-col shadow-xs relative overflow-hidden transition-all border-2 ${
+                                        isTuesday
+                                          ? 'bg-gradient-to-b from-amber-50/60 via-orange-50/30 to-white border-amber-200/90'
+                                          : 'bg-gradient-to-b from-indigo-50/60 via-violet-50/30 to-white border-indigo-200/90'
+                                      }`}
+                                    >
+                                      {/* Üst Dekoratif Çizgi */}
+                                      <div className={`absolute top-0 left-0 right-0 h-1.5 ${
+                                        isTuesday
+                                          ? 'bg-gradient-to-r from-amber-400 to-orange-500'
+                                          : 'bg-gradient-to-r from-indigo-500 to-purple-600'
+                                      }`} />
+
+                                      {/* Gün Başlığı ve Saat */}
+                                      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b ${
+                                        isTuesday ? 'border-amber-200/80' : 'border-indigo-200/80'
                                       }`}>
-                                        {weekData.fieldTask.type}
-                                      </span>
-                                      <h4 className="text-sm font-black text-slate-800">
-                                        {weekData.fieldTask.title}
-                                      </h4>
-                                      {isTaskActive ? (
-                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 inline-flex items-center gap-1">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                          Aktif Görev
+                                        <div className="space-y-1">
+                                          <span className={`inline-flex items-center gap-1 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs uppercase tracking-wider ${
+                                            isTuesday
+                                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-200'
+                                              : 'bg-gradient-to-r from-indigo-600 to-violet text-white shadow-indigo-200'
+                                          }`}>
+                                            🗓️ {isTuesday ? '1. GÜN · SALI EĞİTİMİ' : isThursday ? '2. GÜN · PERŞEMBE EĞİTİMİ' : `${dayData.dayName} EĞİTİMİ`}
+                                          </span>
+                                          <h4 className="text-sm sm:text-base font-black text-slate-800 tracking-tight pt-1">
+                                            {dayData.title}
+                                          </h4>
+                                          <p className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                                            <span>🕒</span> Canlı eğitim: 19:00 İstanbul
+                                          </p>
+                                        </div>
+                                        <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border self-start sm:self-auto ${
+                                          isTuesday
+                                            ? 'text-amber-800 bg-amber-100/90 border-amber-200'
+                                            : 'text-indigo-800 bg-indigo-100/90 border-indigo-200'
+                                        }`}>
+                                          3 Oturum
                                         </span>
-                                      ) : (
-                                        <span className="text-[10px] font-medium text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full border border-slate-300 inline-flex items-center gap-1">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                          Henüz Açılmadı
-                                        </span>
-                                      )}
+                                      </div>
+
+                                      {/* Zoom & Takvim Katılım Kartı */}
+                                      <div className={`p-4 rounded-2xl border space-y-3 ${
+                                        isTuesday ? 'bg-amber-100/40 border-amber-200/80' : 'bg-indigo-100/40 border-indigo-200/80'
+                                      }`}>
+                                        <div className="flex flex-wrap items-center gap-2.5">
+                                          {dayData.zoom_url && (
+                                            <a
+                                              href={dayData.zoom_url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-bold text-xs shadow-xs hover:shadow transition-all ${
+                                                isTuesday
+                                                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
+                                                  : 'bg-gradient-to-r from-indigo-600 to-violet hover:from-indigo-700 hover:to-violet/90'
+                                              }`}
+                                            >
+                                              <span>📹</span>
+                                              <span>Zoom'a Katıl ↗</span>
+                                            </a>
+                                          )}
+                                          {dayData.calendar_url && (
+                                            <a
+                                              href={dayData.calendar_url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200 shadow-2xs transition-all"
+                                            >
+                                              <span>📅</span>
+                                              <span>Takvime Ekle (.ics) ↗</span>
+                                            </a>
+                                          )}
+                                        </div>
+                                        {(dayData.meeting_id || dayData.passcode) && (
+                                          <div className="flex flex-wrap items-center gap-4 text-[11px] font-mono text-slate-700 bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200/60">
+                                            {dayData.meeting_id && (
+                                              <span><strong>Meeting ID:</strong> {dayData.meeting_id}</span>
+                                            )}
+                                            {dayData.passcode && (
+                                              <span><strong>Parola:</strong> {dayData.passcode}</span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* 3 Oturum Kartları */}
+                                      <div className="space-y-3 flex-1">
+                                        {(dayData.sessions || []).map((session, sIdx) => (
+                                          <div
+                                            key={sIdx}
+                                            className={`bg-white border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all space-y-1.5 ${
+                                              isTuesday ? 'border-amber-100 hover:border-amber-200' : 'border-indigo-100 hover:border-indigo-200'
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
+                                                  isTuesday
+                                                    ? 'bg-orange-100 text-orange-700'
+                                                    : 'bg-indigo-100 text-indigo-700'
+                                                }`}>
+                                                  {session.sessionNumber}
+                                                </span>
+                                                <h5 className="font-extrabold text-slate-800 text-xs">
+                                                  {session.title}
+                                                </h5>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                {session.guest && (
+                                                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                                                    🎙️ {session.guest}
+                                                  </span>
+                                                )}
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                                  ⏱️ {session.duration}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <p className="text-[11px] text-slate-600 leading-relaxed pl-6">
+                                              {session.description}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
-                                    <p className="text-xs text-slate-700 leading-relaxed">
-                                      {weekData.fieldTask.description}
-                                    </p>
+                                  )
+                                })}
+                              </div>
+
+                              {/* Haftanın Saha / Final Görevi (Görev aktifliğinden bağımsız hafta görünümü) */}
+                              {(() => {
+                                const isTaskActive = (gorevler || []).some(g =>
+                                  g.program_task_key === weekData.fieldTask?.taskKey ||
+                                  g.gorev_adi === weekData.fieldTask?.title ||
+                                  g.gorev_adi === weekData.fieldTask?.taskTitle ||
+                                  (Number(g.hafta) === Number(weekData.hafta || weekData.week) && g.gorev_adi?.toLowerCase().includes((weekData.fieldTask?.taskTitle || weekData.fieldTask?.title || '').toLowerCase()))
+                                )
+
+                                return (
+                                  <div className={`border rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                                    isTaskActive
+                                      ? 'bg-gradient-to-r from-orange-50/90 via-pink-50/80 to-purple-50/70 border-orange-200/90 shadow-sm'
+                                      : 'bg-slate-50/70 border-slate-200/80'
+                                  }`}>
+                                    <div className="flex items-start gap-4">
+                                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${
+                                        isTaskActive
+                                          ? 'bg-gradient-to-br from-orange-400 to-pink-500 text-white'
+                                          : 'bg-slate-200 text-slate-500'
+                                      }`}>
+                                        {weekData.fieldTask?.type?.includes('Final') ? '🏆' : '🚀'}
+                                      </div>
+                                      <div className="space-y-1.5 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
+                                            isTaskActive
+                                              ? 'text-orange-800 bg-orange-200/70 border-orange-300/80'
+                                              : 'text-slate-600 bg-slate-200 border-slate-300'
+                                          }`}>
+                                            {weekData.fieldTask?.type || 'Saha Görevi'}
+                                          </span>
+                                          <h4 className="text-sm font-black text-slate-800">
+                                            {weekData.fieldTask?.title}
+                                          </h4>
+                                          {isTaskActive ? (
+                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 inline-flex items-center gap-1">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                              Aktif Görev
+                                            </span>
+                                          ) : (
+                                            <span className="text-[10px] font-medium text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full border border-slate-300 inline-flex items-center gap-1">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                              Henüz Açılmadı
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-slate-700 leading-relaxed">
+                                          {weekData.fieldTask?.description}
+                                        </p>
+                                        {isTaskActive ? (
+                                          <p className="text-[11px] font-semibold text-emerald-800 flex items-center gap-1 mt-1">
+                                            <span>🟢</span> Bu görev aktif! Görevlerim sekmesinden detayları inceleyebilir ve teslim yükleyebilirsiniz.
+                                          </p>
+                                        ) : (
+                                          <p className="text-[11px] text-slate-500 italic mt-1">
+                                            ⏳ Bu görev henüz açılmadı. Canlı eğitim oturumu sonrasında aktif edilecektir.
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
                                     {isTaskActive ? (
-                                      <p className="text-[11px] font-semibold text-emerald-800 flex items-center gap-1 mt-1">
-                                        <span>🟢</span> Bu görev aktif! Görevlerim sekmesinden detayları inceleyebilir ve teslim yükleyebilirsiniz.
-                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveTab('gorevler')}
+                                        className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-bold text-xs shadow-sm hover:shadow transition-all self-start sm:self-center"
+                                      >
+                                        <span>Göreve Git</span>
+                                        <span>➔</span>
+                                      </button>
                                     ) : (
-                                      <p className="text-[11px] text-slate-500 italic mt-1">
-                                        ⏳ Bu görev henüz açılmadı. Canlı eğitim oturumu sonrasında aktif edilecektir.
-                                      </p>
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed self-start sm:self-center"
+                                      >
+                                        <span>Yakında Açılacak</span>
+                                      </button>
                                     )}
                                   </div>
-                                </div>
-
-                                {isTaskActive ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveTab('gorevler')}
-                                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-bold text-xs shadow-sm hover:shadow transition-all self-start sm:self-center"
-                                  >
-                                    <span>Göreve Git</span>
-                                    <span>➔</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    disabled
-                                    className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-semibold text-xs border border-slate-200/80 cursor-not-allowed self-start sm:self-center"
-                                  >
-                                    <span>Yakında Açılacak</span>
-                                  </button>
-                                )}
-                              </div>
-                            )
-                          })()}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
+                                )
+                              })()}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
           </div>
         )}
 

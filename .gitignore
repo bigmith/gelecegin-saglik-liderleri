@@ -42,3 +42,7 @@ supabase/functions/.env
 # Data / CSV
 *.csv
 
+# Supabase CLI temp
+supabase/.temp/
+.temp/
+
