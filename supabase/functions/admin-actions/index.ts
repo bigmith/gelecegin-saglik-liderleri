@@ -1630,225 +1630,332 @@ serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ACTION: audit_participant_email_hotfix (HOTFIX-PARTICIPANT-EMAIL-01 Audit)
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_participant_email_hotfix (Audit participant email migration)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'audit_participant_email_hotfix') {
-      const oldEmail = 'defnetufan4@gamil.com'
-      const newEmail = 'defnetufan4@gmail.com'
+      const oldEmail = ((payload?.old_email || 'esmakurtcephe@gmail.com') as string).trim().toLowerCase()
+      const newEmail = ((payload?.new_email || 'esmakurtcephe@icloud.com') as string).trim().toLowerCase()
 
+      // 1. Check Auth Users
       const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
       const authUsers = authUsersData?.users || []
 
-      const oldAuth = authUsers.find(u => (u.email || '').toLowerCase() === oldEmail)
-      const newAuth = authUsers.find(u => (u.email || '').toLowerCase() === newEmail)
+      const oldAuthUser = authUsers.find(u => (u.email || '').toLowerCase() === oldEmail)
+      const newAuthUser = authUsers.find(u => (u.email || '').toLowerCase() === newEmail)
 
-      const { data: oldProfile } = await adminClient.from('profiles').select('*').ilike('email', oldEmail).maybeSingle()
-      const { data: newProfile } = await adminClient.from('profiles').select('*').ilike('email', newEmail).maybeSingle()
+      // 2. Check Profiles
+      const { data: oldProfiles } = await adminClient.from('profiles').select('*').ilike('email', oldEmail)
+      const { data: newProfiles } = await adminClient.from('profiles').select('*').ilike('email', newEmail)
 
-      const { data: oldAday } = await adminClient.from('core_aday').select('*').ilike('eposta', oldEmail).maybeSingle()
-      const { data: newAday } = await adminClient.from('core_aday').select('*').ilike('eposta', newEmail).maybeSingle()
-
-      let oldKatilimci = null
-      if (oldAday?.id) {
-        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', oldAday.id).maybeSingle()
-        oldKatilimci = k
-      } else if (oldProfile?.core_katilimci_id) {
-        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', oldProfile.core_katilimci_id).maybeSingle()
-        oldKatilimci = k
+      let profileByOldAuthId = null
+      if (oldAuthUser) {
+        const { data: p } = await adminClient.from('profiles').select('*').eq('id', oldAuthUser.id).maybeSingle()
+        profileByOldAuthId = p
       }
 
-      let newKatilimci = null
-      if (newAday?.id) {
-        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', newAday.id).maybeSingle()
-        newKatilimci = k
-      } else if (newProfile?.core_katilimci_id) {
-        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', newProfile.core_katilimci_id).maybeSingle()
-        newKatilimci = k
+      // 3. Check core_aday
+      const { data: oldAdaylar } = await adminClient.from('core_aday').select('*').ilike('eposta', oldEmail)
+      const { data: newAdaylar } = await adminClient.from('core_aday').select('*').ilike('eposta', newEmail)
+
+      const adayId = oldAdaylar?.[0]?.id
+
+      // 4. Check core_katilimci
+      let katilimci = null
+      if (adayId) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', adayId).maybeSingle()
+        katilimci = k
       }
+      if (!katilimci && profileByOldAuthId?.core_katilimci_id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', profileByOldAuthId.core_katilimci_id).maybeSingle()
+        katilimci = k
+      }
+
+      // 5. Check core_katilimciperformans
+      let performans = null
+      if (katilimci) {
+        const { data: perf } = await adminClient.from('core_katilimciperformans').select('*').eq('katilimci_id', katilimci.id).maybeSingle()
+        performans = perf
+      }
+
+      // 6. Check core_icerikdnatesti (DNA)
+      let dna = null
+      if (katilimci) {
+        const { data: d } = await adminClient.from('core_icerikdnatesti').select('id, durum, ai_model, olusturulma_tarihi').eq('katilimci_id', katilimci.id).maybeSingle()
+        dna = d
+      }
+
+      // 7. Check collisions on new_email
+      const isNewEmailTakenByOtherAuth = Boolean(newAuthUser && oldAuthUser && newAuthUser.id !== oldAuthUser.id)
+      const isNewEmailTakenByOtherProfile = Boolean(newProfiles && newProfiles.length > 0 && profileByOldAuthId && newProfiles.some(p => p.id !== profileByOldAuthId.id))
+      const isNewEmailTakenByOtherAday = Boolean(newAdaylar && newAdaylar.length > 0 && adayId && newAdaylar.some(a => a.id !== adayId))
+
+      const hasCollision = isNewEmailTakenByOtherAuth || isNewEmailTakenByOtherProfile || isNewEmailTakenByOtherAday
 
       return jsonRes(req, {
         ok: true,
         data: {
-          wrong_email: {
-            email: oldEmail,
-            has_auth_user: Boolean(oldAuth),
-            auth_user_id: oldAuth?.id || null,
-            last_sign_in_at: oldAuth?.last_sign_in_at || null,
-            has_profile: Boolean(oldProfile),
-            profile_role: oldProfile?.role || null,
-            profile_core_katilimci_id: oldProfile?.core_katilimci_id || null,
-            has_core_aday: Boolean(oldAday),
-            core_aday_id: oldAday?.id || null,
-            core_aday_ad_soyad: oldAday ? `${oldAday.ad} ${oldAday.soyad}` : null,
-            core_aday_durumu: oldAday?.basvuru_durumu || null,
-            has_core_katilimci: Boolean(oldKatilimci),
-            core_katilimci_id: oldKatilimci?.id || null
+          target: oldAdaylar?.[0]?.ad_soyad || 'Esmanur Kurtcephe',
+          old_email: oldEmail,
+          new_email: newEmail,
+          audit: {
+            old_email: {
+              auth_user_exists: Boolean(oldAuthUser),
+              auth_user_id: oldAuthUser?.id || null,
+              auth_user_email: oldAuthUser?.email || null,
+              profile_exists: Boolean(profileByOldAuthId || (oldProfiles && oldProfiles.length > 0)),
+              profile_role: profileByOldAuthId?.role || oldProfiles?.[0]?.role || null,
+              profile_core_katilimci_id: profileByOldAuthId?.core_katilimci_id || oldProfiles?.[0]?.core_katilimci_id || null,
+              core_aday_exists: Boolean(oldAdaylar && oldAdaylar.length > 0),
+              core_aday_id: oldAdaylar?.[0]?.id || null,
+              core_aday_ad_soyad: oldAdaylar?.[0]?.ad_soyad || null,
+              core_aday_basvuru_durumu: oldAdaylar?.[0]?.basvuru_durumu || null,
+              core_katilimci_exists: Boolean(katilimci),
+              core_katilimci_id: katilimci?.id || null,
+              core_katilimci_program_durumu: katilimci?.program_katilim_durumu || null,
+              core_katilimciperformans_exists: Boolean(performans),
+              core_katilimciperformans_id: performans?.id || null,
+              dna_exists: Boolean(dna),
+              dna_id: dna?.id || null,
+              dna_durum: dna?.durum || null
+            },
+            new_email: {
+              auth_user_exists: Boolean(newAuthUser),
+              auth_user_id: newAuthUser?.id || null,
+              profile_exists: Boolean(newProfiles && newProfiles.length > 0),
+              core_aday_exists: Boolean(newAdaylar && newAdaylar.length > 0)
+            },
+            collision: {
+              has_collision: hasCollision,
+              is_new_email_taken_by_other_auth: isNewEmailTakenByOtherAuth,
+              is_new_email_taken_by_other_profile: isNewEmailTakenByOtherProfile,
+              is_new_email_taken_by_other_aday: isNewEmailTakenByOtherAday
+            },
+            verified_chain: {
+              auth_user_to_profile: Boolean(oldAuthUser && profileByOldAuthId),
+              profile_to_katilimci: Boolean(profileByOldAuthId?.core_katilimci_id && katilimci && profileByOldAuthId.core_katilimci_id === katilimci.id),
+              katilimci_to_aday: Boolean(katilimci && adayId && katilimci.aday_id === adayId),
+              status: (oldAuthUser && profileByOldAuthId && katilimci && adayId) ? 'VALID_CHAIN' : 'NEEDS_HEALING'
+            }
           },
-          correct_email: {
-            email: newEmail,
-            has_auth_user: Boolean(newAuth),
-            auth_user_id: newAuth?.id || null,
-            has_profile: Boolean(newProfile),
-            has_core_aday: Boolean(newAday),
-            has_core_katilimci: Boolean(newKatilimci)
-          },
-          can_proceed_safely: Boolean(oldAuth || oldProfile || oldAday) && !newAuth && !newProfile && !newAday
+          is_safe_to_proceed: !hasCollision && (Boolean(oldAuthUser) || Boolean(oldAdaylar?.length))
         }
       })
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ACTION: execute_participant_email_hotfix (HOTFIX-PARTICIPANT-EMAIL-01 Execute)
+    // ACTION: execute_participant_email_hotfix (Safely update email across all tables and send reset mail)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'execute_participant_email_hotfix') {
-      const oldEmail = 'defnetufan4@gamil.com'
-      const newEmail = 'defnetufan4@gmail.com'
+      const oldEmail = ((payload?.old_email || 'esmakurtcephe@gmail.com') as string).trim().toLowerCase()
+      const newEmail = ((payload?.new_email || 'esmakurtcephe@icloud.com') as string).trim().toLowerCase()
+      const sendResetMail = payload?.send_reset_mail !== false
 
-      // 1. Audit Check
+      // 1. Safety audit
       const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
       const authUsers = authUsersData?.users || []
 
-      const oldAuth = authUsers.find(u => (u.email || '').toLowerCase() === oldEmail)
-      const newAuth = authUsers.find(u => (u.email || '').toLowerCase() === newEmail)
+      const oldAuthUser = authUsers.find(u => (u.email || '').toLowerCase() === oldEmail)
+      const newAuthUser = authUsers.find(u => (u.email || '').toLowerCase() === newEmail)
 
-      if (newAuth && newAuth.id !== oldAuth?.id) {
-        return jsonRes(req, {
-          ok: false,
-          error: `Çakışma tespit edildi: ${newEmail} zaten farklı bir auth user ID (${newAuth.id}) ile kayıtlı. Otomatik işlem durduruldu.`
-        }, 409)
+      if (newAuthUser && oldAuthUser && newAuthUser.id !== oldAuthUser.id) {
+        return jsonRes(req, { ok: false, error: 'ÇAKIŞMA: Yeni e-posta (' + newEmail + ') başka bir auth kullanıcısına ait. İşlem durduruldu.' }, 409)
       }
 
-      const { data: oldProfile } = await adminClient.from('profiles').select('*').ilike('email', oldEmail).maybeSingle()
-      const { data: oldAday } = await adminClient.from('core_aday').select('*').ilike('eposta', oldEmail).maybeSingle()
+      const { data: oldAdaylar } = await adminClient.from('core_aday').select('*').ilike('eposta', oldEmail)
+      const { data: newAdaylar } = await adminClient.from('core_aday').select('*').ilike('eposta', newEmail)
 
-      let targetKatilimciId = oldProfile?.core_katilimci_id
-      if (!targetKatilimciId && oldAday?.id) {
-        const { data: k } = await adminClient.from('core_katilimci').select('id').eq('aday_id', oldAday.id).maybeSingle()
-        targetKatilimciId = k?.id
+      const aday = oldAdaylar?.[0]
+      if (!aday && !oldAuthUser) {
+        return jsonRes(req, { ok: false, error: `Eski e-postaya (${oldEmail}) ait kullanıcı veya aday kaydı bulunamadı.` }, 404)
       }
 
-      // 2. Update Auth User Email
-      let authUpdated = false
-      if (oldAuth) {
-        const { error: authUpdErr } = await adminClient.auth.admin.updateUserById(oldAuth.id, {
+      if (newAdaylar && newAdaylar.length > 0 && aday && newAdaylar.some(a => a.id !== aday.id)) {
+        return jsonRes(req, { ok: false, error: 'ÇAKIŞMA: Yeni e-posta başka bir core_aday kaydına ait. İşlem durduruldu.' }, 409)
+      }
+
+      // 2. Find core_katilimci
+      let katilimci = null
+      if (aday?.id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', aday.id).maybeSingle()
+        katilimci = k
+      }
+
+      // 3. Update Auth User Email
+      let updatedAuthUserId = oldAuthUser?.id || null
+      if (oldAuthUser) {
+        const { data: updUser, error: authUpdErr } = await adminClient.auth.admin.updateUserById(oldAuthUser.id, {
           email: newEmail,
           email_confirm: true
         })
         if (authUpdErr) {
-          return jsonRes(req, {
-            ok: false,
-            error: 'Auth user e-posta güncelleme hatası: ' + authUpdErr.message
-          }, 500)
+          return jsonRes(req, { ok: false, error: 'Auth user e-posta güncelleme hatası: ' + authUpdErr.message }, 500)
         }
-        authUpdated = true
+        updatedAuthUserId = updUser.user.id
       }
 
-      // 3. Update profiles
-      let profileUpdated = false
-      if (oldAuth?.id || oldProfile?.id) {
-        const pId = oldAuth?.id || oldProfile?.id
-        const { error: pErr } = await adminClient
+      // 4. Update profiles
+      if (updatedAuthUserId) {
+        const { error: profErr } = await adminClient
           .from('profiles')
-          .update({ email: newEmail })
-          .eq('id', pId)
-        if (pErr) console.warn('profiles update error:', pErr)
-        else profileUpdated = true
+          .update({
+            email: newEmail,
+            role: 'katilimci',
+            core_katilimci_id: katilimci?.id || undefined
+          })
+          .eq('id', updatedAuthUserId)
+        if (profErr) console.error('Profile update error:', profErr)
       }
 
-      // 4. Update core_aday
-      let adayUpdated = false
-      if (oldAday?.id) {
-        const { error: aErr } = await adminClient
+      // 5. Update core_aday
+      if (aday?.id) {
+        const { error: adayErr } = await adminClient
           .from('core_aday')
           .update({ eposta: newEmail })
-          .eq('id', oldAday.id)
-        if (aErr) console.warn('core_aday update error:', aErr)
-        else adayUpdated = true
+          .eq('id', aday.id)
+        if (adayErr) console.error('core_aday update error:', adayErr)
       }
 
-      // 5. Send single reset password email via Brevo REST API
-      let resetMailSent = false
-      let brevoMessageId = null
-      let mailError = null
+      // 6. Update core_katilimci (safe check if eposta column exists)
+      if (katilimci?.id) {
+        try {
+          await adminClient.from('core_katilimci').update({ eposta: newEmail }).eq('id', katilimci.id)
+        } catch (_) {}
+      }
 
-      const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
-      if (brevoApiKey && brevoApiKey.trim()) {
-        const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
-        const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-          type: 'recovery',
-          email: newEmail,
-          options: { redirectTo }
-        })
+      // 7. Self-healing / resolver check
+      // Ensure core_katilimciperformans exists
+      let perfRecord = null
+      if (katilimci?.id) {
+        const { data: existingPerf } = await adminClient.from('core_katilimciperformans').select('*').eq('katilimci_id', katilimci.id).maybeSingle()
+        if (!existingPerf) {
+          const { data: newPerf } = await adminClient.from('core_katilimciperformans').insert([{
+            katilimci_id: katilimci.id,
+            toplam_puan: 0,
+            gorev_puani: 0,
+            etkilesim_puani: 0,
+            toplanti_puani: 0
+          }]).select().single()
+          perfRecord = newPerf
+        } else {
+          perfRecord = existingPerf
+        }
+      }
 
-        if (linkErr) {
-          mailError = 'Recovery link üretilemedi: ' + linkErr.message
-        } else if (linkData?.properties?.action_link) {
-          const actionLink = linkData.properties.action_link
-          const userName = oldAday ? `${oldAday.ad} ${oldAday.soyad}`.trim() : (oldProfile?.ad_soyad || 'Defne Tufan')
+      // 8. Send single reset email via Brevo if requested
+      let mailResult: { sent: boolean, reason?: string, messageId?: string, recipient?: string, error?: string } = { sent: false, reason: 'skipped' }
+      if (sendResetMail) {
+        const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
+        if (brevoApiKey) {
+          // Generate 48h secure token
+          const randomBytes = new Uint8Array(24)
+          crypto.getRandomValues(randomBytes)
+          const secureToken = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+          const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+
+          if (updatedAuthUserId) {
+            await adminClient.auth.admin.updateUserById(updatedAuthUserId, {
+              user_metadata: {
+                reset_token: secureToken,
+                reset_token_expires_at: expiresAt
+              }
+            })
+          }
+
+          const redirectTo = 'https://saglikliderleri.markamutfagi.co/reset-password'
+          const { data: linkData } = await adminClient.auth.admin.generateLink({
+            type: 'recovery',
+            email: newEmail,
+            options: { redirectTo }
+          })
+          const hashedToken = linkData?.properties?.hashed_token || ''
+          const actionLink = `https://saglikliderleri.markamutfagi.co/reset-password?token=${secureToken}&email=${encodeURIComponent(newEmail)}${hashedToken ? `&token_hash=${hashedToken}` : ''}&type=recovery`
+
+          const userName = aday?.ad_soyad || (aday?.ad && aday?.soyad ? `${aday.ad} ${aday.soyad}`.trim() : 'Esmanur Kurtcephe')
           const htmlContent = getResetPasswordHtml(userName, actionLink)
 
           const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
             method: 'POST',
             headers: {
-              'api-key': brevoApiKey,
               'Content-Type': 'application/json',
-              'Accept': 'application/json'
+              'api-key': brevoApiKey
             },
             body: JSON.stringify({
-              sender: {
-                email: 'saglikliderleri@markamutfagi.co',
-                name: 'Geleceğin Dijital Sağlık Liderleri'
-              },
-              to: [
-                {
-                  email: newEmail,
-                  name: userName
-                }
-              ],
-              subject: 'Geleceğin Dijital Sağlık Liderleri | Şifreni Belirle',
-              htmlContent: htmlContent
+              sender: { name: 'Dijital Sağlık Liderleri', email: 'saglikliderleri@markamutfagi.co' },
+              to: [{ email: newEmail, name: userName }],
+              subject: 'Geleceğin Dijital Sağlık Liderleri — Şifrenizi Belirleyin',
+              htmlContent
             })
           })
 
           if (brevoRes.ok) {
-            const bData = await brevoRes.json().catch(() => ({}))
-            resetMailSent = true
-            brevoMessageId = bData?.messageId || 'sent'
+            const bJson = await brevoRes.json()
+            mailResult = { sent: true, messageId: bJson?.messageId || 'SENT', recipient: newEmail }
           } else {
-            const bErr = await brevoRes.json().catch(() => ({}))
-            mailError = `Brevo API HTTP ${brevoRes.status}: ${bErr?.message || brevoRes.statusText}`
+            const bErr = await brevoRes.text()
+            mailResult = { sent: false, error: bErr, recipient: newEmail }
           }
+        } else {
+          mailResult = { sent: false, error: 'BREVO_API_KEY bulunamadı.' }
         }
-      } else {
-        mailError = 'BREVO_API_KEY bulunamadı'
       }
 
-      // 6. Final verification checks
-      const { data: checkOldAday } = await adminClient.from('core_aday').select('id').ilike('eposta', oldEmail).maybeSingle()
-      const { data: checkNewAday } = await adminClient.from('core_aday').select('id, ad, soyad, eposta, basvuru_durumu').ilike('eposta', newEmail).maybeSingle()
-      const { data: checkNewProfile } = await adminClient.from('profiles').select('id, email, role, core_katilimci_id').ilike('email', newEmail).maybeSingle()
-      const { data: finalAuthList } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
-      const finalAuth = (finalAuthList?.users || []).find(u => (u.email || '').toLowerCase() === newEmail)
+      // 9. Post-execution verification audit
+      const { data: finalAuthData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const finalAuthUser = (finalAuthData?.users || []).find(u => (u.email || '').toLowerCase() === newEmail)
+      const oldAuthLeftover = (finalAuthData?.users || []).find(u => (u.email || '').toLowerCase() === oldEmail)
+      const { data: finalProfile } = finalAuthUser ? await adminClient.from('profiles').select('*').eq('id', finalAuthUser.id).maybeSingle() : { data: null }
+      const { data: finalAday } = await adminClient.from('core_aday').select('*').ilike('eposta', newEmail).maybeSingle()
+      const { data: finalKatilimci } = finalAday ? await adminClient.from('core_katilimci').select('*').eq('aday_id', finalAday.id).maybeSingle() : { data: null }
+      const { data: finalDna } = finalKatilimci ? await adminClient.from('core_icerikdnatesti').select('id, durum, ai_model').eq('katilimci_id', finalKatilimci.id).maybeSingle() : { data: null }
 
       return jsonRes(req, {
         ok: true,
         data: {
-          hotfix_executed: true,
+          target: 'Esmanur Kurtcephe',
           old_email: oldEmail,
           new_email: newEmail,
-          auth_user_updated: authUpdated,
-          auth_user_id: finalAuth?.id || oldAuth?.id,
-          profile_updated: profileUpdated,
-          core_aday_updated: adayUpdated,
-          core_aday_id: checkNewAday?.id,
-          core_aday_durumu: checkNewAday?.basvuru_durumu,
-          core_katilimci_id: targetKatilimciId,
-          relations_preserved: Boolean(checkNewProfile?.core_katilimci_id === targetKatilimciId),
-          remaining_wrong_records: Boolean(checkOldAday),
-          single_reset_mail_sent: resetMailSent,
-          mail_sent_to: newEmail,
-          brevo_message_id: brevoMessageId,
-          mail_error: mailError
+          updated_auth_user_id: updatedAuthUserId,
+          old_auth_leftover: Boolean(oldAuthLeftover),
+          final_state: {
+            auth_user: {
+              id: finalAuthUser?.id,
+              email: finalAuthUser?.email,
+              confirmed: Boolean(finalAuthUser?.email_confirmed_at)
+            },
+            profile: {
+              id: finalProfile?.id,
+              email: finalProfile?.email,
+              role: finalProfile?.role,
+              core_katilimci_id: finalProfile?.core_katilimci_id
+            },
+            core_aday: {
+              id: finalAday?.id,
+              ad_soyad: finalAday?.ad_soyad,
+              eposta: finalAday?.eposta,
+              basvuru_durumu: finalAday?.basvuru_durumu
+            },
+            core_katilimci: {
+              id: finalKatilimci?.id,
+              ad_soyad: finalKatilimci?.ad_soyad,
+              aday_id: finalKatilimci?.aday_id,
+              program_katilim_durumu: finalKatilimci?.program_katilim_durumu
+            },
+            performance: {
+              id: perfRecord?.id,
+              katilimci_id: perfRecord?.katilimci_id
+            },
+            dna: {
+              id: finalDna?.id,
+              durum: finalDna?.durum,
+              ai_model: finalDna?.ai_model
+            }
+          },
+          mail_result: {
+            sent: mailResult.sent,
+            recipient: mailResult.recipient || newEmail,
+            message_id: mailResult.messageId || null
+          }
         }
       })
     }
