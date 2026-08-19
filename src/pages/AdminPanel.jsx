@@ -2648,6 +2648,7 @@ export default function AdminPanel() {
           {menu === 'performans' && (
             <PerformansSection
               setToast={setToast}
+              onRefreshKatilimcilar={fetchAll}
             />
           )}
 
@@ -3503,7 +3504,7 @@ function DnaSection({ token, dnaList, setDnaList, dnaLoading, setDnaLoading, dna
 /* ════════════════════════════════════════
    KATILIMCI PERFORMANS SEKMESİ
 ════════════════════════════════════════ */
-function PerformansSection({ token, setToast }) {
+function PerformansSection({ token, setToast, onRefreshKatilimcilar }) {
   const [performansList, setPerformansList] = useState([])
   const [loading, setLoading]               = useState(false)
   const [error, setError]                   = useState(null)
@@ -4096,7 +4097,10 @@ function PerformansSection({ token, setToast }) {
                             await passivateParticipant({ katilimci_id: selectedKatilimciId, email, reason: 'Admin panelinden pasife alındı' })
                             setToast({ msg: `${kName} pasife alındı (Veriler korundu). 🔒`, type: 'info' })
                           }
-                          await loadPerformans()
+                          await fetchList()
+                          if (typeof onRefreshKatilimcilar === 'function') {
+                            await onRefreshKatilimcilar()
+                          }
                           if (selectedKatilimciId) {
                             const freshDetay = await getAdminKatilimciDetay(selectedKatilimciId)
                             if (freshDetay) {
