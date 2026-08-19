@@ -235,16 +235,14 @@ const parseSeriesBlocks = (body) => {
 }
 
 // 4. 7 Adımlı Yol Haritası Parser
-const parseRoadmapSteps = (body) => {
+export const parseRoadmapSteps = (body) => {
   const lines = (body || '').split('\n').map(l => l.trim()).filter(Boolean)
   const steps = []
 
   lines.forEach(l => {
     const clean = cleanMarkdownSymbols(l)
     if (!clean || clean.length < 5) return
-    if (/Adım\s*\d*|Aşama\s*\d*|Hafta\s*\d*/i.test(clean) || /^\d+[\.\)]/.test(l)) {
-      steps.push(clean)
-    } else if (steps.length > 0 && steps.length < 7) {
+    if (/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*\d+/i.test(l) || /^Ad[ıi]m\s*\d+/i.test(clean)) {
       steps.push(clean)
     }
   })
@@ -253,15 +251,15 @@ const parseRoadmapSteps = (body) => {
 }
 
 // 5. 14 Günlük Mini Takvim Parser
-const parseCalendarDays = (body) => {
+export const parseCalendarDays = (body) => {
   const lines = (body || '').split('\n').map(l => l.trim()).filter(Boolean)
   const days = []
 
   lines.forEach(l => {
     const clean = cleanMarkdownSymbols(l)
-    if (/Gün\s*\d+/i.test(clean)) {
-      const dayMatch = clean.match(/Gün\s*(\d+)/i)
-      const dayNum = dayMatch ? dayMatch[1] : (days.length + 1)
+    if (/(?:^|[\-\*•\d\.\)]\s*)G[üu]n\s*\d+/i.test(l) || /^G[üu]n\s*\d+/i.test(clean)) {
+      const dayMatch = clean.match(/G[üu]n\s*(\d+)/i)
+      const dayNum = dayMatch ? parseInt(dayMatch[1], 10) : (days.length + 1)
       const parts = clean.split('|').map(p => p.trim())
 
       let type = parts[0] || `Gün ${dayNum}`
@@ -284,11 +282,11 @@ const parseCalendarDays = (body) => {
 
       days.push({
         day: dayNum,
-        title: type.replace(/^Gün\s*\d+[:\s\-]*/i, '').trim() || 'İçerik Yayını',
-        hook: hook && hook !== '—' ? hook : null,
+        title: type.replace(/^G[üu]n\s*\d+[:\s\-]*/i, '').trim() || 'İçerik Yayını',
+        hook: hook && hook !== '—' && hook !== '-' ? hook : null,
         format: format || 'Kısa Video / Story',
         purpose: purpose || 'Etkileşim & Otorite',
-        note: note && note !== '—' ? note : 'TİTCK uyumlu / Reklamsız'
+        note: note && note !== '—' && note !== '-' ? note : 'TİTCK uyumlu / Reklamsız'
       })
     }
   })
@@ -797,25 +795,40 @@ function DnaRiskComplianceCard({ section }) {
 // 9. 7 ADIMLI YOL HARİTASI (TIMELINE / STEPPER)
 function DnaRoadmapTimeline({ section }) {
   const steps = parseRoadmapSteps(section.body)
+  const isStrict7 = steps.length === 7
 
   return (
     <div id="sec-6" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-6 scroll-mt-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-        <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
-          🗺️
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md uppercase">
-              Bölüm 06
-            </span>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              {section.title || '7 Adımlı Kapsamlı Uygulama ve Gelişim Yol Haritası'}
-            </h3>
+      <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
+            🗺️
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Bugünden itibaren devreye alınacak takvime bağlı stratejik aksiyon adımları
-          </p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md uppercase">
+                Bölüm 06
+              </span>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+                {section.title || '7 Adımlı Kapsamlı Uygulama ve Gelişim Yol Haritası'}
+              </h3>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Bugünden itibaren devreye alınacak takvime bağlı stratejik aksiyon adımları
+            </p>
+          </div>
+        </div>
+
+        <div>
+          {isStrict7 ? (
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
+              ✓ 7/7 Adım Eksiksiz
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
+              ⚠️ {steps.length}/7 Adım
+            </span>
+          )}
         </div>
       </div>
 
@@ -850,29 +863,44 @@ function DnaRoadmapTimeline({ section }) {
 // 10. 14 GÜNLÜK MİNİ İÇERİK TAKVİMİ (KARTLI GRID)
 function DnaCalendarGrid({ section }) {
   const days = parseCalendarDays(section.body)
+  const isStrict14 = days.length === 14
 
   return (
     <div id="sec-7" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-6 scroll-mt-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-        <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
-          📅
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md uppercase">
-              Bölüm 07
-            </span>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              {section.title || 'İlk 14 Gün İçin Mini İçerik Takvimi'}
-            </h3>
+      <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
+            📅
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            İlk 2 haftada uygulanacak mikro yayın akışı ve kanca planı
-          </p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md uppercase">
+                Bölüm 07
+              </span>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+                {section.title || 'İlk 14 Gün İçin Mini İçerik Takvimi'}
+              </h3>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              İlk 2 haftada uygulanacak mikro yayın akışı ve kanca planı
+            </p>
+          </div>
+        </div>
+
+        <div>
+          {isStrict14 ? (
+            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
+              ✓ 14/14 Gün Eksiksiz
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
+              ⚠️ {days.length}/14 Gün
+            </span>
+          )}
         </div>
       </div>
 
-      {days.length >= 7 ? (
+      {days.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {days.map((d, idx) => (
             <div

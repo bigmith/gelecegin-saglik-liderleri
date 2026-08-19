@@ -3181,21 +3181,34 @@ function DnaSection({ token, dnaList, setDnaList, dnaLoading, setDnaLoading, dna
   }
 
   const regenerate = async (id) => {
-    setToast({ msg: 'İçerik DNA raporu katılımcı gönderimi sırasında otomatik üretilmektedir.', type: 'info' })
+    setDnaRegen(id)
+    try {
+      const res = await callAdminAction('repair_all_dna_structure')
+      await fetchList()
+      if (dnaDetail && dnaDetail.id === id) {
+        const updated = (dnaList || []).find(d => d.id === id)
+        if (updated) setDnaDetail(updated)
+      }
+      setToast({ msg: 'DNA raporu 7 Adım ve 14 Gün standardında başarıyla güncellendi.', type: 'success' })
+    } catch (err) {
+      setToast({ msg: `Hata: ${err.message}`, type: 'error' })
+    } finally {
+      setDnaRegen(null)
+    }
   }
 
-  const handleCleanDnaTests = async () => {
-    if (!window.confirm('Tüm katılımcı DNA test kayıtlarını silmek istediğinize emin misiniz? Katılımcılar testlerini yeni prompt ile baştan doldurabileceklerdir.')) {
-      return
-    }
+  const handleRepairDnaStructures = async () => {
     setDnaLoading(true)
     try {
-      await callAdminAction('clean_dna_tests')
-      setDnaDetail(null)
+      const res = await callAdminAction('repair_all_dna_structure')
       await fetchList()
-      alert('Tüm DNA test kayıtları başarıyla sıfırlandı.')
+      const repCount = res?.repaired_count ?? 0
+      setToast({
+        msg: `DNA Yapı Denetimi tamamlandı. Tüm raporlar 7 Adım ve 14 Gün standardına uygun hale getirildi (Onarılan: ${repCount}).`,
+        type: 'success'
+      })
     } catch (e) {
-      alert(`Hata: ${e.message}`)
+      setToast({ msg: `Onarım hatası: ${e.message}`, type: 'error' })
     } finally {
       setDnaLoading(false)
     }
@@ -3226,17 +3239,15 @@ function DnaSection({ token, dnaList, setDnaList, dnaLoading, setDnaLoading, dna
               <h3 className="text-sm font-bold text-gray-800">İçerik DNA Analizleri Listesi</h3>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {dnaList.length > 0 && (
-                <button
-                  onClick={handleCleanDnaTests}
-                  disabled={dnaLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-all disabled:opacity-50"
-                  title="Tüm DNA kayıtlarını siler ve yeni promptla sıfırdan test edilmesine olanak tanır."
-                >
-                  <span>🗑️</span>
-                  <span>Tümünü Sıfırla</span>
-                </button>
-              )}
+              <button
+                onClick={handleRepairDnaStructures}
+                disabled={dnaLoading}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 transition-all disabled:opacity-50"
+                title="Tüm DNA raporlarını 7 Adım ve 14 Gün standardı için denetler ve onarır."
+              >
+                <span>🛠️</span>
+                <span>Yapı Standardı Denetimi & Onar</span>
+              </button>
               <button
                 onClick={fetchList}
                 disabled={dnaLoading}

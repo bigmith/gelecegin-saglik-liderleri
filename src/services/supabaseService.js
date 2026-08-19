@@ -2215,3 +2215,25 @@ export async function getAdminKatilimciAktiviteLoglari(katilimciId, limit = 10) 
     return []
   }
 }
+
+/**
+ * DNA Raporlarının Yol Haritası (7 Adım) ve Mini Takvim (14 Gün) yapı denetimini yapar.
+ */
+export async function auditDnaStructures() {
+  const { data, error } = await supabase.functions.invoke('admin-actions', {
+    body: { action: 'audit_all_dna_structure', payload: {} }
+  })
+  if (error) throw error
+  return data
+}
+
+/**
+ * Yanlış formattaki DNA Raporlarını mevcut cevapları koruyarak 7 adım ve 14 gün standardına onarır.
+ */
+export async function repairDnaStructures() {
+  const { data, error } = await supabase.functions.invoke('admin-actions', {
+    body: { action: 'repair_all_dna_structure', payload: {} }
+  })
+  if (error) throw error
+  return data
+}

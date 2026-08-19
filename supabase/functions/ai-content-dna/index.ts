@@ -134,6 +134,189 @@ function extractScorecardFromText(text: string, cevaplar: Record<string, any>) {
   }
 }
 
+export function validateReportStructure(reportText: string) {
+  if (!reportText || typeof reportText !== 'string' || reportText.trim().length < 100) {
+    return {
+      isValid: false,
+      isRoadmapValid: false,
+      isCalendarValid: false,
+      stepCount: 0,
+      dayCount: 0,
+      stepsFound: [] as number[],
+      daysFound: [] as number[],
+      errors: ['Rapor metni boş veya çok kısa']
+    }
+  }
+
+  const cleanText = reportText.replace(/\r\n/g, '\n').trim()
+  const sections = cleanText.split(/^##?\s+/m).filter(Boolean)
+
+  let sec6Body = ''
+  let sec7Body = ''
+
+  for (const sec of sections) {
+    const firstNewline = sec.indexOf('\n')
+    const title = (firstNewline === -1 ? sec : sec.substring(0, firstNewline)).trim().toUpperCase()
+    const body = (firstNewline === -1 ? '' : sec.substring(firstNewline + 1)).trim()
+
+    if (title.includes('6.') || title.includes('YOL HARİTASI') || title.includes('YOL HARITASI') || title.includes('ADIM')) {
+      sec6Body = body
+    }
+    if (title.includes('7.') || title.includes('14 GÜN') || title.includes('14 GUN') || title.includes('TAKVİM') || title.includes('TAKVIM')) {
+      sec7Body = body
+    }
+  }
+
+  const errors: string[] = []
+
+  // 1. Roadmap Analysis (Section 6)
+  const roadmapLines = (sec6Body || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const stepsFound: number[] = []
+  for (const l of roadmapLines) {
+    const match = l.match(/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*(\d+)/i)
+    if (match && match[1]) {
+      stepsFound.push(parseInt(match[1], 10))
+    }
+  }
+
+  const stepCount = stepsFound.length
+  const hasAllSteps1to7 = [1, 2, 3, 4, 5, 6, 7].every(n => stepsFound.includes(n))
+  const hasExtraSteps = stepsFound.some(n => n > 7) || stepCount > 7
+  const hasDuplicateSteps = new Set(stepsFound).size !== stepsFound.length
+  const isRoadmapValid = stepCount === 7 && hasAllSteps1to7 && !hasExtraSteps && !hasDuplicateSteps
+
+  if (!isRoadmapValid) {
+    errors.push(`Bölüm 6 (Yol Haritası) geçersiz: ${stepCount} adım bulundu. Beklenen: tam 7 adım (Adım 1-7).`)
+  }
+
+  // 2. Calendar Analysis (Section 7)
+  const calendarLines = (sec7Body || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const daysFound: number[] = []
+  for (const l of calendarLines) {
+    const match = l.match(/(?:^|[\-\*•\d\.\)]\s*)G[üu]n\s*(\d+)/i)
+    if (match && match[1]) {
+      daysFound.push(parseInt(match[1], 10))
+    }
+  }
+
+  const dayCount = daysFound.length
+  const hasAllDays1to14 = Array.from({ length: 14 }, (_, i) => i + 1).every(n => daysFound.includes(n))
+  const hasExtraDays = daysFound.some(n => n > 14) || dayCount > 14
+  const hasDuplicateDays = new Set(daysFound).size !== daysFound.length
+  const isCalendarValid = dayCount === 14 && hasAllDays1to14 && !hasExtraDays && !hasDuplicateDays
+
+  if (!isCalendarValid) {
+    errors.push(`Bölüm 7 (Mini Takvim) geçersiz: ${dayCount} gün bulundu. Beklenen: tam 14 gün (Gün 1-14).`)
+  }
+
+  return {
+    isValid: isRoadmapValid && isCalendarValid,
+    isRoadmapValid,
+    isCalendarValid,
+    stepCount,
+    dayCount,
+    stepsFound,
+    daysFound,
+    errors
+  }
+}
+
+export function repairRoadmap7(cevaplar: Record<string, any>, _profileName?: string): string {
+  const c = cevaplar || {}
+  const rawTopicsList = Array.isArray(c.soru_2) ? c.soru_2 : (c.soru_2 ? [String(c.soru_2)] : ['Sağlık'])
+  const mainTopic = rawTopicsList[0] || 'Sağlık İletişimi'
+  const formatChoice = String(c.soru_3 || 'Kısa Video')
+  const targetWords = String(c.soru_19 || 'Danışılan, Pratik, Yol Gösterici')
+  const vision = String(c.soru_20 || 'Doğru sağlık bilgisinin dijital referans adresi.')
+
+  return `## 6. 7 ADIMLI KAPSAMLI UYGULAMA VE GELİŞİM YOL HARİTASI
+
+- Adım 1: [İlk 48 Saat: Biyografi ve Konumlandırma] Profil biyografisine "${targetWords}" algısını destekleyen ve "${vision}" vaadini öne çıkaran net bir açıklama yerleştirilmesi.
+- Adım 2: [1. Hafta: Teknik Hazırlık] ${formatChoice} için ses, ışık ve kadraj düzeninin test edilerek standart çekim açısının sabitlenmesi.
+- Adım 3: [1. Hafta: İlk Senaryo Taslakları] Seri 1 (${mainTopic}) için 3 adet taslak kurgulanması.
+- Adım 4: [2. Hafta: Toplu Çekim Seansı] Hazırlanan taslakların tek seansta çekilmesi ve altyazılandırılması.
+- Adım 5: [2. Hafta: Mevzuat ve Etik Kontrol] Yayın öncesinde TİTCK ve KVKK kurallarına uygunluğun teyit edilmesi.
+- Adım 6: [3. Hafta: Topluluk Etkileşimi] Gelen geri bildirimlerin mesleki dille yanıtlanması ve yeni soruların toplanması.
+- Adım 7: [4. Hafta: Stratejik Değerlendirme] İzlenme ve etkileşim metriklerinin analiz edilerek 2. ay içerik planının güncellenmesi.`
+}
+
+export function repairMiniCalendar14(cevaplar: Record<string, any>, _profileName?: string): string {
+  const c = cevaplar || {}
+  const rawTopicsList = Array.isArray(c.soru_2) ? c.soru_2 : (c.soru_2 ? [String(c.soru_2)] : ['Sağlık'])
+  const mainTopic = rawTopicsList[0] || 'Sağlık İletişimi'
+  const secondTopic = rawTopicsList[1] || rawTopicsList[0] || 'Koruyucu Sağlık'
+  const formatChoice = String(c.soru_3 || 'Kısa Video')
+  const duration = String(c.soru_5 || '30-45 saniye')
+  const hookPref = String(c.soru_7 || 'Sonucu en başta söyleyerek')
+
+  let dynamicHook1 = `"${mainTopic} alanında klinikte en sık karşılaştığım bu kritik tabloyu doğrudan açıklıyorum:"`
+  let dynamicHook2 = `"${secondTopic} konusunda doğru bildiğiniz bu yöntemin aslında sağlığınıza maliyeti ne olabilir?"`
+  let dynamicHook3 = `"${mainTopic} ve ${secondTopic} hakkında uzman tavsiyesi almadan önce şu temel gerçeği mutlaka bilmelisiniz:"`
+
+  if (hookPref.toLowerCase().includes('sonuc') || hookPref.toLowerCase().includes('başta')) {
+    dynamicHook1 = `"${mainTopic} takviyesi alırken bu hatayı yapıyorsanız paranızı ve sağlığınızı çöpe atıyorsunuz:"`
+    dynamicHook2 = `"${secondTopic} için aradığınız en net çözüm aslında şu basit adımda gizli:"`
+    dynamicHook3 = `"${mainTopic} kullanımında sonucu değiştiren ilk kuralı baştan söylüyorum:"`
+  } else if (hookPref.toLowerCase().includes('soru') || hookPref.toLowerCase().includes('merak')) {
+    dynamicHook1 = `"Kullandığınız ${mainTopic} ürününün gerçekten işe yarayıp yaramadığını nasıl anlarsınız?"`
+    dynamicHook2 = `"${secondTopic} hakkında danışanlarımın en çok yanıldığı bu sorunun cevabı sizce ne?"`
+    dynamicHook3 = `"Hekim veya eczacınıza gitmeden önce ${mainTopic} hakkında kendinize sormanız gereken ilk soru:"`
+  }
+
+  return `## 7. İLK 14 GÜN İÇİN MİNİ İÇERİK TAKVİMİ
+
+- Gün 1: [Konumlandırma / Vizyon] | Kanca: "${dynamicHook1}" | Format: ${duration} ${formatChoice} | Amaç: Yeni profil odağını duyurma | Uyum Notu: İlaçsız ve tarafsız dil
+- Gün 2: [Soru Kutusu] | Kanca: "—" | Format: Story Etkileşimi | Amaç: "${mainTopic} konusunda en çok merak edilenleri toplama" | Uyum Notu: Reçetesiz bilgilendirme
+- Gün 3: [Seri 1 - Bölüm 1] | Kanca: "${dynamicHook2}" | Format: ${formatChoice} | Amaç: ${mainTopic} konusunda bilgi otoritesi kurma | Uyum Notu: Etken madde odaklı
+- Gün 4: [Bilgi Kartı] | Kanca: "Günün sağlık notu:" | Format: Görsel / Story | Amaç: Koruyucu sağlık temasını pekiştirme | Uyum Notu: Genel bilgilendirme
+- Gün 5: [Seri 2 - Bölüm 1] | Kanca: "${dynamicHook3}" | Format: ${formatChoice} | Amaç: ${secondTopic} ile ilgili pratik danışmanlık sağlama | Uyum Notu: "Uzmanınıza danışın" ibaresi
+- Gün 6: [Kamera Arkası / Samimiyet] | Kanca: "Mesai rutininden kısa bir kesit:" | Format: Story Kısa Video | Amaç: Güven ve samimiyet inşası | Uyum Notu: Hasta mahremiyeti
+- Gün 7: [Haftalık Değerlendirme] | Kanca: "—" | Format: Metrik Analizi | Amaç: İlk haftanın performansını gözden geçirme | Uyum Notu: —
+- Gün 8: [Seri 3 - Bölüm 1] | Kanca: "Sağlıklı bir gün için benimsediğim 3 mesleki alışkanlık:" | Format: Vlog ${formatChoice} | Amaç: Yaşam tarzı liderliği | Uyum Notu: Ürün yerleştirmesiz
+- Gün 9: [İnteraktif Anket] | Kanca: "${mainTopic} hakkında bu iki bilgiden hangisi doğru?" | Format: Story Anket | Amaç: İzleyici katılımını artırma | Uyum Notu: Reklamsız
+- Gün 10: [Seri 1 - Bölüm 2] | Kanca: "${mainTopic} sürecinde dikkat edilmesi gereken önemli noktalar:" | Format: ${formatChoice} | Amaç: Değer sunumu ve farkındalık | Uyum Notu: TİTCK uyumlu
+- Gün 11: [Yorum Yanıtlama] | Kanca: "Gelen popüler bir soruyu birlikte yanıtlayalım:" | Format: Story Video | Amaç: Danışan bağı güçlendirme | Uyum Notu: Teşhis koymama
+- Gün 12: [Seri 2 - Bölüm 2] | Kanca: "${secondTopic} hakkında bilmeniz gereken mevsimsel ipuçları:" | Format: ${formatChoice} | Amaç: Çözüm odaklı yaklaşım | Uyum Notu: Mevzuata uygunluk
+- Gün 13: [Carousel Bilgi Seti] | Kanca: "${mainTopic} ve ${secondTopic} konusunda bilinmesi gereken 3 temel ilke:" | Format: Carousel Görsel | Amaç: Kaydedilme ve paylaşım | Uyum Notu: Genel bilgilendirme
+- Gün 14: [Mentor Brifingi] | Kanca: "14 günlük maratonun özeti ve gelecek adımlar:" | Format: Story & Kapanış | Amaç: Bir sonraki döneme hazırlık | Uyum Notu: —`
+}
+
+export function repairReportStructureIfNeeded(reportText: string, cevaplar: Record<string, any>, profileName?: string): string {
+  const val = validateReportStructure(reportText)
+  if (val.isValid) return reportText
+
+  let repaired = reportText.replace(/\r\n/g, '\n').trim()
+
+  // If roadmap is invalid, replace or append Section 6
+  if (!val.isRoadmapValid) {
+    const r6 = repairRoadmap7(cevaplar, profileName)
+    const sec6Regex = /##\s*6\.\s*[^\n]*[\s\S]*?(?=(?:##\s*7\.|$))/i
+    if (sec6Regex.test(repaired)) {
+      repaired = repaired.replace(sec6Regex, r6 + '\n\n')
+    } else {
+      const sec7Index = repaired.search(/##\s*7\./i)
+      if (sec7Index !== -1) {
+        repaired = repaired.substring(0, sec7Index) + r6 + '\n\n' + repaired.substring(sec7Index)
+      } else {
+        repaired = repaired + '\n\n' + r6
+      }
+    }
+  }
+
+  // If calendar is invalid, replace or append Section 7
+  if (!val.isCalendarValid) {
+    const r7 = repairMiniCalendar14(cevaplar, profileName)
+    const sec7Regex = /##\s*7\.\s*[^\n]*[\s\S]*$/i
+    if (sec7Regex.test(repaired)) {
+      repaired = repaired.replace(sec7Regex, r7)
+    } else {
+      repaired = repaired + '\n\n' + r7
+    }
+  }
+
+  return repaired.trim()
+}
+
 function generateStructuredFallbackReport(cevaplar: Record<string, any>, profileName?: string): string {
   const c = cevaplar || {}
   const rawTopicsList = Array.isArray(c.soru_2) ? c.soru_2 : (c.soru_2 ? [String(c.soru_2)] : ['Sağlık'])
@@ -155,7 +338,6 @@ function generateStructuredFallbackReport(cevaplar: Record<string, any>, profile
   const motivation = String(c.soru_12 || 'Fayda sağlamak ve güven inşa etmek')
   const crisis = String(c.soru_13 || 'Sakin ve kanıta dayalı tutum')
   const weeklyCap = String(c.soru_14 || '2')
-  const level = String(c.soru_15 || 'Orta Seviye')
   const archetypeChoice = String(c.soru_16 || 'Klinik ve Akademik Tarz')
   const benchmarks = String(c.soru_17 || 'Kanıta dayalı sağlık profesyonelleri')
   const brandWords = String(c.soru_18 || 'Güvenilir, Yetkin, Bilimsel')
@@ -201,6 +383,9 @@ function generateStructuredFallbackReport(cevaplar: Record<string, any>, profile
     dynamicCta2 = `"${secondTopic} hakkında bir sonraki videoda hangi konuyu ele almamı istersiniz? Fikirlerinizi yazın."`
     dynamicCta3 = `"Bu konuda sizin gözleminiz nedir? Deneyimlerinizi paylaşarak topluluğa katkı sağlayın."`
   }
+
+  const s6 = repairRoadmap7(cevaplar, profileName)
+  const s7 = repairMiniCalendar14(cevaplar, profileName)
 
   return `## İÇERİK DNA VE OPERASYONEL SKOR KARTI
 
@@ -296,32 +481,9 @@ function generateStructuredFallbackReport(cevaplar: Record<string, any>, profile
 - Tükenmişlik Önleme:
   [Dayanak: S14=Haftada ${weeklyCap} içerik] Haftalık ${weeklyCap} içerik hacmi aşırı yük oluşturmayacak şekilde takvimlendirilmeli, sürdürülebilir bir tempo hedeflenmelidir.
 
-## 6. 7 ADIMLI KAPSAMLI UYGULAMA VE GELİŞİM YOL HARİTASI
+${s6}
 
-- Adım 1: [İlk 48 Saat: Biyografi ve Konumlandırma] Profil biyografisine "${targetWords}" algısını destekleyen ve "${vision}" vaadini öne çıkaran net bir açıklama yerleştirilmesi.
-- Adım 2: [1. Hafta: Teknik Hazırlık] ${formatChoice} için ses, ışık ve kadraj düzeninin test edilerek standart çekim açısının sabitlenmesi.
-- Adım 3: [1. Hafta: İlk Senaryo Taslakları] Seri 1 (${mainTopic}) için 3 adet taslak kurgulanması.
-- Adım 4: [2. Hafta: Toplu Çekim Seansı] Hazırlanan taslakların tek seansta çekilmesi ve altyazılandırılması.
-- Adım 5: [2. Hafta: Mevzuat ve Etik Kontrol] Yayın öncesinde TİTCK ve KVKK kurallarına uygunluğun teyit edilmesi.
-- Adım 6: [3. Hafta: Topluluk Etkileşimi] Gelen geri bildirimlerin mesleki dille yanıtlanması ve yeni soruların toplanması.
-- Adım 7: [4. Hafta: Stratejik Değerlendirme] İzlenme ve etkileşim metriklerinin analiz edilerek 2. ay içerik planının güncellenmesi.
-
-## 7. İLK 14 GÜN İÇİN MİNİ İÇERİK TAKVİMİ
-
-- Gün 1: [Konumlandırma / Vizyon] | Kanca: "${dynamicHook1}" | Format: ${duration} ${formatChoice} | Amaç: Yeni profil odağını duyurma | Uyum Notu: İlaçsız ve tarafsız dil
-- Gün 2: [Soru Kutusu] | Kanca: "—" | Format: Story Etkileşimi | Amaç: "${mainTopic} konusunda en çok merak edilenleri toplama" | Uyum Notu: Reçetesiz bilgilendirme
-- Gün 3: [Seri 1 - Bölüm 1] | Kanca: "${dynamicHook2}" | Format: ${formatChoice} | Amaç: ${mainTopic} konusunda bilgi otoritesi kurma | Uyum Notu: Etken madde odaklı
-- Gün 4: [Bilgi Kartı] | Kanca: "Günün sağlık notu:" | Format: Görsel / Story | Amaç: Koruyucu sağlık temasını pekiştirme | Uyum Notu: Genel bilgilendirme
-- Gün 5: [Seri 2 - Bölüm 1] | Kanca: "${dynamicHook3}" | Format: ${formatChoice} | Amaç: ${secondTopic} ile ilgili pratik danışmanlık sağlama | Uyum Notu: "Uzmanınıza danışın" ibaresi
-- Gün 6: [Kamera Arkası / Samimiyet] | Kanca: "Mesai rutininden kısa bir kesit:" | Format: Story Kısa Video | Amaç: Güven ve samimiyet inşası | Uyum Notu: Hasta mahremiyeti
-- Gün 7: [Haftalık Değerlendirme] | Kanca: "—" | Format: Metrik Analizi | Amaç: İlk haftanın performansını gözden geçirme | Uyum Notu: —
-- Gün 8: [Seri 3 - Bölüm 1] | Kanca: "Sağlıklı bir gün için benimsediğim 3 mesleki alışkanlık:" | Format: Vlog ${formatChoice} | Amaç: Yaşam tarzı liderliği | Uyum Notu: Ürün yerleştirmesiz
-- Gün 9: [İnteraktif Anket] | Kanca: "${mainTopic} hakkında bu iki bilgiden hangisi doğru?" | Format: Story Anket | Amaç: İzleyici katılımını artırma | Uyum Notu: Reklamsız
-- Gün 10: [Seri 1 - Bölüm 2] | Kanca: "${mainTopic} sürecinde dikkat edilmesi gereken önemli noktalar:" | Format: ${formatChoice} | Amaç: Değer sunumu ve farkındalık | Uyum Notu: TİTCK uyumlu
-- Gün 11: [Yorum Yanıtlama] | Kanca: "Gelen popüler bir soruyu birlikte yanıtlayalım:" | Format: Story Video | Amaç: Danışan bağı güçlendirme | Uyum Notu: Teşhis koymama
-- Gün 12: [Seri 2 - Bölüm 2] | Kanca: "${secondTopic} hakkında bilmeniz gereken mevsimsel ipuçları:" | Format: ${formatChoice} | Amaç: Çözüm odaklı yaklaşım | Uyum Notu: Mevzuata uygunluk
-- Gün 13: [Carousel Bilgi Seti] | Kanca: "${mainTopic} ve ${secondTopic} konusunda bilinmesi gereken 3 temel ilke:" | Format: Carousel Görsel | Amaç: Kaydedilme ve paylaşım | Uyum Notu: Genel bilgilendirme
-- Gün 14: [Mentor Brifingi] | Kanca: "14 günlük maratonun özeti ve gelecek adımlar:" | Format: Story & Kapanış | Amaç: Bir sonraki döneme hazırlık | Uyum Notu: —`
+${s7}`
 }
 
 serve(async (req) => {
@@ -467,8 +629,8 @@ serve(async (req) => {
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
     let raporMetni = ""
     let aiModel = "Stratejik Kişiselleştirilmiş Analiz"
-    const promptVersiyonu = "operational-dna-v4"
-    const fullPromptVersion = "operational-dna-v4-non-template-personalized"
+    const promptVersiyonu = "dna-v5-strict"
+    const fullPromptVersion = "operational-dna-v5-strict-structure"
 
     const formattedAnswers = formatAnswersForPrompt(cevaplar, participantName)
 
@@ -487,7 +649,9 @@ Katılımcının (${participantName}) 20 soruluk "İçerik Üretici DNA Envanter
 5. Her ana bölümün girişinde ve alt başlıklarında katılımcının verdiği yanıtları doğal danışmanlık diliyle dayanak göster (Örn: '[Dayanak: S2 Niş: Dermakozmetik & Fitoterapi, S3 Format: Soru-Cevap Röportaj, S9 Kamera: 4/5]').
 6. Skor kartındaki yüzde değerlerini katılımcının yanıtlarına göre dinamik ve gerçekçi olarak puanla (Sabit puanlar üretme).
 7. TİTCK (Türkiye İlaç ve Tıbbi Cihaz Kurumu), Sağlık Bakanlığı Sağlık İletişimi Kılavuzları ve KVKK regülasyonları ile etik sağlık iletişimi ilkelerine tam uyum farkındalığı üret. Tıbbi teşhis, reçete yönlendirmesi veya ilaç reklamı KESİNLİKLE YASAKTIR.
-8. RAPORUN TÜM BÖLÜMLERİ (1. Bölümden 7. Bölümün 14. Gününe kadar) TAMAMEN VE EKSİKSİZ ÜRETİLMELİDİR. Bölüm 1-5 analizlerini öz, net, vurucu ve kompakt tut; Bölüm 6'daki 7 Adımın ve Bölüm 7'deki 14 Günün tamamını kesintiye uğramadan eksiksiz yaz.
+8. RAPORUN TÜM BÖLÜMLERİ (1. Bölümden 7. Bölümün 14. Gününe kadar) TAMAMEN VE EKSİKSİZ ÜRETİLMELİDİR.
+   - BÖLÜM 6 (7 ADIMLI YOL HARİTASI): KESİNLİKLE VE TAM OLARAK 7 ADIMDAN OLUŞMALIDIR (Adım 1, Adım 2, Adım 3, Adım 4, Adım 5, Adım 6, Adım 7). 7'den az veya 7'den fazla adım yazmak KESİNLİKLE YASAKTIR.
+   - BÖLÜM 7 (14 GÜNLÜK MİNİ TAKVİM): KESİNLİKLE VE TAM OLARAK 14 GÜNDEN OLUŞMALIDIR (Gün 1, Gün 2, Gün 3, ..., Gün 14). 14'ten az veya 14'ten fazla gün yazmak KESİNLİKLE YASAKTIR.
 
 ZORUNLU ÇIKTI FORMATI (Aşağıdaki Markdown başlık yapısını ve sırasını BİREBİR ve EKSİKSİZ kullan):
 
@@ -658,6 +822,15 @@ ${formattedAnswers}`
     if (!raporMetni) {
       raporMetni = generateStructuredFallbackReport(cevaplar, participantName)
       aiModel = "Stratejik Kişiselleştirilmiş Analiz"
+    } else {
+      // Enforce strict 7-step and 14-day structure validation & repair
+      raporMetni = repairReportStructureIfNeeded(raporMetni, cevaplar, participantName)
+    }
+
+    const structureValidation = validateReportStructure(raporMetni)
+    if (!structureValidation.isValid) {
+      // Final guarantee: repair structure
+      raporMetni = repairReportStructureIfNeeded(raporMetni, cevaplar, participantName)
     }
 
     const scorecard = extractScorecardFromText(raporMetni, cevaplar)
@@ -670,7 +843,8 @@ ${formattedAnswers}`
       scorecard,
       archetype: detectedArchetype,
       summary: `${detectedArchetype} arketipi ve ${primaryTopic} odağında hazırlanan 20 soruluk stratejik DNA analiz raporu.`,
-      prompt_version: fullPromptVersion
+      prompt_version: fullPromptVersion,
+      validation: validateReportStructure(raporMetni)
     }
 
     if (isTestMode) {
