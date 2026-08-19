@@ -132,6 +132,94 @@ function normalizeHeader(h: string): string {
     .replace(/[^a-z0-9]/g, '')
 }
 
+function str2ab(str: string): Uint8Array {
+  const buf = new Uint8Array(str.length)
+  for (let i = 0; i < str.length; i++) {
+    buf[i] = str.charCodeAt(i)
+  }
+  return buf
+}
+
+function base64url(arr: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < arr.byteLength; i++) {
+    binary += String.fromCharCode(arr[i])
+  }
+  return btoa(binary)
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+}
+
+function strToBase64url(str: string): string {
+  return base64url(new TextEncoder().encode(str))
+}
+
+async function importPrivateKey(pem: string): Promise<CryptoKey> {
+  const pemHeader = '-----BEGIN PRIVATE KEY-----'
+  const pemFooter = '-----END PRIVATE KEY-----'
+  const pemContents = pem
+    .replace(pemHeader, '')
+    .replace(pemFooter, '')
+    .replace(/\s/g, '')
+
+  const binaryDerString = atob(pemContents)
+  const binaryDer = str2ab(binaryDerString)
+
+  return await crypto.subtle.importKey(
+    'pkcs8',
+    binaryDer.buffer,
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256',
+    },
+    false,
+    ['sign']
+  )
+}
+
+async function getGoogleAccessToken(saJson: any): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const claimSet = {
+    iss: saJson.client_email,
+    scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  }
+
+  const encodedHeader = strToBase64url(JSON.stringify(header))
+  const encodedClaim = strToBase64url(JSON.stringify(claimSet))
+  const unsignedToken = `${encodedHeader}.${encodedClaim}`
+
+  const privateKey = await importPrivateKey(saJson.private_key)
+  const signatureBuffer = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    privateKey,
+    new TextEncoder().encode(unsignedToken)
+  )
+
+  const signature = base64url(new Uint8Array(signatureBuffer))
+  const jwtAssertion = `${unsignedToken}.${signature}`
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwtAssertion,
+    }),
+  })
+
+  const tokenData = await tokenRes.json()
+  if (!tokenRes.ok || !tokenData.access_token) {
+    throw new Error(`Google OAuth token alınamadı: ${tokenData.error_description || tokenData.error || 'Bilinmeyen hata'}`)
+  }
+
+  return tokenData.access_token
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -2967,9 +3055,602 @@ ${formattedPromptAnswers}`
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_delete_participant (Dry-run deletion audit for Ceylan Polat)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'audit_delete_participant' || action === 'dry_run_delete_participant') {
+      const targetEmail = ((payload?.email || 'ceylanpolat823@gmail.com') as string).trim().toLowerCase()
+
+      // 1. Auth Users
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const allAuthUsers = authUsersData?.users || []
+      const matchingAuthUsers = allAuthUsers.filter(u => (u.email || '').toLowerCase() === targetEmail)
+      const authUser = matchingAuthUsers[0] || null
+      const authUserId = authUser?.id || null
+
+      // 2. Profiles
+      const { data: allProfiles } = await adminClient.from('profiles').select('*')
+      const matchingProfiles = (allProfiles || []).filter(p => (p.email || '').toLowerCase() === targetEmail || (authUserId && p.id === authUserId))
+      const profile = matchingProfiles[0] || null
+
+      // 3. Core Aday
+      const { data: allAdaylar } = await adminClient.from('core_aday').select('*')
+      const matchingAdaylar = (allAdaylar || []).filter(a => (a.eposta || '').toLowerCase() === targetEmail)
+      const aday = matchingAdaylar[0] || null
+      const adayId = aday?.id || null
+
+      // 4. Core Katilimci
+      const { data: allKatilimcilar } = await adminClient.from('core_katilimci').select('*')
+      const matchingKatilimcilar = (allKatilimcilar || []).filter(k => (adayId && k.aday_id === adayId) || (profile?.core_katilimci_id && k.id === profile.core_katilimci_id))
+      const katilimci = matchingKatilimcilar[0] || null
+      const katilimciId = katilimci?.id || profile?.core_katilimci_id || null
+
+      const matchingKatIds = matchingKatilimcilar.map(k => k.id)
+      if (katilimciId && !matchingKatIds.includes(katilimciId)) matchingKatIds.push(katilimciId)
+
+      // 5. Related tables
+      const { data: allPerfs } = await adminClient.from('core_katilimciperformans').select('*')
+      const matchingPerfs = (allPerfs || []).filter(p => matchingKatIds.includes(p.katilimci_id))
+
+      const { data: allLogs } = await adminClient.from('core_katilimci_oturumlog').select('*')
+      const matchingLogs = (allLogs || []).filter(l => matchingKatIds.includes(l.katilimci_id))
+
+      const { data: allDna } = await adminClient.from('core_icerikdnatesti').select('*')
+      const matchingDna = (allDna || []).filter(d => matchingKatIds.includes(d.katilimci_id) || (authUserId && d.user_id === authUserId))
+
+      const { data: allTeslim } = await adminClient.from('core_teslim').select('*')
+      const matchingTeslim = (allTeslim || []).filter(t => matchingKatIds.includes(t.katilimci_id))
+      const matchingTeslimIds = matchingTeslim.map(t => t.id)
+
+      const { data: allHareket } = await adminClient.from('core_teslimhareketi').select('*')
+      const matchingHareket = (allHareket || []).filter(h => matchingKatIds.includes(h.katilimci_id) || matchingTeslimIds.includes(h.teslim_id))
+
+      const { data: allMentorNot } = await adminClient.from('core_mentornotu').select('*')
+      const matchingMentorNot = (allMentorNot || []).filter(m => matchingKatIds.includes(m.katilimci_id))
+
+      const { data: allGorev } = await adminClient.from('core_gorev').select('*')
+      const matchingGorev = (allGorev || []).filter(g => g.hedef_katilimci_id && matchingKatIds.includes(g.hedef_katilimci_id))
+
+      // 6. Drive files inspection
+      const driveFileIds: string[] = []
+      const driveUrls: string[] = []
+
+      if (katilimci?.profil_fotografi_file_id) driveFileIds.push(katilimci.profil_fotografi_file_id)
+      if (katilimci?.profil_fotografi_url) driveUrls.push(katilimci.profil_fotografi_url)
+      if (profile?.avatar_url) driveUrls.push(profile.avatar_url)
+
+      for (const t of matchingTeslim) {
+        if (t.teslim_dosyasi_file_id) driveFileIds.push(t.teslim_dosyasi_file_id)
+        if (t.google_drive_file_id) driveFileIds.push(t.google_drive_file_id)
+        if (t.dosya_file_id) driveFileIds.push(t.dosya_file_id)
+        if (t.teslim_dosyasi_url) driveUrls.push(t.teslim_dosyasi_url)
+      }
+
+      for (const h of matchingHareket) {
+        if (h.dosya_file_id) driveFileIds.push(h.dosya_file_id)
+        if (h.google_drive_file_id) driveFileIds.push(h.google_drive_file_id)
+        if (h.dosya_url) driveUrls.push(h.dosya_url)
+      }
+
+      // Query Google Drive if Service Account is available
+      let driveAuditResult: any = {
+        checked: false,
+        participant_folder_found: null,
+        participant_folder_id: null,
+        files_found_in_folder: [],
+        direct_files_status: [],
+        note: ''
+      }
+
+      try {
+        const saJsonRaw = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        const rootFolderId = Deno.env.get('GOOGLE_DRIVE_ROOT_FOLDER_ID')
+        if (saJsonRaw && rootFolderId) {
+          const saJson = JSON.parse(saJsonRaw)
+          const googleToken = await getGoogleAccessToken(saJson)
+
+          // Search folder for participant name
+          const candidateName = aday ? `${aday.ad || ''} ${aday.soyad || ''}`.trim() : (profile?.ad_soyad || 'Ceylan Polat')
+          const safeName = candidateName.replace(/'/g, "\\'")
+          const folderQuery = `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and (name contains '${safeName}' or name contains 'Ceylan')`
+          const searchFolderUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(folderQuery)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType)`
+
+          const folderRes = await fetch(searchFolderUrl, { headers: { Authorization: `Bearer ${googleToken}` } })
+          if (folderRes.ok) {
+            const folderData = await folderRes.json()
+            const foundFolder = folderData.files?.[0]
+            if (foundFolder) {
+              driveAuditResult.participant_folder_found = foundFolder.name
+              driveAuditResult.participant_folder_id = foundFolder.id
+
+              // Search files inside this folder
+              const filesInFolderQuery = `'${foundFolder.id}' in parents and trashed=false`
+              const filesInFolderUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(filesInFolderQuery)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType)`
+              const filesRes = await fetch(filesInFolderUrl, { headers: { Authorization: `Bearer ${googleToken}` } })
+              if (filesRes.ok) {
+                const fData = await filesRes.json()
+                driveAuditResult.files_found_in_folder = fData.files || []
+              }
+            }
+          }
+
+          // Check direct file IDs
+          for (const fid of Array.from(new Set(driveFileIds))) {
+            const fUrl = `https://www.googleapis.com/drive/v3/files/${fid}?fields=id,name,mimeType,trashed&supportsAllDrives=true`
+            const fRes = await fetch(fUrl, { headers: { Authorization: `Bearer ${googleToken}` } })
+            if (fRes.ok) {
+              const fileObj = await fRes.json()
+              driveAuditResult.direct_files_status.push(fileObj)
+            } else {
+              driveAuditResult.direct_files_status.push({ id: fid, status: 'NOT_FOUND_OR_INACCESSIBLE' })
+            }
+          }
+          driveAuditResult.checked = true
+        } else {
+          driveAuditResult.note = 'Google Drive secret yapılandırması bulunamadı, dosya araması DB kayıtlarıyla sınırlandı.'
+        }
+      } catch (dErr: any) {
+        driveAuditResult.note = 'Drive sorgulama uyarısı: ' + (dErr?.message || String(dErr))
+      }
+
+      // 7. Identity & Duplicate Validation
+      const candidateNames = [
+        aday ? `${aday.ad || ''} ${aday.soyad || ''}`.trim() : '',
+        profile?.ad_soyad || '',
+        authUser?.user_metadata?.ad_soyad || ''
+      ].filter(Boolean)
+
+      const fullName = candidateNames[0] || 'Ceylan Polat'
+      const normName = candidateNames.join(' ').toLowerCase()
+      const isTargetName = normName.includes('ceylan') || normName.includes('polat') || targetEmail === 'ceylanpolat823@gmail.com'
+
+      const hasDuplicateAuth = matchingAuthUsers.length > 1
+      const hasDuplicateProfiles = matchingProfiles.length > 1
+      const hasDuplicateAday = matchingAdaylar.length > 1
+      const hasDuplicateKatilimci = matchingKatilimcilar.length > 1
+      const hasDuplicate = hasDuplicateAuth || hasDuplicateProfiles || hasDuplicateAday || hasDuplicateKatilimci
+
+      const existsInSystem = Boolean(authUser || profile || aday || katilimci)
+      const isSafeToDelete = isTargetName && !hasDuplicate && existsInSystem
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          target: {
+            ad_soyad: fullName,
+            email: targetEmail,
+            is_target_verified: isTargetName,
+            exists_in_system: existsInSystem,
+            is_safe_to_delete: isSafeToDelete,
+            duplicate_detected: hasDuplicate,
+            duplicate_details: {
+              auth_users_count: matchingAuthUsers.length,
+              profiles_count: matchingProfiles.length,
+              core_aday_count: matchingAdaylar.length,
+              core_katilimci_count: matchingKatilimcilar.length
+            }
+          },
+          details: {
+            auth_user: authUser ? {
+              id: authUser.id,
+              email: authUser.email,
+              email_confirmed_at: authUser.email_confirmed_at,
+              last_sign_in_at: authUser.last_sign_in_at,
+              created_at: authUser.created_at,
+              user_metadata: authUser.user_metadata
+            } : null,
+            profile: profile ? {
+              id: profile.id,
+              email: profile.email,
+              role: profile.role,
+              ad_soyad: profile.ad_soyad,
+              core_katilimci_id: profile.core_katilimci_id,
+              telefon: profile.telefon,
+              avatar_url: profile.avatar_url
+            } : null,
+            core_aday: aday ? {
+              id: aday.id,
+              ad: aday.ad,
+              soyad: aday.soyad,
+              eposta: aday.eposta,
+              telefon: aday.telefon,
+              universite: aday.universite,
+              sinif: aday.sinif,
+              basvuru_durumu: aday.basvuru_durumu,
+              basvuru_tarihi: aday.basvuru_tarihi
+            } : null,
+            core_katilimci: katilimci ? {
+              id: katilimci.id,
+              aday_id: katilimci.aday_id,
+              program_katilim_durumu: katilimci.program_katilim_durumu,
+              okul_bilgisi: katilimci.okul_bilgisi,
+              egitim_durumu: katilimci.egitim_durumu,
+              telefon: katilimci.telefon,
+              profil_fotografi_url: katilimci.profil_fotografi_url,
+              profil_fotografi_file_id: katilimci.profil_fotografi_file_id,
+              giris_sayisi: katilimci.giris_sayisi,
+              son_giris_tarihi: katilimci.son_giris_tarihi
+            } : null
+          },
+          deletion_counts: {
+            core_teslimhareketi: matchingHareket.length,
+            core_teslim: matchingTeslim.length,
+            core_icerikdnatesti: matchingDna.length,
+            core_mentornotu: matchingMentorNot.length,
+            core_katilimci_oturumlog: matchingLogs.length,
+            core_katilimciperformans: matchingPerfs.length,
+            core_gorev_custom: matchingGorev.length,
+            profiles: matchingProfiles.length,
+            core_katilimci: matchingKatilimcilar.length,
+            core_aday: matchingAdaylar.length,
+            auth_users: matchingAuthUsers.length
+          },
+          drive: {
+            file_ids_in_db: Array.from(new Set(driveFileIds)),
+            urls_in_db: Array.from(new Set(driveUrls)),
+            audit_result: driveAuditResult
+          },
+          protected_baseline: {
+            total_adaylar: (allAdaylar || []).length,
+            total_katilimcilar: (allKatilimcilar || []).length,
+            total_auth_users: allAuthUsers.length,
+            total_profiles: (allProfiles || []).length,
+            total_program_gorevleri: (allGorev || []).length
+          }
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: execute_delete_participant (Perform irreversible deletion of Ceylan Polat)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'execute_delete_participant') {
+      const targetEmail = ((payload?.email || 'ceylanpolat823@gmail.com') as string).trim().toLowerCase()
+      const confirmation = payload?.confirmation
+
+      if (targetEmail !== 'ceylanpolat823@gmail.com') {
+        return jsonRes(req, { ok: false, error: 'Sadece ceylanpolat823@gmail.com adresi silinebilir.' }, 400)
+      }
+
+      if (confirmation !== 'DELETE_CEYLAN_POLAT_PERMANENTLY') {
+        return jsonRes(req, { ok: false, error: 'Onay kodu geçersiz veya eksik.' }, 400)
+      }
+
+      // 1. Fetch current data for target
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const allAuthUsers = authUsersData?.users || []
+      const matchingAuthUsers = allAuthUsers.filter(u => (u.email || '').toLowerCase() === targetEmail)
+      const authUser = matchingAuthUsers[0] || null
+      const authUserId = authUser?.id || null
+
+      const { data: allProfiles } = await adminClient.from('profiles').select('*')
+      const matchingProfiles = (allProfiles || []).filter(p => (p.email || '').toLowerCase() === targetEmail || (authUserId && p.id === authUserId))
+      const profile = matchingProfiles[0] || null
+
+      const { data: allAdaylar } = await adminClient.from('core_aday').select('*')
+      const matchingAdaylar = (allAdaylar || []).filter(a => (a.eposta || '').toLowerCase() === targetEmail)
+      const aday = matchingAdaylar[0] || null
+      const adayId = aday?.id || null
+
+      const { data: allKatilimcilar } = await adminClient.from('core_katilimci').select('*')
+      const matchingKatilimcilar = (allKatilimcilar || []).filter(k => (adayId && k.aday_id === adayId) || (profile?.core_katilimci_id && k.id === profile.core_katilimci_id))
+      const katilimci = matchingKatilimcilar[0] || null
+      const katilimciId = katilimci?.id || profile?.core_katilimci_id || null
+
+      const matchingKatIds = matchingKatilimcilar.map(k => k.id)
+      if (katilimciId && !matchingKatIds.includes(katilimciId)) matchingKatIds.push(katilimciId)
+
+      // Safety checks
+      const candidateNames = [
+        aday ? `${aday.ad || ''} ${aday.soyad || ''}`.trim() : '',
+        profile?.ad_soyad || '',
+        authUser?.user_metadata?.ad_soyad || ''
+      ].filter(Boolean)
+      const normName = candidateNames.join(' ').toLowerCase()
+      const isTargetName = normName.includes('ceylan') || normName.includes('polat') || targetEmail === 'ceylanpolat823@gmail.com'
+
+      if (!isTargetName) {
+        return jsonRes(req, { ok: false, error: 'Kişi adı Ceylan Polat ile uyuşmuyor. İşlem güvenlik sebebiyle durduruldu.' }, 400)
+      }
+
+      if (matchingAuthUsers.length > 1 || matchingProfiles.length > 1 || matchingAdaylar.length > 1 || matchingKatilimcilar.length > 1) {
+        return jsonRes(req, { ok: false, error: 'Aynı e-posta veya ID ile birden fazla mükerrer kayıt tespit edildi. Otomatik silme durduruldu.' }, 400)
+      }
+
+      // Related records
+      const { data: allPerfs } = await adminClient.from('core_katilimciperformans').select('*')
+      const matchingPerfs = (allPerfs || []).filter(p => matchingKatIds.includes(p.katilimci_id))
+
+      const { data: allLogs } = await adminClient.from('core_katilimci_oturumlog').select('*')
+      const matchingLogs = (allLogs || []).filter(l => matchingKatIds.includes(l.katilimci_id))
+
+      const { data: allDna } = await adminClient.from('core_icerikdnatesti').select('*')
+      const matchingDna = (allDna || []).filter(d => matchingKatIds.includes(d.katilimci_id) || (authUserId && d.user_id === authUserId))
+
+      const { data: allTeslim } = await adminClient.from('core_teslim').select('*')
+      const matchingTeslim = (allTeslim || []).filter(t => matchingKatIds.includes(t.katilimci_id))
+      const matchingTeslimIds = matchingTeslim.map(t => t.id)
+
+      const { data: allHareket } = await adminClient.from('core_teslimhareketi').select('*')
+      const matchingHareket = (allHareket || []).filter(h => matchingKatIds.includes(h.katilimci_id) || matchingTeslimIds.includes(h.teslim_id))
+
+      const { data: allMentorNot } = await adminClient.from('core_mentornotu').select('*')
+      const matchingMentorNot = (allMentorNot || []).filter(m => matchingKatIds.includes(m.katilimci_id))
+
+      const { data: allGorev } = await adminClient.from('core_gorev').select('*')
+      const matchingGorev = (allGorev || []).filter(g => g.hedef_katilimci_id && matchingKatIds.includes(g.hedef_katilimci_id))
+
+      // Collect drive files
+      const driveFileIds: string[] = []
+      if (katilimci?.profil_fotografi_file_id) driveFileIds.push(katilimci.profil_fotografi_file_id)
+      for (const t of matchingTeslim) {
+        if (t.teslim_dosyasi_file_id) driveFileIds.push(t.teslim_dosyasi_file_id)
+        if (t.google_drive_file_id) driveFileIds.push(t.google_drive_file_id)
+        if (t.dosya_file_id) driveFileIds.push(t.dosya_file_id)
+      }
+      for (const h of matchingHareket) {
+        if (h.dosya_file_id) driveFileIds.push(h.dosya_file_id)
+        if (h.google_drive_file_id) driveFileIds.push(h.google_drive_file_id)
+      }
+
+      // Step 0: Clean Drive files if any
+      let trashedDriveFilesCount = 0
+      let trashedDriveFolder = null
+      try {
+        const saJsonRaw = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        const rootFolderId = Deno.env.get('GOOGLE_DRIVE_ROOT_FOLDER_ID')
+        const sharedDriveId = Deno.env.get('GOOGLE_DRIVE_SHARED_DRIVE_ID')
+
+        if (saJsonRaw && rootFolderId) {
+          const saJson = JSON.parse(saJsonRaw)
+          const googleToken = await getGoogleAccessToken(saJson)
+
+          // Search and trash participant folder
+          const candidateName = aday ? `${aday.ad || ''} ${aday.soyad || ''}`.trim() : (profile?.ad_soyad || 'Ceylan Polat')
+          const safeName = candidateName.replace(/'/g, "\\'")
+          const folderQuery = `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and (name contains '${safeName}' or name contains 'Ceylan')`
+          const searchFolderUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(folderQuery)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)`
+
+          const folderRes = await fetch(searchFolderUrl, { headers: { Authorization: `Bearer ${googleToken}` } })
+          if (folderRes.ok) {
+            const folderData = await folderRes.json()
+            for (const f of (folderData.files || [])) {
+              if (f.id !== rootFolderId && f.id !== sharedDriveId) {
+                await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?supportsAllDrives=true`, {
+                  method: 'PATCH',
+                  headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ trashed: true })
+                })
+                trashedDriveFolder = f.name
+              }
+            }
+          }
+
+          // Trash direct files
+          for (const fid of Array.from(new Set(driveFileIds))) {
+            if (fid !== rootFolderId && fid !== sharedDriveId) {
+              const tRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?supportsAllDrives=true`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trashed: true })
+              })
+              if (tRes.ok) trashedDriveFilesCount++
+            }
+          }
+        }
+      } catch (dErr) {
+        console.warn('Drive cleanup warning in execute_delete_participant:', dErr)
+      }
+
+      // EXECUTE ORDER OF DELETION:
+      // 1. core_teslimhareketi
+      let deletedHareketCount = 0
+      if (matchingHareket.length > 0) {
+        const { error: delHErr } = await adminClient.from('core_teslimhareketi').delete().in('id', matchingHareket.map(h => h.id))
+        if (delHErr) console.error('core_teslimhareketi deletion error:', delHErr)
+        else deletedHareketCount = matchingHareket.length
+      }
+
+      // 2. core_teslim
+      let deletedTeslimCount = 0
+      if (matchingTeslim.length > 0) {
+        const { error: delTErr } = await adminClient.from('core_teslim').delete().in('id', matchingTeslim.map(t => t.id))
+        if (delTErr) console.error('core_teslim deletion error:', delTErr)
+        else deletedTeslimCount = matchingTeslim.length
+      }
+
+      // 3. core_icerikdnatesti
+      let deletedDnaCount = 0
+      if (matchingDna.length > 0) {
+        const { error: delDErr } = await adminClient.from('core_icerikdnatesti').delete().in('id', matchingDna.map(d => d.id))
+        if (delDErr) console.error('core_icerikdnatesti deletion error:', delDErr)
+        else deletedDnaCount = matchingDna.length
+      }
+
+      // 4. core_mentornotu
+      let deletedMentorNotCount = 0
+      if (matchingMentorNot.length > 0) {
+        const { error: delMNErr } = await adminClient.from('core_mentornotu').delete().in('id', matchingMentorNot.map(m => m.id))
+        if (delMNErr) console.error('core_mentornotu deletion error:', delMNErr)
+        else deletedMentorNotCount = matchingMentorNot.length
+      }
+
+      // 5. core_katilimci_oturumlog
+      let deletedLogCount = 0
+      if (matchingLogs.length > 0) {
+        const { error: delLErr } = await adminClient.from('core_katilimci_oturumlog').delete().in('id', matchingLogs.map(l => l.id))
+        if (delLErr) console.error('core_katilimci_oturumlog deletion error:', delLErr)
+        else deletedLogCount = matchingLogs.length
+      }
+
+      // 6. core_katilimciperformans
+      let deletedPerfCount = 0
+      if (matchingPerfs.length > 0) {
+        const { error: delPErr } = await adminClient.from('core_katilimciperformans').delete().in('id', matchingPerfs.map(p => p.id))
+        if (delPErr) console.error('core_katilimciperformans deletion error:', delPErr)
+        else deletedPerfCount = matchingPerfs.length
+      }
+
+      // 7. core_gorev (Custom tasks where hedef_katilimci_id is Ceylan)
+      let deletedGorevCount = 0
+      if (matchingGorev.length > 0) {
+        const { error: delGErr } = await adminClient.from('core_gorev').delete().in('id', matchingGorev.map(g => g.id))
+        if (delGErr) console.error('core_gorev deletion error:', delGErr)
+        else deletedGorevCount = matchingGorev.length
+      }
+
+      // 8. profiles
+      let deletedProfilesCount = 0
+      if (matchingProfiles.length > 0) {
+        const { error: delProfErr } = await adminClient.from('profiles').delete().in('id', matchingProfiles.map(p => p.id))
+        if (delProfErr) console.error('profiles deletion error:', delProfErr)
+        else deletedProfilesCount = matchingProfiles.length
+      }
+
+      // 9. core_katilimci
+      let deletedKatilimciCount = 0
+      if (matchingKatilimcilar.length > 0) {
+        const { error: delKatErr } = await adminClient.from('core_katilimci').delete().in('id', matchingKatilimcilar.map(k => k.id))
+        if (delKatErr) console.error('core_katilimci deletion error:', delKatErr)
+        else deletedKatilimciCount = matchingKatilimcilar.length
+      }
+
+      // 10. core_aday
+      let deletedAdayCount = 0
+      if (matchingAdaylar.length > 0) {
+        const { error: delAdayErr } = await adminClient.from('core_aday').delete().in('id', matchingAdaylar.map(a => a.id))
+        if (delAdayErr) console.error('core_aday deletion error:', delAdayErr)
+        else deletedAdayCount = matchingAdaylar.length
+      }
+
+      // 11. auth.users via Supabase Admin Auth API
+      let deletedAuthUsersCount = 0
+      for (const u of matchingAuthUsers) {
+        const { error: delAuthErr } = await adminClient.auth.admin.deleteUser(u.id)
+        if (delAuthErr) {
+          console.error('auth.users deleteUser error:', delAuthErr)
+        } else {
+          deletedAuthUsersCount++
+        }
+      }
+
+      // POST-DELETION VERIFICATION
+      const { data: postAuthData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const postAuthUsers = (postAuthData?.users || []).filter(u => (u.email || '').toLowerCase() === targetEmail)
+
+      const { data: postProfiles } = await adminClient.from('profiles').select('*').ilike('email', targetEmail)
+      const { data: postAdaylar } = await adminClient.from('core_aday').select('*').ilike('eposta', targetEmail)
+      const { data: postKatilimcilar } = matchingKatIds.length > 0 ? await adminClient.from('core_katilimci').select('*').in('id', matchingKatIds) : { data: [] }
+      const { data: postPerfs } = matchingKatIds.length > 0 ? await adminClient.from('core_katilimciperformans').select('*').in('katilimci_id', matchingKatIds) : { data: [] }
+      const { data: postTeslim } = matchingKatIds.length > 0 ? await adminClient.from('core_teslim').select('*').in('katilimci_id', matchingKatIds) : { data: [] }
+      const { data: postLogs } = matchingKatIds.length > 0 ? await adminClient.from('core_katilimci_oturumlog').select('*').in('katilimci_id', matchingKatIds) : { data: [] }
+      const { data: postDna } = matchingKatIds.length > 0 ? await adminClient.from('core_icerikdnatesti').select('*').in('katilimci_id', matchingKatIds) : { data: [] }
+      const { data: postMentorNot } = matchingKatIds.length > 0 ? await adminClient.from('core_mentornotu').select('*').in('katilimci_id', matchingKatIds) : { data: [] }
+
+      const totalLeftovers = (
+        postAuthUsers.length +
+        (postProfiles || []).length +
+        (postAdaylar || []).length +
+        (postKatilimcilar || []).length +
+        (postPerfs || []).length +
+        (postTeslim || []).length +
+        (postLogs || []).length +
+        (postDna || []).length +
+        (postMentorNot || []).length
+      )
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          success: totalLeftovers === 0,
+          target_email: targetEmail,
+          deleted_records: {
+            auth_users: deletedAuthUsersCount,
+            profiles: deletedProfilesCount,
+            core_aday: deletedAdayCount,
+            core_katilimci: deletedKatilimciCount,
+            core_katilimciperformans: deletedPerfCount,
+            core_teslimhareketi: deletedHareketCount,
+            core_teslim: deletedTeslimCount,
+            core_icerikdnatesti: deletedDnaCount,
+            core_mentornotu: deletedMentorNotCount,
+            core_katilimci_oturumlog: deletedLogCount,
+            core_gorev_custom: deletedGorevCount,
+            drive_files_trashed: trashedDriveFilesCount,
+            drive_folder_trashed: trashedDriveFolder
+          },
+          verification: {
+            auth_users_remaining: postAuthUsers.length,
+            profiles_remaining: (postProfiles || []).length,
+            core_aday_remaining: (postAdaylar || []).length,
+            core_katilimci_remaining: (postKatilimcilar || []).length,
+            core_katilimciperformans_remaining: (postPerfs || []).length,
+            core_teslim_remaining: (postTeslim || []).length,
+            core_icerikdnatesti_remaining: (postDna || []).length,
+            core_mentornotu_remaining: (postMentorNot || []).length,
+            core_katilimci_oturumlog_remaining: (postLogs || []).length,
+            total_leftovers: totalLeftovers,
+            status: totalLeftovers === 0 ? 'COMPLETELY_CLEARED' : 'LEFTOVERS_DETECTED'
+          }
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: verify_delete_participant (Verify no data remains for email)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'verify_delete_participant') {
+      const targetEmail = ((payload?.email || 'ceylanpolat823@gmail.com') as string).trim().toLowerCase()
+
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const postAuthUsers = (authUsersData?.users || []).filter(u => (u.email || '').toLowerCase() === targetEmail)
+
+      const { data: postProfiles } = await adminClient.from('profiles').select('*').ilike('email', targetEmail)
+      const { data: postAdaylar } = await adminClient.from('core_aday').select('*').ilike('eposta', targetEmail)
+      
+      const { data: allAdaylar } = await adminClient.from('core_aday').select('*')
+      const { data: allKatilimcilar } = await adminClient.from('core_katilimci').select('*')
+      const { data: allPerfs } = await adminClient.from('core_katilimciperformans').select('*')
+      const { data: allTeslim } = await adminClient.from('core_teslim').select('*')
+      const { data: allLogs } = await adminClient.from('core_katilimci_oturumlog').select('*')
+      const { data: allDna } = await adminClient.from('core_icerikdnatesti').select('*')
+      const { data: allMentorNot } = await adminClient.from('core_mentornotu').select('*')
+      const { data: allHareket } = await adminClient.from('core_teslimhareketi').select('*')
+
+      const totalLeftovers = (
+        postAuthUsers.length +
+        (postProfiles || []).length +
+        (postAdaylar || []).length
+      )
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          target_email: targetEmail,
+          auth_users_remaining: postAuthUsers.length,
+          profiles_remaining: (postProfiles || []).length,
+          core_aday_remaining: (postAdaylar || []).length,
+          total_leftovers: totalLeftovers,
+          total_system_counts: {
+            auth_users: (authUsersData?.users || []).length,
+            profiles: (postProfiles || []).length,
+            core_aday: (allAdaylar || []).length,
+            core_katilimci: (allKatilimcilar || []).length,
+            core_katilimciperformans: (allPerfs || []).length,
+            core_teslim: (allTeslim || []).length,
+            core_teslimhareketi: (allHareket || []).length,
+            core_icerikdnatesti: (allDna || []).length,
+            core_mentornotu: (allMentorNot || []).length,
+            core_katilimci_oturumlog: (allLogs || []).length
+          },
+          status: totalLeftovers === 0 ? 'COMPLETELY_CLEARED' : 'LEFTOVERS_DETECTED'
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
