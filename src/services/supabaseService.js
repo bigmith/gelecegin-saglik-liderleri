@@ -1364,6 +1364,18 @@ export async function importCandidatesCsvText(filename, csvText) {
   return await callAdminAction('import_candidates_csv', { filename, csv_text: csvText })
 }
 
+export async function passivateParticipant({ email, katilimci_id, reason }) {
+  return await callAdminAction('passivate_participant', { email, katilimci_id, reason })
+}
+
+export async function activateParticipant({ email, katilimci_id }) {
+  return await callAdminAction('activate_participant', { email, katilimci_id })
+}
+
+export async function auditPassivateParticipant({ email, katilimci_id }) {
+  return await callAdminAction('audit_passivate_participant', { email, katilimci_id })
+}
+
 // ─── MENTOR EDGE FUNCTION ÇAĞRISI ────────────────────────────────────────────
 export async function callMentorAction(action, payload = {}) {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -1491,6 +1503,7 @@ export async function getAdminPerformansList() {
       son_giris_tarihi: k.son_giris_tarihi || null,
       son_aktivite_tarihi: k.son_aktivite_tarihi || null,
       giris_sayisi: Number(k.giris_sayisi) || 0,
+      program_katilim_durumu: k.program_katilim_durumu || 'AKTIF',
       takim_id: k.takim_id || (k.takim?.id) || null,
       takim_adi: k.takim?.takim_adi || '—',
       bireysel_puan: Number(p.bireysel_puan) || 0,
@@ -1534,6 +1547,7 @@ export async function getAdminKatilimciDetay(katilimciId) {
     telefon: data.telefon || adayObj.telefon || '',
     universite: data.universite || adayObj.universite || '',
     sinif: data.sinif || adayObj.sinif || '',
+    program_katilim_durumu: data.program_katilim_durumu || 'AKTIF',
     takim_adi: data.takim?.takim_adi || '—',
     ilk_giris_tarihi: data.ilk_giris_tarihi || null,
     son_giris_tarihi: data.son_giris_tarihi || null,
@@ -2193,6 +2207,3 @@ export async function getAdminKatilimciAktiviteLoglari(katilimciId, limit = 10) 
     return []
   }
 }
-
-
-

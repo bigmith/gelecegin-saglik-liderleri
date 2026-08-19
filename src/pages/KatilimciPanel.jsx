@@ -1340,6 +1340,21 @@ export default function KatilimciPanel() {
         {/* Tab Contents */}
         <div className="p-6 sm:p-8 space-y-6 flex-1">
 
+          {/* Pasif Katılımcı Bilgilendirme Uyarısı */}
+          {katilimci?.program_katilim_durumu === 'PASIF' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 flex items-start gap-4 shadow-sm animate-slide-up">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-xl">
+                ⚠️
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-amber-900">Program Katılım Durumu: Pasif</h3>
+                <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                  Program katılım durumunuz pasif olarak işaretlenmiştir. Bir hata olduğunu düşünüyorsanız destek ekibiyle iletişime geçin.
+                </p>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="animate-pulse space-y-6">
               <div className="h-32 bg-white rounded-2xl border border-slate-100" />
@@ -1356,8 +1371,12 @@ export default function KatilimciPanel() {
                     <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/10 skew-x-12 pointer-events-none" />
 
                     <div className="relative z-10 space-y-2">
-                      <span className="bg-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm border border-white/20">
-                        {katilimci?.program_katilim_durumu || 'AKTİF'} Katılımcı
+                      <span className={`text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm border ${
+                        katilimci?.program_katilim_durumu === 'PASIF'
+                          ? 'bg-slate-800/40 border-white/30'
+                          : 'bg-white/20 border-white/20'
+                      }`}>
+                        {katilimci?.program_katilim_durumu === 'PASIF' ? 'PASİF' : 'AKTİF'} Katılımcı
                       </span>
                       <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
                         Hoş geldin, {displayName}! 👋

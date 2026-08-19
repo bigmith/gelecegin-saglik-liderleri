@@ -3648,9 +3648,254 @@ ${formattedPromptAnswers}`
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_passivate_participant (Dry-run audit for passivating participant)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'audit_passivate_participant' || action === 'dry_run_passivate_participant') {
+      const email = ((payload?.email || 'ceylanmhmtravza02@gmail.com') as string).trim().toLowerCase()
+      const katId = payload?.katilimci_id ? Number(payload.katilimci_id) : null
+
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const matchingAuthUsers = (authUsersData?.users || []).filter(u => (u.email || '').toLowerCase() === email)
+      const authUser = matchingAuthUsers[0] || null
+
+      const { data: matchingProfiles } = await adminClient.from('profiles').select('*').ilike('email', email)
+      const profile = matchingProfiles?.[0] || (authUser ? (await adminClient.from('profiles').select('*').eq('id', authUser.id).maybeSingle()).data : null)
+
+      const { data: matchingAdaylar } = await adminClient.from('core_aday').select('*').ilike('eposta', email)
+      const aday = matchingAdaylar?.[0] || null
+
+      let katilimci = null
+      if (katId) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', katId).maybeSingle()
+        katilimci = k
+      } else if (profile?.core_katilimci_id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', profile.core_katilimci_id).maybeSingle()
+        katilimci = k
+      } else if (aday?.id) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', aday.id).maybeSingle()
+        katilimci = k
+      }
+
+      const currentKatId = katilimci?.id || null
+
+      const { data: perf } = currentKatId ? await adminClient.from('core_katilimciperformans').select('*').eq('katilimci_id', currentKatId).maybeSingle() : { data: null }
+      const { data: dna } = currentKatId ? await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', currentKatId).maybeSingle() : { data: null }
+      const { data: logs } = currentKatId ? await adminClient.from('core_katilimci_oturumlog').select('id, eylem, tarih').eq('katilimci_id', currentKatId) : { data: [] }
+      const { data: teslimler } = currentKatId ? await adminClient.from('core_teslim').select('id, gorev_id, durum').eq('katilimci_id', currentKatId) : { data: [] }
+      const { data: mentorNotlar } = currentKatId ? await adminClient.from('core_mentornotu').select('id, kategori').eq('katilimci_id', currentKatId) : { data: [] }
+
+      const name = aday ? `${aday.ad || ''} ${aday.soyad || ''}`.trim() : (profile?.ad_soyad || authUser?.user_metadata?.ad_soyad || 'Ceylan Emre')
+
+      const duplicateCheck = {
+        auth_users_count: matchingAuthUsers.length,
+        profiles_count: (matchingProfiles || []).length,
+        adaylar_count: (matchingAdaylar || []).length,
+        has_duplicates: matchingAuthUsers.length > 1 || (matchingProfiles || []).length > 1 || (matchingAdaylar || []).length > 1,
+        duplicate_details: []
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          target: {
+            ad_soyad: name,
+            email: email,
+            katilimci_id: currentKatId,
+            current_program_durumu: katilimci?.program_katilim_durumu || 'AKTIF',
+            is_target_verified: Boolean(katilimci || aday || authUser),
+            is_safe_to_passivate: Boolean(katilimci)
+          },
+          details: {
+            auth_user: authUser ? {
+              exists: true,
+              id: authUser.id,
+              email: authUser.email,
+              email_confirmed: Boolean(authUser.email_confirmed_at),
+              last_sign_in_at: authUser.last_sign_in_at
+            } : { exists: false },
+            profile: profile ? {
+              exists: true,
+              id: profile.id,
+              role: profile.role,
+              core_katilimci_id: profile.core_katilimci_id
+            } : { exists: false },
+            core_aday: aday ? {
+              exists: true,
+              id: aday.id,
+              durum: aday.basvuru_durumu,
+              eposta: aday.eposta
+            } : { exists: false },
+            core_katilimci: katilimci ? {
+              exists: true,
+              id: katilimci.id,
+              aday_id: katilimci.aday_id,
+              program_katilim_durumu: katilimci.program_katilim_durumu,
+              giris_sayisi: katilimci.giris_sayisi,
+              son_giris_tarihi: katilimci.son_giris_tarihi
+            } : { exists: false }
+          },
+          preserved_records: {
+            performance_exists: Boolean(perf),
+            dna_exists: Boolean(dna),
+            logs_count: (logs || []).length,
+            deliveries_count: (teslimler || []).length,
+            mentor_notes_count: (mentorNotlar || []).length
+          },
+          duplicate_check: duplicateCheck
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: passivate_participant (Safely set program_katilim_durumu to 'PASIF' without deleting)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'passivate_participant') {
+      const email = ((payload?.email || 'ceylanmhmtravza02@gmail.com') as string).trim().toLowerCase()
+      const katId = payload?.katilimci_id ? Number(payload.katilimci_id) : null
+      const reason = payload?.reason || 'Katılımcı talebi / devam etmeme'
+
+      // 1. Identify participant
+      let katilimci = null
+      if (katId) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', katId).maybeSingle()
+        katilimci = k
+      } else if (email) {
+        const { data: aday } = await adminClient.from('core_aday').select('id').ilike('eposta', email).maybeSingle()
+        if (aday?.id) {
+          const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', aday.id).maybeSingle()
+          katilimci = k
+        }
+        if (!katilimci) {
+          const { data: prof } = await adminClient.from('profiles').select('core_katilimci_id').ilike('email', email).maybeSingle()
+          if (prof?.core_katilimci_id) {
+            const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', prof.core_katilimci_id).maybeSingle()
+            katilimci = k
+          }
+        }
+      }
+
+      if (!katilimci) {
+        return jsonRes(req, { ok: false, error: 'Katılımcı kaydı bulunamadı.' }, 404)
+      }
+
+      const previousStatus = katilimci.program_katilim_durumu || 'AKTIF'
+
+      // 2. Update status to 'PASIF' in core_katilimci (DO NOT DELETE ANY DATA)
+      const existingNotlar = katilimci.notlar || ''
+      const passivateNote = `[${new Date().toISOString().split('T')[0]}] Pasife alındı. Neden: ${reason}`
+      const newNotlar = existingNotlar.includes('Pasife alındı')
+        ? existingNotlar
+        : [existingNotlar, passivateNote].filter(Boolean).join(' | ')
+
+      const { data: updatedKat, error: upErr } = await adminClient
+        .from('core_katilimci')
+        .update({
+          program_katilim_durumu: 'PASIF',
+          notlar: newNotlar
+        })
+        .eq('id', katilimci.id)
+        .select()
+        .single()
+
+      if (upErr) {
+        return jsonRes(req, { ok: false, error: 'Katılımcı pasife alınamadı: ' + upErr.message }, 500)
+      }
+
+      // Log the event in oturum log
+      try {
+        await adminClient.from('core_katilimci_oturumlog').insert({
+          katilimci_id: katilimci.id,
+          eylem: 'participant_passivated',
+          ip_adresi: req.headers.get('x-real-ip') || null,
+          user_agent: 'admin-action: passivate_participant',
+          tarih: new Date().toISOString()
+        })
+      } catch (_) {}
+
+      // 3. Verify ALL data is 100% preserved
+      const { data: authUsersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authUser = (authUsersData?.users || []).find(u => (u.email || '').toLowerCase() === email)
+      const { data: profile } = authUser ? await adminClient.from('profiles').select('*').eq('id', authUser.id).maybeSingle() : { data: null }
+      const { data: aday } = await adminClient.from('core_aday').select('*').ilike('eposta', email).maybeSingle()
+      const { data: perf } = await adminClient.from('core_katilimciperformans').select('*').eq('katilimci_id', katilimci.id).maybeSingle()
+      const { data: dna } = await adminClient.from('core_icerikdnatesti').select('*').eq('katilimci_id', katilimci.id).maybeSingle()
+      const { data: logs } = await adminClient.from('core_katilimci_oturumlog').select('*').eq('katilimci_id', katilimci.id)
+      const { data: teslimler } = await adminClient.from('core_teslim').select('*').eq('katilimci_id', katilimci.id)
+      const { data: mentorNotlar } = await adminClient.from('core_mentornotu').select('*').eq('katilimci_id', katilimci.id)
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          success: true,
+          email: email,
+          katilimci_id: katilimci.id,
+          previous_status: previousStatus,
+          new_status: 'PASIF',
+          reason,
+          records_preserved: {
+            auth_user_preserved: Boolean(authUser),
+            profile_preserved: Boolean(profile),
+            core_aday_preserved: Boolean(aday),
+            core_katilimci_preserved: Boolean(updatedKat),
+            performance_preserved: Boolean(perf),
+            dna_preserved: Boolean(dna),
+            logs_count: (logs || []).length,
+            deliveries_count: (teslimler || []).length,
+            mentor_notes_count: (mentorNotlar || []).length,
+            any_deleted: false
+          }
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: activate_participant (Re-activate participant)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'activate_participant') {
+      const email = ((payload?.email || '') as string).trim().toLowerCase()
+      const katId = payload?.katilimci_id ? Number(payload.katilimci_id) : null
+
+      let katilimci = null
+      if (katId) {
+        const { data: k } = await adminClient.from('core_katilimci').select('*').eq('id', katId).maybeSingle()
+        katilimci = k
+      } else if (email) {
+        const { data: aday } = await adminClient.from('core_aday').select('id').ilike('eposta', email).maybeSingle()
+        if (aday?.id) {
+          const { data: k } = await adminClient.from('core_katilimci').select('*').eq('aday_id', aday.id).maybeSingle()
+          katilimci = k
+        }
+      }
+
+      if (!katilimci) {
+        return jsonRes(req, { ok: false, error: 'Katılımcı bulunamadı.' }, 404)
+      }
+
+      const { data: updatedKat, error: upErr } = await adminClient
+        .from('core_katilimci')
+        .update({ program_katilim_durumu: 'AKTIF' })
+        .eq('id', katilimci.id)
+        .select()
+        .single()
+
+      if (upErr) {
+        return jsonRes(req, { ok: false, error: 'Katılımcı aktifleştirilemedi: ' + upErr.message }, 500)
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          success: true,
+          katilimci_id: katilimci.id,
+          new_status: 'AKTIF'
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 

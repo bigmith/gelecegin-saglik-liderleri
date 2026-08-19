@@ -36,6 +36,8 @@ import {
   resendSingleParticipantInvitation,
   getProgramHaftalariAdmin,
   updateProgramHafta,
+  passivateParticipant,
+  activateParticipant,
   logoutUser
 } from '../services/supabaseService'
 import { PROGRAM_TASKS, PROGRAM_WEEKS } from '../data/programSchedule'
@@ -921,8 +923,8 @@ export default function AdminPanel() {
     [a.ad_soyad, a.universite, a.sinif, a.eposta, a.sosyal_medya].some(v => v?.toLowerCase().includes(search.toLowerCase()))
   )
 
-  // Atanmamış (serbest) katılımcılar (takımlar sekmesi dropdown için)
-  const serbestUyeler = katilimcilar.filter(k => !k.takim_id)
+  // Atanmamış (serbest) katılımcılar (takımlar sekmesi dropdown için - sadece aktifler)
+  const serbestUyeler = katilimcilar.filter(k => !k.takim_id && k.program_katilim_durumu !== 'PASIF')
   const serbest = serbestUyeler
 
   /* ════════════════════════════════════════
@@ -1276,7 +1278,14 @@ export default function AdminPanel() {
                                             <span className="text-xs font-bold text-violet">{(isim[0] || '?').toUpperCase()}</span>
                                           </div>
                                           <div className="min-w-0">
-                                            <p className="text-xs font-semibold text-gray-800 truncate">{isim}</p>
+                                            <div className="flex items-center gap-1.5 truncate">
+                                              <p className="text-xs font-semibold text-gray-800 truncate">{isim}</p>
+                                              {uye.program_katilim_durumu === 'PASIF' && (
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-1.5 py-0.2 rounded shrink-0">
+                                                  Pasif
+                                                </span>
+                                              )}
+                                            </div>
                                             <div className="flex items-center gap-2 text-[11px] text-gray-400 truncate">
                                               {eposta && <span className="truncate">{eposta}</span>}
                                               {eposta && uni && <span>•</span>}
@@ -3766,7 +3775,12 @@ function PerformansSection({ token, setToast }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-soft">
           <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Toplam Katılımcı</span>
-          <span className="text-2xl font-black text-gray-800">{safePerformansList.length}</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-gray-800">{safePerformansList.length}</span>
+            <span className="text-xs text-gray-500 font-semibold">
+              ({safePerformansList.filter(p => p.program_katilim_durumu === 'AKTIF').length} Aktif, {safePerformansList.filter(p => p.program_katilim_durumu === 'PASIF').length} Pasif)
+            </span>
+          </div>
         </div>
         <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 shadow-soft">
           <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">Giriş Yapan Katılımcılar</span>
@@ -3798,9 +3812,12 @@ function PerformansSection({ token, setToast }) {
       <div className="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden w-full">
         <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gray-50/50">
           <div className="flex items-center gap-2">
-            <span className="text-base">⭐</span>
             <h3 className="text-sm font-bold text-gray-800">Katılımcı Performans & Giriş Listesi</h3>
+            <span className="text-xs font-semibold text-gray-500 bg-gray-200/70 px-2 py-0.5 rounded-full">
+              {filtered.length} kişi
+            </span>
           </div>
+
           <div className="flex items-center gap-3">
             <button
               onClick={fetchList}
@@ -3813,8 +3830,9 @@ function PerformansSection({ token, setToast }) {
               Yenile
             </button>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"><Ic.Search /></span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">🔍</span>
               <input
+                id="perf-search-input"
                 type="text"
                 placeholder="Katılımcı veya takım ara…"
                 value={search}
@@ -3882,7 +3900,16 @@ function PerformansSection({ token, setToast }) {
                               {kAdi[0].toUpperCase()}
                             </div>
                           )}
-                          <span className="font-medium text-gray-800 whitespace-nowrap">{kAdi}</span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium text-gray-800 whitespace-nowrap">{kAdi}</span>
+                              {item.program_katilim_durumu === 'PASIF' && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                  Pasif
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-gray-600 whitespace-nowrap">
@@ -3964,19 +3991,11 @@ function PerformansSection({ token, setToast }) {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          GENİŞ / TAM PANEL PERFORMANS DETAY MODAL
-      ═══════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* GENİŞ / TAM PANEL PERFORMANS DETAY MODAL                               */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       {detail && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setDetail(null)
-              setSelectedKatilimciId(null)
-            }
-          }}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-7xl h-[94vh] max-h-[94vh] bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-scale-up">
             
             {/* 1. STICKY MODAL HEADER */}
@@ -3999,6 +4018,7 @@ function PerformansSection({ token, setToast }) {
                   const email = katilimciObj.eposta || performansObj.eposta || ''
                   const uni = katilimciObj.universite || performansObj.universite || ''
                   const sinif = katilimciObj.sinif || performansObj.sinif || ''
+                  const isPasif = katilimciObj.program_katilim_durumu === 'PASIF'
 
                   return (
                     <>
@@ -4028,6 +4048,15 @@ function PerformansSection({ token, setToast }) {
                           <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
                             Katılımcı #{katilimciObj.id || selectedKatilimciId}
                           </span>
+                          {isPasif ? (
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2.5 py-0.5 rounded-full border border-slate-300">
+                              🔒 Pasif / Ayrıldı
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                              🟢 Aktif Katılımcı
+                            </span>
+                          )}
                           {tName && tName !== 'Takımsız' && (
                             <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
                               🏆 {tName}
@@ -4044,7 +4073,51 @@ function PerformansSection({ token, setToast }) {
                 })()}
               </div>
 
-              <div className="flex items-center gap-3.5 flex-shrink-0">
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {/* Pasife Al / Aktifleştir Güvenli Buton */}
+                {(() => {
+                  const kName = String(katilimciObj.ad_soyad || katilimciObj.katilimci_ad_soyad || performansObj.ad_soyad || 'Katılımcı').trim()
+                  const email = katilimciObj.eposta || performansObj.eposta || ''
+                  const isPasif = katilimciObj.program_katilim_durumu === 'PASIF'
+
+                  return (
+                    <button
+                      id="btn-toggle-passivate"
+                      onClick={async () => {
+                        const confirmMsg = isPasif
+                          ? `Bu katılımcıyı (${kName}) tekrar AKTİF duruma getirmek istiyor musunuz?`
+                          : `Bu katılımcıyı (${kName}) PASİFE almak istiyor musunuz? Hiçbir veri silinmeyecek, kayıtlar korunacaktır.`
+                        if (!window.confirm(confirmMsg)) return
+                        try {
+                          if (isPasif) {
+                            await activateParticipant({ katilimci_id: selectedKatilimciId, email })
+                            setToast({ msg: `${kName} yeniden aktifleştirildi! 🟢`, type: 'success' })
+                          } else {
+                            await passivateParticipant({ katilimci_id: selectedKatilimciId, email, reason: 'Admin panelinden pasife alındı' })
+                            setToast({ msg: `${kName} pasife alındı (Veriler korundu). 🔒`, type: 'info' })
+                          }
+                          await loadPerformans()
+                          if (selectedKatilimciId) {
+                            const freshDetay = await getAdminKatilimciDetay(selectedKatilimciId)
+                            if (freshDetay) {
+                              setDetail(prev => ({ ...prev, katilimci: freshDetay }))
+                            }
+                          }
+                        } catch (err) {
+                          setToast({ msg: `İşlem başarısız: ${err.message}`, type: 'error' })
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs ${
+                        isPasif
+                          ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-300'
+                      }`}
+                    >
+                      {isPasif ? '🟢 Aktifleştir' : '🔒 Pasife Al'}
+                    </button>
+                  )
+                })()}
+
                 <div className="text-right bg-white/90 px-4 py-1.5 rounded-2xl border border-amber-200 shadow-2xs">
                   <span className="text-[10px] text-amber-700 font-bold block uppercase tracking-wider">Bireysel Puan</span>
                   <span className="text-xl font-black text-amber-900 tabular-nums">

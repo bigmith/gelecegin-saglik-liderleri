@@ -229,6 +229,7 @@ export default function MentorPanel() {
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('')
   const [filterTeamId, setFilterTeamId] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('all') // 'all' | 'AKTIF' | 'PASIF'
 
   // Teslim Modalı
   const [selectedTeslim, setSelectedTeslim] = useState(null)
@@ -473,7 +474,8 @@ export default function MentorPanel() {
     const q = searchQuery.toLowerCase().trim()
     const nameMatch = (k.ad_soyad || '').toLowerCase().includes(q) || (k.eposta || '').toLowerCase().includes(q) || (k.universite || '').toLowerCase().includes(q)
     const teamMatch = filterTeamId === 'all' || Number(k.takim_id) === Number(filterTeamId)
-    return (!q || nameMatch) && teamMatch
+    const statusMatch = filterStatus === 'all' || (filterStatus === 'AKTIF' ? (k.program_katilim_durumu === 'AKTIF' || !k.program_katilim_durumu) : k.program_katilim_durumu === 'PASIF')
+    return (!q || nameMatch) && teamMatch && statusMatch
   })
 
   return (
@@ -866,14 +868,14 @@ export default function MentorPanel() {
                       <p className="text-xs text-slate-400 mt-0.5">{katilimcilar.length} kayıtlı katılımcı</p>
                     </div>
 
-                    {/* Arama ve Takım Filtresi */}
+                    {/* Arama, Takım ve Durum Filtresi */}
                     <div className="flex items-center gap-3 flex-wrap">
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="İsim, üniversite veya e-posta ara..."
-                        className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-56"
+                        className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-52"
                       />
                       <select
                         value={filterTeamId}
@@ -885,6 +887,15 @@ export default function MentorPanel() {
                           <option key={t.id} value={t.id}>{t.takim_adi}</option>
                         ))}
                       </select>
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+                      >
+                        <option value="all">Tüm Durumlar</option>
+                        <option value="AKTIF">🟢 Sadece Aktifler</option>
+                        <option value="PASIF">🔒 Sadece Pasifler</option>
+                      </select>
                     </div>
                   </div>
 
@@ -895,7 +906,7 @@ export default function MentorPanel() {
                       </div>
                       <h3 className="text-base font-bold text-slate-800">Katılımcı Bulunamadı</h3>
                       <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                        Arama kriterlerinize uygun katılımcı bulunamadı.
+                        Arama veya filtre kriterlerinize uygun katılımcı bulunamadı.
                       </p>
                     </div>
                   ) : (
@@ -912,6 +923,7 @@ export default function MentorPanel() {
                           <tbody>
                             {filteredKatilimcilar.map((k) => {
                               const avatarSrc = getParticipantAvatarSrc(k, 100)
+                              const isPasif = k.program_katilim_durumu === 'PASIF'
                               return (
                                 <tr key={k.id} className="border-t border-slate-100 hover:bg-slate-50/80 transition-colors">
                                   <td className="px-5 py-3.5">
@@ -929,7 +941,14 @@ export default function MentorPanel() {
                                         </div>
                                       )}
                                       <div>
-                                        <p className="font-bold text-slate-800 whitespace-nowrap">{k.ad_soyad}</p>
+                                        <div className="flex items-center gap-1.5">
+                                          <p className="font-bold text-slate-800 whitespace-nowrap">{k.ad_soyad}</p>
+                                          {isPasif && (
+                                            <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded">
+                                              Pasif
+                                            </span>
+                                          )}
+                                        </div>
                                         <p className="text-[11px] text-slate-400 font-mono">{k.eposta || '—'}</p>
                                       </div>
                                     </div>
@@ -951,12 +970,12 @@ export default function MentorPanel() {
                                     <p className="text-[11px] text-slate-400">{k.sinif ? `${k.sinif}. Sınıf` : k.egitim_durumu || ''}</p>
                                   </td>
                                   <td className="px-5 py-3.5 whitespace-nowrap">
-                                    <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] ${
-                                      k.program_katilim_durumu === 'AKTIF'
-                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                    <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                                      isPasif
+                                        ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                                        : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                     }`}>
-                                      {k.program_katilim_durumu || 'AKTİF'}
+                                      {isPasif ? 'PASİF' : 'AKTİF'}
                                     </span>
                                   </td>
                                   <td className="px-5 py-3.5 whitespace-nowrap">
