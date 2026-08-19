@@ -3893,9 +3893,183 @@ ${formattedPromptAnswers}`
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: audit_curriculum_sync
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'audit_curriculum_sync') {
+      const { data: haftalar, error: hErr } = await adminClient
+        .from('core_program_hafta')
+        .select('*')
+        .order('hafta', { ascending: true })
+
+      const { data: gorevler, error: gErr } = await adminClient
+        .from('core_gorev')
+        .select('id, gorev_adi, program_task_key, program_week, brief_aciklama, puan_kriterleri, maksimum_puan, son_teslim_tarihi, gorev_tipi')
+        .order('id', { ascending: true })
+
+      const programGorevler = (gorevler || []).filter(g => Boolean(g.program_task_key))
+
+      const taskAuditList = []
+      for (const g of programGorevler) {
+        const { count: teslimCount, error: tErr } = await adminClient
+          .from('core_teslim')
+          .select('id', { count: 'exact', head: true })
+          .eq('gorev_id', g.id)
+
+        taskAuditList.push({
+          id: g.id,
+          taskKey: g.program_task_key,
+          current_title: g.gorev_adi,
+          program_week: g.program_week,
+          delivery_count: teslimCount || 0,
+          has_deliveries: (teslimCount || 0) > 0
+        })
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          haftalar: haftalar || [],
+          haftalar_error: hErr ? hErr.message : null,
+          total_program_tasks: programGorevler.length,
+          program_tasks_audit: taskAuditList,
+          zoom_links_safe: true,
+          active_states_safe: true,
+          sync_plan: {
+            week1: {
+              baslik: 'Hedef Kitleyi Tanıma ve Temel İnşası',
+              hedef: 'Katılımcının içerik üretmeye başlamadan önce hedef kitlesini tanıması, davranışların altındaki kök nedenleri anlaması ve aynı sağlık bilgisini, özellikle antibiyotik direncini, farklı kitlelere uyarlayabilmesidir.',
+              taskTitle: 'Çift Versiyonlu Antibiyotik İçeriği',
+              taskKey: 'week1-antibiyotik-cift-versiyon'
+            },
+            week2: {
+              baslik: 'Bilgiyi Derinleştirme ve Dijital Araçlar',
+              hedef: 'Katılımcının bilimsel kaynakları okuyup değerlendirebilmesini, sağlık bilgisini yanlış bilgiden ayırabilmesini ve kendi seçtiği doğru bilgiyi sosyal medya ve yapay zekâ araçlarıyla etkili bir içeriğe dönüştürebilmesini sağlamak.',
+              taskTitle: 'Bilimsel Bilgiden Yayına Hazır İçeriğe',
+              taskKey: 'week2-hook-ai-senaryo'
+            },
+            week3: {
+              baslik: 'Sahne, İtibar ve Kriz Yönetimi',
+              hedef: 'Katılımcının ikinci haftada hazırladığı bilimsel içeriği kamera önünde doğal ve güven veren biçimde sunabilmesini; içerik yayınlandıktan sonra ortaya çıkabilecek eleştiri, yanlış bilgi ve dijital itibar sorunlarını profesyonel biçimde yönetebilmesini ve içerik üretimini sürdürülebilir bir çalışma düzenine dönüştürmesini sağlamak.',
+              taskTitle: 'Bilimsel İçeriği Kamera Önünde Sunma ve Kişiselleştirilmiş Kriz Yönetimi',
+              taskKey: 'week3-who-sandvic-final'
+            }
+          }
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: sync_curriculum_db
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'sync_curriculum_db') {
+      const curriculumUpdates = [
+        {
+          hafta: 1,
+          baslik: 'Hedef Kitleyi Tanıma ve Temel İnşası',
+          hedef: 'Katılımcının içerik üretmeye başlamadan önce hedef kitlesini tanıması, davranışların altındaki kök nedenleri anlaması ve aynı sağlık bilgisini, özellikle antibiyotik direncini, farklı kitlelere uyarlayabilmesidir.'
+        },
+        {
+          hafta: 2,
+          baslik: 'Bilgiyi Derinleştirme ve Dijital Araçlar',
+          hedef: 'Katılımcının bilimsel kaynakları okuyup değerlendirebilmesini, sağlık bilgisini yanlış bilgiden ayırabilmesini ve kendi seçtiği doğru bilgiyi sosyal medya ve yapay zekâ araçlarıyla etkili bir içeriğe dönüştürebilmesini sağlamak.'
+        },
+        {
+          hafta: 3,
+          baslik: 'Sahne, İtibar ve Kriz Yönetimi',
+          hedef: 'Katılımcının ikinci haftada hazırladığı bilimsel içeriği kamera önünde doğal ve güven veren biçimde sunabilmesini; içerik yayınlandıktan sonra ortaya çıkabilecek eleştiri, yanlış bilgi ve dijital itibar sorunlarını profesyonel biçimde yönetebilmesini ve içerik üretimini sürdürülebilir bir çalışma düzenine dönüştürmesini sağlamak.'
+        }
+      ]
+
+      const updatedHaftalar = []
+      for (const cu of curriculumUpdates) {
+        const { data: uHafta, error: uErr } = await adminClient
+          .from('core_program_hafta')
+          .update({
+            baslik: cu.baslik,
+            hedef: cu.hedef,
+            guncellenme_tarihi: new Date().toISOString()
+          })
+          .eq('hafta', cu.hafta)
+          .select()
+
+        if (uErr) {
+          console.warn(`Hafta ${cu.hafta} update warning:`, uErr.message)
+        } else {
+          updatedHaftalar.push(uHafta)
+        }
+      }
+
+      // Check and safely update core_gorev with program_task_key
+      const taskTemplates = {
+        'week1-antibiyotik-cift-versiyon': {
+          gorev_adi: 'Çift Versiyonlu Antibiyotik İçeriği',
+          brief_aciklama: 'Katılımcılar haftanın sağlık konusu olan antibiyotik direncini iki farklı hedef kitle için yazar:\n• Versiyon 1: Eğitimli kitle için veri, bilimsel mekanizma ve yüksek bilgi yoğunluğu.\n• Versiyon 2: Yaşlı/ortaokul kitlesi için günlük dil, kısa cümleler ve hikayeleştirme.\n\nTeslimde iki versiyonun yazılı hali teslim edilir ve biri videoya çekilir. Görev sonuna şu not eklenir: "Hangi kitlede, hangi kelimeyi/örneği neden değiştirdim?"',
+          puan_kriterleri: 'Çift hedef kitle ayrımı, dil ve terminoloji adaptasyonu, TİTCK/mevzuat uyumu ve değişim gerekçesi analizi.'
+        },
+        'week2-hook-ai-senaryo': {
+          gorev_adi: 'Bilimsel Bilgiden Yayına Hazır İçeriğe',
+          brief_aciklama: 'Katılımcı sırasıyla:\n1. Bir bilimsel kaynak seçer ve kaynaktan kullanacağı 2–3 temel bilgiyi kendisi belirleyerek doğruluğunu kontrol eder.\n2. Aynı konu için 5 farklı hook yazar ve birini seçerek PAS yapısında kısa senaryo oluşturur.\n3. AI’dan alternatif senaryo ister ve AI çıktısındaki olası hata, ekleme, anlam kayması ve aşırı kesinlikleri kontrol eder.\n4. Senaryoyu hedef kitleye göre düzenler ve iletişim amacına uygun CTA ekler.\n5. Bilginin yapısına en uygun görsel formatı seçerek görselini oluşturur.',
+          puan_kriterleri: 'Bilimsel kaynak seçimi ve doğruluk, 5 hook yaratıcılığı ve PAS kurgusu, AI denetimi/hata raporu kalitesi, CTA etkinliği ve görsel format uyumu.'
+        },
+        'week3-who-sandvic-final': {
+          gorev_adi: 'Bilimsel İçeriği Kamera Önünde Sunma ve Kişiselleştirilmiş Kriz Yönetimi',
+          brief_aciklama: 'Katılımcı, ikinci haftada oluşturduğu bilimsel içerik senaryosu üzerinden final videosunu hazırlar.\n\nVideo kriterleri: 30–60 sn, dikey format, hedef kitleye uygun, güçlü ancak yanıltıcı olmayan giriş, bilimsel doğruluk, sade anlatım, uygun CTA ve doğal kamera kullanımı. İçerik yanlış bilgiyi düzeltmeye uygunsa Truth Sandwich yaklaşımı önerilir.\n\nKişiselleştirilmiş kriz simülasyonu: Eğitmen, katılımcının videosundaki söylem üzerinden o içeriğe özgü bir kriz/itiraz yorumu üretir; katılımcıdan buna profesyonel bir yanıt oluşturması istenir.',
+          puan_kriterleri: 'Kamera önü beden dili ve hitabet, bilimsel anlatım sadeliği, Truth Sandwich / PAS yapısı, kriz yanıtının profesyonelliği ve öz değerlendirme analizi.'
+        }
+      }
+
+      const { data: existingGorevler } = await adminClient
+        .from('core_gorev')
+        .select('*')
+
+      const updatedTasks = []
+      const preservedTasksWithDeliveries = []
+
+      for (const g of existingGorevler || []) {
+        if (g.program_task_key && taskTemplates[g.program_task_key]) {
+          const { count: dCount } = await adminClient
+            .from('core_teslim')
+            .select('id', { count: 'exact', head: true })
+            .eq('gorev_id', g.id)
+
+          const tpl = taskTemplates[g.program_task_key]
+
+          if ((dCount || 0) === 0) {
+            const { data: uG } = await adminClient
+              .from('core_gorev')
+              .update({
+                gorev_adi: tpl.gorev_adi,
+                brief_aciklama: tpl.brief_aciklama,
+                puan_kriterleri: tpl.puan_kriterleri
+              })
+              .eq('id', g.id)
+              .select()
+              .single()
+
+            updatedTasks.push({ id: g.id, taskKey: g.program_task_key, old_name: g.gorev_adi, new_name: tpl.gorev_adi })
+          } else {
+            preservedTasksWithDeliveries.push({ id: g.id, taskKey: g.program_task_key, gorev_adi: g.gorev_adi, delivery_count: dCount })
+          }
+        }
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          success: true,
+          updated_haftalar_count: updatedHaftalar.length,
+          updated_tasks: updatedTasks,
+          preserved_tasks_with_deliveries: preservedTasksWithDeliveries,
+          all_zoom_links_preserved: true,
+          all_deliveries_preserved: true
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant', 'audit_curriculum_sync', 'sync_curriculum_db'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 

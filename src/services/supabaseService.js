@@ -1376,6 +1376,14 @@ export async function auditPassivateParticipant({ email, katilimci_id }) {
   return await callAdminAction('audit_passivate_participant', { email, katilimci_id })
 }
 
+export async function auditCurriculumSync() {
+  return await callAdminAction('audit_curriculum_sync', {})
+}
+
+export async function syncCurriculumDb() {
+  return await callAdminAction('sync_curriculum_db', {})
+}
+
 // ─── MENTOR EDGE FUNCTION ÇAĞRISI ────────────────────────────────────────────
 export async function callMentorAction(action, payload = {}) {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()

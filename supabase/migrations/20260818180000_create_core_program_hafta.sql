@@ -80,8 +80,8 @@ INSERT INTO public.core_program_hafta (
 VALUES
 (
   1,
-  'Hedef Kitle Mimarisi, Akılcı Antibiyotik Kullanımı ve Yasal Sınırlar',
-  'Tıbbi bilgiyi herkesin anlayacağı kadar sadeleştirirken, hukuki ve etik mayınlara basmadan içerik üretme kaslarını geliştirmek. Hedef kitle segmentasyonunu kavramak ve antibiyotik direncini farklı kitlelere uyarlamak.',
+  'Hedef Kitleyi Tanıma ve Temel İnşası',
+  'Katılımcının içerik üretmeye başlamadan önce hedef kitlesini tanıması, davranışların altındaki kök nedenleri anlaması ve aynı sağlık bilgisini, özellikle antibiyotik direncini, farklı kitlelere uyarlayabilmesidir.',
   false,
   true,
   true,
@@ -96,8 +96,8 @@ VALUES
 ),
 (
   2,
-  'Platform Kuralları ve Yapay Zeka Hızı',
-  'Sosyal medya algoritmalarını çözüp izleyiciyi ilk saniyelerde ekrana kilitleyen giriş cümleleri oluşturmayı ve yapay zeka araçlarıyla içerik üretim hızını katlamayı öğretmek.',
+  'Bilgiyi Derinleştirme ve Dijital Araçlar',
+  'Katılımcının bilimsel kaynakları okuyup değerlendirebilmesini, sağlık bilgisini yanlış bilgiden ayırabilmesini ve kendi seçtiği doğru bilgiyi sosyal medya ve yapay zekâ araçlarıyla etkili bir içeriğe dönüştürebilmesini sağlamak.',
   false,
   true,
   true,
@@ -112,8 +112,8 @@ VALUES
 ),
 (
   3,
-  'Sahne Senin ve Dezenformasyonla Mücadele',
-  'Kamera önünde doğal, akıcı ve güven veren bir ekran yüzü oluştururken, dijital krizleri profesyonelce yönetme refleksi kazandırmak.',
+  'Sahne, İtibar ve Kriz Yönetimi',
+  'Katılımcının ikinci haftada hazırladığı bilimsel içeriği kamera önünde doğal ve güven veren biçimde sunabilmesini; içerik yayınlandıktan sonra ortaya çıkabilecek eleştiri, yanlış bilgi ve dijital itibar sorunlarını profesyonel biçimde yönetebilmesini ve içerik üretimini sürdürülebilir bir çalışma düzenine dönüştürmesini sağlamak.',
   false,
   true,
   true,
