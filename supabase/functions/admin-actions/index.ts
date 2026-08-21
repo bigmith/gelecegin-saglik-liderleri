@@ -230,7 +230,8 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
-    const { action, payload } = await req.json()
+    const reqJson = await req.json()
+    const { action, payload } = reqJson
 
     // ─────────────────────────────────────────────────────────────────────────
     // ACTION: full_dry_run (Detailed counts of everything)
@@ -4382,18 +4383,18 @@ ${formattedPromptAnswers}`
 ## 1. STRATEJİK PAZAR KONUMLANDIRMASI VE ARKETİP ANALİZİ
 
 - Ana Profil Tespiti:
-  [Dayanak: S16=${archetypeChoice.split(':')[0]} | S4=${tone}] Katılımcı, analiz sonuçlarına göre ağırlıklı olarak "${archetypeChoice.split(':')[0]}" profilinde konumlanmaktadır. İletişim dilindeki "${tone}" yaklaşımı, mesleki otoriteyi samimi ve anlaşılır bir çerçevede sunmaktadır.
+  Katılımcı, analiz sonuçlarına göre ağırlıklı olarak "${archetypeChoice.split(':')[0]}" profilinde konumlanmaktadır. İletişim dilindeki "${tone}" yaklaşımı, mesleki otoriteyi samimi ve anlaşılır bir çerçevede sunmaktadır.
 - Stratejik Hedef ve Motivasyon Analizi:
-  [Dayanak: S1=${primaryGoal} | S2=${rawTopics}] İçerik üretme hedefinin "${primaryGoal}" ekseninde olması ve "${motivation}" motivasyonundan beslenmesi, güvenilir bir dijital marka inşası için sağlam bir zemin oluşturmaktadır.
+  İçerik üretme hedefinin "${primaryGoal}" ekseninde olması ve "${motivation}" motivasyonundan beslenmesi, güvenilir bir dijital marka inşası için sağlam bir zemin oluşturmaktadır.
 - Mevcut Algı vs. Hedef Algı:
-  [Dayanak: S18=${brandWords} ➔ S19=${targetWords} | S20=${vision}] Katılımcının bugün sahip olduğu "${brandWords}" intibasını, hedeflediği "${targetWords}" algısına taşıyabilmesi için "${narration}" anlatım tarzını benimsemesi gerekmektedir.
+  Katılımcının bugün sahip olduğu "${brandWords}" intibasını, hedeflediği "${targetWords}" algısına taşıyabilmesi için "${narration}" anlatım tarzını benimsemesi gerekmektedir.
 
 ## 2. İLETİŞİM DİLİ, TON VE FORMAT REÇETESİ
 
 - Konuşma Temposu ve Hitabet Modeli:
-  [Dayanak: S6=${tempo} | S9=${cameraScore}/5 | S3=${formatChoice}] ${cameraAdvice}
+  ${cameraAdvice}
 - İdeal Video Süresi ve Format Mimarisi:
-  [Dayanak: S5=${duration} | S3=${formatChoice}] Planlanan ideal süre ${duration} aralığıdır. ${formatChoice} yapısına uygun olarak ilk 3 saniyede kanca, gövdede çözüm odaklı bilgi ve sonda net yönlendirme uygulanmalıdır.
+  Planlanan ideal süre ${duration} aralığıdır. ${formatChoice} yapısına uygun olarak ilk 3 saniyede kanca, gövdede çözüm odaklı bilgi ve sonda net yönlendirme uygulanmalıdır.
 - Kanca ve CTA Mühendisliği:
   Katılımcının ${mainTopic} ve ${secondTopic} odak alanlarına özel tasarlanmış reçeteler:
   - Kanca 1 (Stratejik Açılış): ${dynamicHook1}
@@ -4441,7 +4442,7 @@ ${formattedPromptAnswers}`
 ## 4. ROL MODEL VE BENCHMARK ANALİZİ
 
 - Referans Alınan Tarzların Değerlendirilmesi:
-  [Dayanak: S17=${benchmarks}] Belirtilen benchmark üreticiler (${benchmarks}), ${archetypeChoice.split(':')[0]} tonuyla uyumlu örneklerdir. Bu hesapların kurgu dinamizmi ve anlatım mimarisi ilham kaynağı olarak incelenmelidir.
+  Belirtilen benchmark üreticiler (${benchmarks}), ${archetypeChoice.split(':')[0]} tonuyla uyumlu örneklerdir. Bu hesapların kurgu dinamizmi ve anlatım mimarisi ilham kaynağı olarak incelenmelidir.
 - Görsel ve İşitsel Estetik Yönlendirmeler:
   Işık ve ses dengesi kurulmalı, doğal bir mesleki arka plan tercih edilmeli ve gereksiz görsel karmaşadan kaçınılmalıdır.
 - Kopyalamadan Modelleme:
@@ -4450,19 +4451,193 @@ ${formattedPromptAnswers}`
 ## 5. OPERASYONEL RİSKLER, MEVZUAT FARKINDALIĞI VE TÜKENMİŞLİK ANALİZİ
 
 - Birincil Operasyonel Darboğaz:
-  [Dayanak: S10=${bottleneck}] Katılımcının en çok zorlandığı "${bottleneck}" konusunu yönetmek için; içerik fikir havuzu oluşturulmalı ve çekimler tek oturumda toplu olarak tamamlanmalıdır.
+  Katılımcının en çok zorlandığı "${bottleneck}" konusunu yönetmek için; içerik fikir havuzu oluşturulmalı ve çekimler tek oturumda toplu olarak tamamlanmalıdır.
 - TİTCK/KVKK ve Sağlık İletişimi Uyarıları:
   * TİTCK: İlaç tanıtımı ve örtülü reklam yasağına titizlikle uyulmalıdır.
   * KVKK: Danışan veya hasta verileri hiçbir şekilde ifşa edilmemelidir.
   * Endikasyon: Gıda takviyelerine tıbbi tedavi edici iddialar yüklenemez.
 - Kriz Yönetimi Simülasyonu:
-  [Dayanak: S13=${crisis}] Olası tartışma veya haksız eleştirilerde "${crisis}" refleksi korunarak profesyonel sınır muhafaza edilmelidir.
+  Olası tartışma veya haksız eleştirilerde "${crisis}" refleksi korunarak profesyonel sınır muhafaza edilmelidir.
 - Tükenmişlik Önleme:
-  [Dayanak: S14=Haftada ${weeklyCap} içerik] Haftalık ${weeklyCap} içerik hacmi aşırı yük oluşturmayacak şekilde takvimlendirilmeli, sürdürülebilir bir tempo hedeflenmelidir.
+  Haftalık ${weeklyCap} içerik hacmi aşırı yük oluşturmayacak şekilde takvimlendirilmeli, sürdürülebilir bir tempo hedeflenmelidir.
 
 ${s6}
 
 ${s7}`
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: backup_all_dna_records
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'backup_all_dna_records') {
+      const { data: dnas, error: dnaErr } = await adminClient
+        .from('core_icerikdnatesti')
+        .select('*')
+        .order('id', { ascending: true })
+
+      if (dnaErr) {
+        return jsonRes(req, { ok: false, error: 'DNA kayıtları çekilemedi: ' + dnaErr.message }, 500)
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          timestamp: new Date().toISOString(),
+          total_records: dnas?.length || 0,
+          records: dnas || []
+        }
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: regenerate_all_clean_dna
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'regenerate_all_clean_dna') {
+      const { data: dnas, error: dnaErr } = await adminClient
+        .from('core_icerikdnatesti')
+        .select('*')
+        .order('id', { ascending: true })
+
+      if (dnaErr) {
+        return jsonRes(req, { ok: false, error: 'DNA kayıtları çekilemedi: ' + dnaErr.message }, 500)
+      }
+
+      // Fetch participant details
+      const katIds = (dnas || []).map(d => d.katilimci_id).filter(Boolean)
+      const { data: katilimcilar } = await adminClient
+        .from('core_katilimci')
+        .select('id, ad_soyad, eposta, aday:core_aday(ad_soyad, eposta)')
+        .in('id', katIds)
+
+      const katMap = new Map()
+      for (const k of katilimcilar || []) {
+        const name = k.ad_soyad || (k.aday as any)?.ad_soyad || 'Katılımcı'
+        const email = k.eposta || (k.aday as any)?.eposta || ''
+        katMap.set(k.id, { name, email })
+      }
+
+      const targetKatId = reqJson?.target_katilimci_id || payload?.target_katilimci_id || reqJson?.katilimci_id || payload?.katilimci_id
+      const targetDnaId = reqJson?.target_dna_id || payload?.target_dna_id || reqJson?.dna_id || payload?.dna_id
+
+      let filteredDnas = dnas || []
+      if (targetKatId) {
+        filteredDnas = filteredDnas.filter(d => d.katilimci_id === targetKatId)
+      } else if (targetDnaId) {
+        filteredDnas = filteredDnas.filter(d => d.id === targetDnaId)
+      }
+
+      const results = []
+      let successCount = 0
+      let failCount = 0
+      let skippedCount = 0
+
+      for (const d of filteredDnas) {
+        const katInfo = katMap.get(d.katilimci_id) || { name: 'Katılımcı', email: '' }
+        const cevaplar = d.cevaplar || {}
+        const hasAnswers = Boolean(cevaplar && typeof cevaplar === 'object' && Object.keys(cevaplar).length > 0)
+
+        if (!hasAnswers) {
+          results.push({
+            id: d.id,
+            katilimci_id: d.katilimci_id,
+            katilimci_adi: katInfo.name,
+            status: 'SKIPPED_NO_ANSWERS',
+            message: 'Cevap seti boş olduğu için işlem atlandı.'
+          })
+          skippedCount++
+          continue
+        }
+
+        try {
+          // Call ai-content-dna edge function for this participant
+          const genRes = await fetch(`${supabaseUrl}/functions/v1/ai-content-dna`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${serviceRoleKey}`,
+              'apikey': serviceRoleKey
+            },
+            body: JSON.stringify({
+              katilimci_id: d.katilimci_id,
+              cevaplar: cevaplar
+            })
+          })
+
+          if (!genRes.ok) {
+            const errText = await genRes.text()
+            results.push({
+              id: d.id,
+              katilimci_id: d.katilimci_id,
+              katilimci_adi: katInfo.name,
+              status: 'FAIL_CALL',
+              error: `ai-content-dna status ${genRes.status}: ${errText}`
+            })
+            failCount++
+            continue
+          }
+
+          const genData = await genRes.json()
+          if (!genData.ok || !genData.data) {
+            results.push({
+              id: d.id,
+              katilimci_id: d.katilimci_id,
+              katilimci_adi: katInfo.name,
+              status: 'FAIL_DATA',
+              error: genData.error || 'ai-content-dna ok:false döndü'
+            })
+            failCount++
+            continue
+          }
+
+          // Fetch the updated record to verify structure
+          const { data: updatedRec } = await adminClient
+            .from('core_icerikdnatesti')
+            .select('id, katilimci_id, durum, prompt_versiyonu, ai_model, guncellenme_tarihi, rapor_metni, rapor_json')
+            .eq('id', d.id)
+            .single()
+
+          const postVal = validateDnaReportStructureHelper(updatedRec?.rapor_metni || '')
+
+          results.push({
+            id: d.id,
+            katilimci_id: d.katilimci_id,
+            katilimci_adi: katInfo.name,
+            eposta: katInfo.email,
+            ai_model: updatedRec?.ai_model,
+            prompt_versiyonu: updatedRec?.prompt_versiyonu,
+            step_count: postVal.stepCount,
+            day_count: postVal.dayCount,
+            is_valid: postVal.isValid,
+            status: postVal.isValid ? 'SUCCESS' : 'FAIL_STRUCTURE'
+          })
+
+          if (postVal.isValid) {
+            successCount++
+          } else {
+            failCount++
+          }
+        } catch (callErr: any) {
+          results.push({
+            id: d.id,
+            katilimci_id: d.katilimci_id,
+            katilimci_adi: katInfo.name,
+            status: 'EXCEPTION',
+            error: callErr?.message || String(callErr)
+          })
+          failCount++
+        }
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          total_records: dnas?.length || 0,
+          success_count: successCount,
+          fail_count: failCount,
+          skipped_count: skippedCount,
+          results
+        }
+      })
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -4796,7 +4971,7 @@ ${s7}`
 
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant', 'audit_curriculum_sync', 'sync_curriculum_db', 'audit_all_dna_structure', 'repair_all_dna_structure'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant', 'audit_curriculum_sync', 'sync_curriculum_db', 'audit_all_dna_structure', 'repair_all_dna_structure', 'backup_all_dna_records', 'regenerate_all_clean_dna'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 

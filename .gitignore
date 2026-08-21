@@ -46,3 +46,6 @@ supabase/functions/.env
 supabase/.temp/
 .temp/
 
+# Scratch & local backups
+scratch/
+
