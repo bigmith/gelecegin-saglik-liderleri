@@ -1811,7 +1811,7 @@ export async function getAdminIcerikDnaList() {
       *,
       katilimci:core_katilimci (
         id,
-        aday:core_aday (ad, soyad, eposta, universite),
+        aday:core_aday (ad, soyad, ad_soyad, eposta, universite),
         takim:core_takim (id, takim_adi)
       )
     `)
@@ -1824,7 +1824,7 @@ export async function getAdminIcerikDnaList() {
 
   return (data || []).map(d => {
     const adayObj = d.katilimci?.aday || {}
-    const adSoyad = `${adayObj.ad || ''} ${adayObj.soyad || ''}`.trim() || `Katılımcı #${d.katilimci_id}`
+    const adSoyad = adayObj.ad_soyad || `${adayObj.ad || ''} ${adayObj.soyad || ''}`.trim() || `Katılımcı #${d.katilimci_id}`
 
     return {
       id: d.id,

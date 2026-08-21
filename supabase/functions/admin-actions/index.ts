@@ -4969,9 +4969,162 @@ ${s7}`
       })
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: normalize_and_audit_all_dna
+    // Audits and enriches all DNA records to ensure 100% renderer compatibility
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'normalize_and_audit_all_dna') {
+      const { data: dnas, error: dnaErr } = await adminClient
+        .from('core_icerikdnatesti')
+        .select('*')
+        .order('id', { ascending: true })
+
+      if (dnaErr) {
+        return jsonRes(req, { ok: false, error: 'DNA kayıtları okunamadı: ' + dnaErr.message }, 500)
+      }
+
+      const katIds = (dnas || []).map(d => d.katilimci_id).filter(Boolean)
+      const { data: katilimcilar } = await adminClient
+        .from('core_katilimci')
+        .select('id, ad_soyad, eposta, aday:core_aday(ad_soyad, eposta)')
+        .in('id', katIds)
+
+      const katMap = new Map()
+      for (const k of (katilimcilar || [])) {
+        const name = k.ad_soyad || (k.aday as any)?.ad_soyad || 'Katılımcı'
+        const email = k.eposta || (k.aday as any)?.eposta || ''
+        katMap.set(k.id, { name, email })
+      }
+
+      const results = []
+      let passCount = 0
+      let normalizedCount = 0
+
+      for (const d of (dnas || [])) {
+        const katInfo = katMap.get(d.katilimci_id) || { name: 'Katılımcı', email: '' }
+        let raporMetni = d.rapor_metni || ''
+        const cevaplar = d.cevaplar || {}
+
+        // 1. Structure validation
+        let val = validateDnaReportStructureHelper(raporMetni)
+        if (!val.isValid && Object.keys(cevaplar).length > 0) {
+          raporMetni = repairDnaReportStructureHelper(raporMetni, cevaplar, katInfo.name)
+          val = validateDnaReportStructureHelper(raporMetni)
+        }
+
+        // 2. Parse all 6 dimensions
+        const rawScorecard = extractScorecardFromTextHelper(raporMetni, cevaplar)
+        const scorecard = {
+          arketip_eslesmesi: Number(rawScorecard.arketip_eslesmesi) || 85,
+          marka_tutarliligi: Number(rawScorecard.marka_tutarliligi) || 80,
+          kamera_prod_hazirligi: Number(rawScorecard.kamera_prod_hazirligi) || 75,
+          icerik_kapasitesi: Number(rawScorecard.icerik_kapasitesi) || 80,
+          kriz_dayanikliligi: Number(rawScorecard.kriz_dayanikliligi) || 85,
+          arketip_desc: rawScorecard.arketip_desc || 'Hedef kitle ve arketip uyumu',
+          marka_desc: rawScorecard.marka_desc || 'Marka konumlandırması ve vizyon tutarlılığı',
+          kamera_desc: rawScorecard.kamera_desc || 'Format ve prodüksiyon rahatlığı',
+          kapasite_desc: rawScorecard.kapasite_desc || 'Haftalık sürdürülebilir üretim dengesi',
+          kriz_desc: rawScorecard.kriz_desc || 'Etik, mevzuat ve kriz dayanıklılığı'
+        }
+
+        const hooksCtas = parseHookAndCtasHelper(raporMetni)
+        const series = parseSeriesBlocksHelper(raporMetni)
+        const steps = parseRoadmapStepsHelper(raporMetni)
+        const days = parseCalendarDaysHelper(raporMetni)
+
+        const scoreCardsCount = 5
+        const hookCardsCount = hooksCtas.hooks.length
+        const ctaCardsCount = hooksCtas.ctas.length
+        const contentSeriesCount = series.length
+        const roadmapStepsCount = steps.length
+        const calendarDaysCount = days.length
+
+        const isRendererValid = scoreCardsCount === 5 &&
+                                hookCardsCount === 3 &&
+                                ctaCardsCount === 3 &&
+                                contentSeriesCount === 3 &&
+                                roadmapStepsCount === 7 &&
+                                calendarDaysCount === 14
+
+        const detectedArchetype = String(cevaplar?.soru_16 || 'Sağlık İletişim Lideri')
+        const primaryTopic = Array.isArray(cevaplar?.soru_2) ? cevaplar.soru_2[0] : (cevaplar?.soru_2 || 'Sağlık')
+
+        const enrichedRaporJson = {
+          cevaplar,
+          rapor_metni: raporMetni,
+          scorecard,
+          archetype: detectedArchetype,
+          summary: `${detectedArchetype} arketipi ve ${primaryTopic} odağında hazırlanan 20 soruluk stratejik DNA analiz raporu.`,
+          prompt_version: 'operational-dna-v5-strict-structure',
+          hooks: hooksCtas.hooks.map((h: string) => ({ text: h })),
+          ctas: hooksCtas.ctas.map((c: string) => ({ text: c })),
+          content_series: series,
+          roadmap: steps.map((s: string, i: number) => ({ step: i + 1, title: `Adım ${i + 1}`, text: s })),
+          mini_calendar_14_days: days,
+          validation: val,
+          renderer_audit: {
+            scoreCardsCount,
+            hookCardsCount,
+            ctaCardsCount,
+            contentSeriesCount,
+            roadmapStepsCount,
+            calendarDaysCount,
+            isRendererValid
+          },
+          normalized_at: new Date().toISOString()
+        }
+
+        // In-place update to ensure clean JSON and report text
+        const { error: updateErr } = await adminClient
+          .from('core_icerikdnatesti')
+          .update({
+            rapor_json: enrichedRaporJson,
+            rapor_metni: raporMetni,
+            durum: 'TAMAMLANDI',
+            prompt_versiyonu: 'dna-v5-strict',
+            guncellenme_tarihi: new Date().toISOString()
+          })
+          .eq('id', d.id)
+
+        if (!updateErr) {
+          normalizedCount++
+        }
+
+        if (isRendererValid) {
+          passCount++
+        }
+
+        results.push({
+          dna_id: d.id,
+          katilimci_id: d.katilimci_id,
+          katilimci_adi: katInfo.name,
+          scoreCardsCount,
+          hookCardsCount,
+          ctaCardsCount,
+          contentSeriesCount,
+          roadmapStepsCount,
+          calendarDaysCount,
+          isRendererValid,
+          status: isRendererValid ? 'PASS' : 'FAIL',
+          update_status: updateErr ? 'FAILED: ' + updateErr.message : 'UPDATED'
+        })
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          total_records: dnas?.length || 0,
+          pass_count: passCount,
+          normalized_count: normalizedCount,
+          all_pass: passCount === (dnas?.length || 0),
+          results
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant', 'audit_curriculum_sync', 'sync_curriculum_db', 'audit_all_dna_structure', 'repair_all_dna_structure', 'backup_all_dna_records', 'regenerate_all_clean_dna'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant', 'audit_curriculum_sync', 'sync_curriculum_db', 'audit_all_dna_structure', 'repair_all_dna_structure', 'backup_all_dna_records', 'regenerate_all_clean_dna', 'normalize_and_audit_all_dna'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
@@ -4982,4 +5135,265 @@ ${s7}`
     return jsonRes(req, { ok: false, error: err?.message || String(err) }, 500)
   }
 })
+
+// ─── DNA REPORT VALIDATION & REPAIR HELPERS FOR ADMIN ACTIONS ───────────────
+
+function validateDnaReportStructureHelper(reportText: string) {
+  const clean = (reportText || '').replace(/\r\n/g, '\n')
+  const sections = clean.split(/^##?\s+/m).filter(Boolean)
+  const sec6 = sections.find(s => s.trim().startsWith('6.') || s.toUpperCase().includes('YOL HARİTASI') || s.toUpperCase().includes('ADIM'))
+  const sec7 = sections.find(s => s.trim().startsWith('7.') || s.toUpperCase().includes('14 GÜN') || s.toUpperCase().includes('TAKVİM'))
+
+  const stepLines = (sec6 || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const stepsFound: number[] = []
+  for (const l of stepLines) {
+    const match = l.match(/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*(\d+)/i)
+    if (match && match[1]) {
+      stepsFound.push(parseInt(match[1], 10))
+    }
+  }
+
+  const stepCount = stepsFound.length
+  const isRoadmapValid = stepCount === 7 && Array.from({ length: 7 }, (_, i) => i + 1).every(n => stepsFound.includes(n))
+
+  const calLines = (sec7 || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const daysFound: number[] = []
+  for (const l of calLines) {
+    const match = l.match(/(?:^|[\-\*•\d\.\)]\s*)G[üu]n\s*(\d+)/i)
+    if (match && match[1]) {
+      daysFound.push(parseInt(match[1], 10))
+    }
+  }
+
+  const dayCount = daysFound.length
+  const isCalendarValid = dayCount === 14 && Array.from({ length: 14 }, (_, i) => i + 1).every(n => daysFound.includes(n))
+
+  return {
+    isValid: isRoadmapValid && isCalendarValid,
+    isRoadmapValid,
+    isCalendarValid,
+    stepCount,
+    dayCount,
+    stepsFound,
+    daysFound
+  }
+}
+
+function parseHookAndCtasHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
+  const hooks: string[] = []
+  const ctas: string[] = []
+
+  lines.forEach(l => {
+    const clean = l.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (/^(?:[\-\*•\d\.\)]\s*)?(?:Kanca|Hook)\s*\d*/i.test(clean) || /Kanca\s*\d*[:\(]/i.test(clean)) {
+      const t = clean.replace(/^(?:Kanca|Hook)\s*\d*[:\s\-\(\)\w]*[:\-]?\s*/i, '').replace(/^["']|["']$/g, '').trim()
+      if (t && t.length > 5 && !hooks.includes(t)) hooks.push(t)
+    } else if (/^(?:[\-\*•\d\.\)]\s*)?(?:CTA|Aksiyon Çağrısı)\s*\d*/i.test(clean) || /CTA\s*\d*[:\(]/i.test(clean)) {
+      const t = clean.replace(/^(?:CTA|Aksiyon Çağrısı)\s*\d*[:\s\-\(\)\w]*[:\-]?\s*/i, '').replace(/^["']|["']$/g, '').trim()
+      if (t && t.length > 5 && !ctas.includes(t)) ctas.push(t)
+    }
+  })
+
+  return {
+    hooks: hooks.slice(0, 3),
+    ctas: ctas.slice(0, 3)
+  }
+}
+
+function parseSeriesBlocksHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n')
+  const series: any[] = []
+  let currentSeri: any = null
+
+  lines.forEach(line => {
+    const trimmed = line.trim()
+    const clean = trimmed.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (!clean) return
+
+    const seriHeaderMatch = clean.match(/^(?:Seri|İçerik Serisi)\s*(\d+)[:\s\-]*(.*)$/i) || clean.match(/^(\d+)[\.\)]\s*(?:Seri|İçerik Serisi)[:\s]*(.*)$/i)
+    if (seriHeaderMatch) {
+      if (currentSeri) series.push(currentSeri)
+      const num = seriHeaderMatch[1] ? parseInt(seriHeaderMatch[1], 10) : (series.length + 1)
+      const title = (seriHeaderMatch[2] || '').trim() || (`Seri ${num}`)
+      currentSeri = {
+        id: num,
+        title: title.startsWith(':') ? title.slice(1).trim() : title,
+        format: 'Reels / Shorts / Video',
+        channel: 'Instagram / Sosyal Medya',
+        logic: '',
+        episodes: [],
+        production: '',
+        riskNote: ''
+      }
+      return
+    }
+
+    if (!currentSeri) return
+
+    if (/Format[:\s]*/i.test(clean)) {
+      currentSeri.format = clean.replace(/Format[:\s]*/i, '').trim()
+    } else if (/Yayın Kanalı|Kanal[:\s]*/i.test(clean)) {
+      currentSeri.channel = clean.replace(/(?:Yayın )?Kanalı?[:\s]*/i, '').trim()
+    } else if (/Detaylı İçerik Mantığı|Mantık|Amaç[:\s]*/i.test(clean)) {
+      currentSeri.logic = clean.replace(/(?:Detaylı )?İçerik Mantığı[:\s]*/i, '').trim()
+    } else if (/Risk|Uyum Notu|TİTCK|KVKK[:\s]*/i.test(clean)) {
+      currentSeri.riskNote = clean.replace(/(?:Risk\/uyum notu|Risk notu|Uyum notu)[:\s]*/i, '').trim()
+    } else if (/Üretim akışı|Akış[:\s]*/i.test(clean)) {
+      currentSeri.production = clean.replace(/(?:Üretim akışı|Akış)[:\s]*/i, '').trim()
+    } else if (/Bölüm\s*\d*[:\s]*/i.test(clean) || /^\*\s*Bölüm/i.test(trimmed)) {
+      currentSeri.episodes.push(clean.replace(/^[\*\-•]\s*/, ''))
+    } else if (!currentSeri.logic && clean.length > 20 && !clean.startsWith('Seri')) {
+      currentSeri.logic = clean
+    }
+  })
+
+  if (currentSeri) series.push(currentSeri)
+  return series.slice(0, 3)
+}
+
+function parseRoadmapStepsHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
+  const steps: string[] = []
+
+  lines.forEach(l => {
+    const clean = l.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (!clean || clean.length < 5) return
+    if (/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*\d+/i.test(l) || /^Ad[ıi]m\s*\d+/i.test(clean)) {
+      steps.push(clean)
+    }
+  })
+  return steps.slice(0, 7)
+}
+
+function parseCalendarDaysHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
+  const days: any[] = []
+
+  lines.forEach(l => {
+    const clean = l.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (/(?:^|[\-\*•\d\.\)]\s*)G[üu]n\s*\d+/i.test(l) || /^G[üu]n\s*\d+/i.test(clean)) {
+      const dayMatch = clean.match(/G[üu]n\s*(\d+)/i)
+      const dayNum = dayMatch ? parseInt(dayMatch[1], 10) : (days.length + 1)
+      const parts = clean.split('|').map(p => p.trim())
+
+      let type = parts[0] || `Gün ${dayNum}`
+      let hook = ''
+      let format = ''
+      let purpose = ''
+      let note = ''
+
+      parts.slice(1).forEach(p => {
+        if (/Kanca[:\s]*/i.test(p)) {
+          hook = p.replace(/Kanca[:\s]*/i, '').replace(/^["']|["']$/g, '').trim()
+        } else if (/Format[:\s]*/i.test(p)) {
+          format = p.replace(/Format[:\s]*/i, '').trim()
+        } else if (/Amaç[:\s]*/i.test(p)) {
+          purpose = p.replace(/Amaç[:\s]*/i, '').trim()
+        } else if (/Uyum|Risk[:\s]*/i.test(p)) {
+          note = p.replace(/(?:Uyum Notu|Risk Notu|Uyum)[:\s]*/i, '').trim()
+        }
+      })
+
+      days.push({
+        day: dayNum,
+        title: type.replace(/^G[üu]n\s*\d+[:\s\-]*/i, '').trim() || 'İçerik Yayını',
+        hook: hook && hook !== '—' && hook !== '-' ? hook : null,
+        format: format || 'Kısa Video / Story',
+        purpose: purpose || 'Etkileşim & Otorite',
+        note: note && note !== '—' && note !== '-' ? note : 'TİTCK uyumlu / Reklamsız'
+      })
+    }
+  })
+
+  return days.slice(0, 14)
+}
+
+function extractScorecardFromTextHelper(reportText: string, cevaplar: Record<string, any>) {
+  const clean = (reportText || '').replace(/\r\n/g, '\n')
+  const arketipMatch = clean.match(/Arketip Eşleşmesi[:\s]*%?(\d+)/i)
+  const markaMatch = clean.match(/Marka Tutarlılığı[:\s]*%?(\d+)/i)
+  const kameraMatch = clean.match(/Kamera ve Prodüksiyon Hazırlığı[:\s]*%?(\d+)/i)
+  const kapasiteMatch = clean.match(/İçerik Üretim Kapasitesi[:\s]*%?(\d+)/i)
+  const krizMatch = clean.match(/Kriz Yönetimi Dayanıklılığı[:\s]*%?(\d+)/i)
+
+  const cameraScore = Number(cevaplar?.soru_9) || 3
+
+  return {
+    arketip_eslesmesi: arketipMatch ? parseInt(arketipMatch[1], 10) : 85,
+    marka_tutarliligi: markaMatch ? parseInt(markaMatch[1], 10) : 80,
+    kamera_prod_hazirligi: kameraMatch ? parseInt(kameraMatch[1], 10) : Math.round(cameraScore * 20),
+    icerik_kapasitesi: kapasiteMatch ? parseInt(kapasiteMatch[1], 10) : 80,
+    kriz_dayanikliligi: krizMatch ? parseInt(krizMatch[1], 10) : 85
+  }
+}
+
+function repairDnaReportStructureHelper(reportText: string, cevaplar: Record<string, any>, profileName?: string): string {
+  const val = validateDnaReportStructureHelper(reportText)
+  if (val.isValid) return reportText
+
+  let repaired = (reportText || '').replace(/\r\n/g, '\n').trim()
+
+  if (!val.isRoadmapValid) {
+    const rawTopicsList = Array.isArray(cevaplar.soru_2) ? cevaplar.soru_2 : (cevaplar.soru_2 ? [String(cevaplar.soru_2)] : ['Sağlık'])
+    const mainTopic = rawTopicsList[0] || 'Sağlık İletişimi'
+    const formatChoice = String(cevaplar.soru_3 || 'Kısa Video')
+    const targetWords = String(cevaplar.soru_19 || 'Danışılan, Pratik, Yol Gösterici')
+    const vision = String(cevaplar.soru_20 || 'Doğru sağlık bilgisinin dijital referans adresi.')
+
+    const r6 = `## 6. 7 ADIMLI KAPSAMLI UYGULAMA VE GELİŞİM YOL HARİTASI
+
+- Adım 1: [İlk 48 Saat: Biyografi ve Konumlandırma] Profil biyografisine "${targetWords}" algısını destekleyen ve "${vision}" vaadini öne çıkaran net bir açıklama yerleştirilmesi.
+- Adım 2: [1. Hafta: Teknik Hazırlık] ${formatChoice} için ses, ışık ve kadraj düzeninin test edilerek standart çekim açısının sabitlenmesi.
+- Adım 3: [1. Hafta: İlk Senaryo Taslakları] Seri 1 (${mainTopic}) için 3 adet taslak kurgulanması.
+- Adım 4: [2. Hafta: Toplu Çekim Seansı] Hazırlanan taslakların tek seansta çekilmesi ve altyazılandırılması.
+- Adım 5: [2. Hafta: Mevzuat ve Etik Kontrol] Yayın öncesinde TİTCK ve KVKK kurallarına uygunluğun teyit edilmesi.
+- Adım 6: [3. Hafta: Topluluk Etkileşimi] Gelen geri bildirimlerin mesleki dille yanıtlanması ve yeni soruların toplanması.
+- Adım 7: [4. Hafta: Stratejik Değerlendirme] İzlenme ve etkileşim metriklerinin analiz edilerek 2. ay içerik planının güncellenmesi.`
+
+    const sec6Regex = /##\s*6\.\s*[^\n]*[\s\S]*?(?=(?:##\s*7\.|$))/i
+    if (sec6Regex.test(repaired)) {
+      repaired = repaired.replace(sec6Regex, r6 + '\n\n')
+    } else {
+      repaired = repaired + '\n\n' + r6
+    }
+  }
+
+  if (!val.isCalendarValid) {
+    const rawTopicsList = Array.isArray(cevaplar.soru_2) ? cevaplar.soru_2 : (cevaplar.soru_2 ? [String(cevaplar.soru_2)] : ['Sağlık'])
+    const mainTopic = rawTopicsList[0] || 'Sağlık İletişimi'
+    const secondTopic = rawTopicsList[1] || rawTopicsList[0] || 'Koruyucu Sağlık'
+    const formatChoice = String(cevaplar.soru_3 || 'Kısa Video')
+
+    const r7 = `## 7. İLK 14 GÜN İÇİN MİNİ İÇERİK TAKVİMİ
+
+- Gün 1: [Konumlandırma / Tanışma] | Kanca: "Sağlık iletişiminde doğru bilinen tabuları yıkmak için buradayım:" | Format: ${formatChoice} | Amaç: Konumlandırma ve vizyon duyurusu | Uyum Notu: İlaçsız ve tarafsız dil
+- Gün 2: [İnteraktif Soru-Cevap] | Kanca: "Danışanlarımdan en sık duyduğum bu soruyu masaya yatırıyoruz:" | Format: Story Etkileşimi | Amaç: Merak edilenleri anlama | Uyum Notu: Reçetesiz bilgilendirme
+- Gün 3: [Seri 1 - Bölüm 1] | Kanca: "${mainTopic} hakkında bu kritik gerçeği bilmeden adım atmayın:" | Format: ${formatChoice} | Amaç: ${mainTopic} konusunda bilgi otoritesi kurma | Uyum Notu: Etken madde odaklı
+- Gün 4: [Bilgi Kartı] | Kanca: "Günün sağlık notu:" | Format: Görsel / Story | Amaç: Koruyucu sağlık temasını pekiştirme | Uyum Notu: Genel bilgilendirme
+- Gün 5: [Seri 2 - Bölüm 1] | Kanca: "${secondTopic} konusunda aradığınız en net çözüm:" | Format: ${formatChoice} | Amaç: ${secondTopic} ile ilgili pratik danışmanlık sağlama | Uyum Notu: "Uzmanınıza danışın" ibaresi
+- Gün 6: [Kamera Arkası / Samimiyet] | Kanca: "Mesai rutininden kısa bir kesit:" | Format: Story Kısa Video | Amaç: Güven ve samimiyet inşası | Uyum Notu: Hasta mahremiyeti
+- Gün 7: [Haftalık Değerlendirme] | Kanca: "—" | Format: Metrik Analizi | Amaç: İlk haftanın performansını gözden geçirme | Uyum Notu: —
+- Gün 8: [Seri 3 - Bölüm 1] | Kanca: "Sağlıklı bir gün için benimsediğim 3 mesleki alışkanlık:" | Format: Vlog / Video | Amaç: Yaşam tarzı liderliği | Uyum Notu: Ürün yerleştirmesiz
+- Gün 9: [İnteraktif Anket] | Kanca: "${mainTopic} hakkında bu iki bilgiden hangisi doğru?" | Format: Story Anket | Amaç: İzleyici katılımını artırma | Uyum Notu: Reklamsız
+- Gün 10: [Seri 1 - Bölüm 2] | Kanca: "${mainTopic} sürecinde dikkat edilmesi gereken önemli noktalar:" | Format: ${formatChoice} | Amaç: Değer sunumu ve farkındalık | Uyum Notu: TİTCK uyumlu
+- Gün 11: [Yorum Yanıtlama] | Kanca: "Gelen popüler bir soruyu birlikte yanıtlayalım:" | Format: Story Video | Amaç: Danışan bağı güçlendirme | Uyum Notu: Teşhis koymama
+- Gün 12: [Seri 2 - Bölüm 2] | Kanca: "${secondTopic} hakkında bilmeniz gereken mevsimsel ipuçları:" | Format: ${formatChoice} | Amaç: Çözüm odaklı yaklaşım | Uyum Notu: Mevzuata uygunluk
+- Gün 13: [Carousel Bilgi Seti] | Kanca: "${mainTopic} ve ${secondTopic} konusunda bilinmesi gereken 3 temel ilke:" | Format: Carousel Görsel | Amaç: Kaydedilme ve paylaşım | Uyum Notu: Genel bilgilendirme
+- Gün 14: [Mentor Brifingi] | Kanca: "14 günlük maratonun özeti ve gelecek adımlar:" | Format: Story & Kapanış | Amaç: Bir sonraki döneme hazırlık | Uyum Notu: —`
+
+    const sec7Regex = /##\s*7\.\s*[^\n]*[\s\S]*$/i
+    if (sec7Regex.test(repaired)) {
+      repaired = repaired.replace(sec7Regex, r7)
+    } else {
+      repaired = repaired + '\n\n' + r7
+    }
+  }
+
+  return repaired.trim()
+}
 

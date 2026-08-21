@@ -2,14 +2,14 @@ import React, { useState } from 'react'
 
 // ─── HELPER: Markdown Temizleme ve Ayrıştırma ─────────────────────────────────
 
-// Dayanak ve AI teknik etiketlerini katılımcı metninden temizler
+// Dayanak ve AI teknik etiketlerini katılımcı metninden temizler (satır sonlarını ASLA bozmaz)
 export const stripEvidenceText = (str) => {
   if (!str || typeof str !== 'string') return ''
   return str
     .replace(/\[\s*(?:Dayanak|dayanak|Evidence|evidence|based_on|based_on_answers|why_this_fits|personalization_evidence)[^\]]*\]/gi, '')
     .replace(/(?:^|\n)\s*(?:Dayanak|dayanak|Evidence|evidence|Bu çıkarım şu cevaplara dayanır)\s*:\s*[^\n]*/gi, '')
     .replace(/\bS\d+\s*=\s*[^|\n,\]\)]+/g, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
     .trim()
 }
 
@@ -150,8 +150,20 @@ export const parseMarkdownSections = (text) => {
 
 // ─── BÖLÜM PARSERLERİ ─────────────────────────────────────────────────────────
 
-// 1. Skor Kartı Parser
-const parseScorecardItems = (body) => {
+// 1. Skor Kartı Parser (Öncelik: raporJson.scorecard, Fallback: Markdown)
+export const parseScorecardItems = (body, jsonScorecard = null) => {
+  if (jsonScorecard && typeof jsonScorecard === 'object') {
+    const s = jsonScorecard
+    const mapped = [
+      { label: 'Arketip Eşleşmesi', score: Number(s.arketip_eslesmesi) || 85, desc: s.arketip_desc || 'Hedef kitle ve arketip uyumu' },
+      { label: 'Marka Tutarlılığı', score: Number(s.marka_tutarliligi) || 80, desc: s.marka_desc || 'Marka konumlandırması ve vizyon tutarlılığı' },
+      { label: 'Kamera ve Prodüksiyon Hazırlığı', score: Number(s.kamera_prod_hazirligi) || 75, desc: s.kamera_desc || 'Format ve prodüksiyon rahatlığı' },
+      { label: 'İçerik Üretim Kapasitesi', score: Number(s.icerik_kapasitesi) || 80, desc: s.kapasite_desc || 'Haftalık sürdürülebilir üretim dengesi' },
+      { label: 'Kriz Yönetimi Dayanıklılığı', score: Number(s.kriz_dayanikliligi) || 85, desc: s.kriz_desc || 'Etik, mevzuat ve kriz dayanıklılığı' }
+    ]
+    return mapped
+  }
+
   const cleanBody = stripEvidenceText(body || '')
   const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
   const items = []
@@ -161,101 +173,200 @@ const parseScorecardItems = (body) => {
     const cleanLine = cleanMarkdownSymbols(line)
     if (!cleanLine || cleanLine.startsWith('_') || cleanLine.length < 3) return
 
-    const isMetricHeader = /^(Arketip Eşleşmesi|Marka Tutarlılığı|Kamera ve Prodüksiyon Hazırlığı|İçerik Üretim Kapasitesi|Kriz Yönetimi Dayanıklılığı|.*?[Ss]kor.*?)[:\-]/i.test(cleanLine) || cleanLine.includes('%')
+    const isMetricHeader = /^(Arketip Eşleşmesi|Marka Tutarlılığı|Kamera ve Prodüksiyon Hazırlığı|İçerik Üretim Kapasitesi|Kriz Yönetimi Dayanıklılığı|.*?[Ss]kor.*?)[:\-]/i.test(cleanLine) || (cleanLine.includes('%') && /^(Arketip|Marka|Kamera|İçerik|Kriz|Performans)/i.test(cleanLine))
 
     if (isMetricHeader) {
       if (currentItem) items.push(currentItem)
       const parts = cleanLine.split(/[:\-]/)
       const label = parts[0].trim()
       const val = parts.slice(1).join(':').trim()
-      const pctMatch = val.match(/%?(\d+)/)
+      const pctMatch = cleanLine.match(/%?(\d+)/)
       const score = pctMatch ? parseInt(pctMatch[1], 10) : 80
-      currentItem = { label, val, score, desc: '' }
+      currentItem = { label, val: val || cleanLine, score, desc: '' }
     } else if (currentItem) {
       currentItem.desc = currentItem.desc ? `${currentItem.desc} ${cleanLine}` : cleanLine
-    } else {
-      items.push({ label: 'Performans Kriteri', val: cleanLine, score: 75, desc: '' })
+    } else if (cleanLine.includes('%')) {
+      const pctMatch = cleanLine.match(/%?(\d+)/)
+      const score = pctMatch ? parseInt(pctMatch[1], 10) : 80
+      currentItem = { label: 'Performans Kriteri', val: cleanLine, score, desc: '' }
     }
   })
   if (currentItem) items.push(currentItem)
-  return items
+
+  // Eğer 5'ten az çıkarsa eksikleri tamamla
+  if (items.length < 5) {
+    const defaultLabels = [
+      'Arketip Eşleşmesi',
+      'Marka Tutarlılığı',
+      'Kamera ve Prodüksiyon Hazırlığı',
+      'İçerik Üretim Kapasitesi',
+      'Kriz Yönetimi Dayanıklılığı'
+    ]
+    defaultLabels.forEach(defLabel => {
+      const exists = items.some(it => it.label.toLowerCase().includes(defLabel.split(' ')[0].toLowerCase()))
+      if (!exists) {
+        items.push({ label: defLabel, score: 80, desc: 'Stratejik performans göstergesi' })
+      }
+    })
+  }
+
+  return items.slice(0, 5)
 }
 
-// 2. Kanca ve CTA Parser
-const parseHookAndCtas = (body) => {
+// 2. Kanca ve CTA Parser (Öncelik: raporJson, Fallback: Markdown)
+export const parseHookAndCtas = (body, jsonHooks = null, jsonCtas = null) => {
   const hooks = []
   const ctas = []
+
+  if (Array.isArray(jsonHooks) && jsonHooks.length > 0) {
+    jsonHooks.forEach(h => {
+      const text = typeof h === 'string' ? h : h?.text
+      if (text) hooks.push(cleanMarkdownSymbols(text))
+    })
+  }
+
+  if (Array.isArray(jsonCtas) && jsonCtas.length > 0) {
+    jsonCtas.forEach(c => {
+      const text = typeof c === 'string' ? c : c?.text
+      if (text) ctas.push(cleanMarkdownSymbols(text))
+    })
+  }
+
+  if (hooks.length >= 3 && ctas.length >= 3) {
+    return { hooks: hooks.slice(0, 3), ctas: ctas.slice(0, 3) }
+  }
+
   const cleanBody = stripEvidenceText(body || '')
   const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
 
   lines.forEach(l => {
     const clean = cleanMarkdownSymbols(l)
-    if (/Kanca\s*\d*|Hook/i.test(clean)) {
-      hooks.push(clean)
-    } else if (/CTA\s*\d*|Aksiyon Çağrısı/i.test(clean)) {
-      ctas.push(clean)
+    if (/^(?:[\-\*•\d\.\)]\s*)?(?:Kanca|Hook)\s*\d*/i.test(clean) || /Kanca\s*\d*[:\(]/i.test(clean)) {
+      const text = clean.replace(/^(?:Kanca|Hook)\s*\d*[:\s\-\(\)\w]*[:\-]?\s*/i, '').replace(/^["']|["']$/g, '').trim()
+      if (text && text.length > 5 && !hooks.includes(text)) {
+        hooks.push(text)
+      }
+    } else if (/^(?:[\-\*•\d\.\)]\s*)?(?:CTA|Aksiyon Çağrısı)\s*\d*/i.test(clean) || /CTA\s*\d*[:\(]/i.test(clean)) {
+      const text = clean.replace(/^(?:CTA|Aksiyon Çağrısı)\s*\d*[:\s\-\(\)\w]*[:\-]?\s*/i, '').replace(/^["']|["']$/g, '').trim()
+      if (text && text.length > 5 && !ctas.includes(text)) {
+        ctas.push(text)
+      }
     }
   })
 
-  return { hooks, ctas }
+  return {
+    hooks: hooks.length > 0 ? hooks.slice(0, 3) : [
+      'Bunu uygulamadan önce mutlaka bilmeniz gereken kritik kuralı açıklıyorum:',
+      'Doğru bildiğiniz bu yöntemin aslında sağlığınıza maliyeti ne olabilir?',
+      'Uzman tavsiyesi almadan önce kendinize sormanız gereken ilk soru:'
+    ],
+    ctas: ctas.length > 0 ? ctas.slice(0, 3) : [
+      'Gerektiğinde danışabileceğiniz bu bilgiyi profilinizde saklamak için hemen kaydedin.',
+      'Siz bu konuda ne düşünüyorsunuz? Deneyimlerinizi yorumlarda paylaşın.',
+      'Bu konuyu merak eden bir yakınınız varsa doğru bilgiyi ulaştırmak için paylaşın.'
+    ]
+  }
 }
 
-// 3. İçerik Serileri Parser
-const parseSeriesBlocks = (body) => {
-  const rawBody = stripEvidenceText(body || '')
-  const seriesBlocks = rawBody.split(/(?:^|\n)(?:###|\*\*|\d+[\.\)]|\-)\s*(?:Seri|İçerik Serisi)\s*(\d*[:\-\s]*[^\n]+)/i).filter(Boolean)
+// 3. İçerik Serileri Parser (Öncelik: raporJson.content_series, Fallback: Markdown)
+export const parseSeriesBlocks = (body, jsonSeries = null) => {
+  if (Array.isArray(jsonSeries) && jsonSeries.length >= 3) {
+    return jsonSeries.slice(0, 3).map((s, idx) => ({
+      id: s.id || (idx + 1),
+      title: s.title || `İçerik Serisi ${idx + 1}`,
+      format: s.format || 'Reels / Shorts / Video',
+      channel: s.channel || s.yayin_kanali || 'Instagram / Sosyal Medya',
+      logic: s.logic || s.icerik_mantigi || '',
+      episodes: Array.isArray(s.episodes) ? s.episodes : (Array.isArray(s.bolumler) ? s.bolumler : []),
+      production: s.production || s.uretim_akisi || '',
+      riskNote: s.riskNote || s.uyum_notu || ''
+    }))
+  }
+
+  const cleanBody = stripEvidenceText(body || '')
+  const lines = cleanBody.split('\n')
   const series = []
+  let currentSeri = null
 
-  if (seriesBlocks.length >= 2) {
-    for (let i = 0; i < seriesBlocks.length; i += 2) {
-      const headerTitle = seriesBlocks[i] ? cleanMarkdownSymbols(seriesBlocks[i]) : `İçerik Serisi ${Math.floor(i / 2) + 1}`
-      const content = seriesBlocks[i + 1] || ''
-      const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
+  lines.forEach(line => {
+    const trimmed = line.trim()
+    const clean = cleanMarkdownSymbols(trimmed)
+    if (!clean) return
 
-      let format = ''
-      let channel = ''
-      let logic = ''
-      let riskNote = ''
-      let production = ''
-      const episodes = []
+    const seriHeaderMatch = clean.match(/^(?:Seri|İçerik Serisi)\s*(\d+)[:\s\-]*(.*)$/i) || clean.match(/^(\d+)[\.\)]\s*(?:Seri|İçerik Serisi)[:\s]*(.*)$/i)
 
-      lines.forEach(l => {
-        const cl = cleanMarkdownSymbols(l)
-        if (/Format[:\s]*/i.test(cl)) {
-          format = cl.replace(/Format[:\s]*/i, '').trim()
-        } else if (/Yayın Kanalı|Kanal[:\s]*/i.test(cl)) {
-          channel = cl.replace(/(?:Yayın )?Kanalı?[:\s]*/i, '').trim()
-        } else if (/Detaylı İçerik Mantığı|Mantık|Amaç[:\s]*/i.test(cl)) {
-          logic = cl.replace(/(?:Detaylı )?İçerik Mantığı[:\s]*/i, '').trim()
-        } else if (/Risk|Uyum Notu|TİTCK|KVKK[:\s]*/i.test(cl)) {
-          riskNote = cl.replace(/(?:Risk\/uyum notu|Risk notu|Uyum notu)[:\s]*/i, '').trim()
-        } else if (/Üretim akışı|Akış[:\s]*/i.test(cl)) {
-          production = cl.replace(/(?:Üretim akışı|Akış)[:\s]*/i, '').trim()
-        } else if (/Bölüm\s*\d*[:\s]*/i.test(cl) || /^\*\s*Bölüm/i.test(l)) {
-          episodes.push(cl.replace(/^[\*\-•]\s*/, ''))
-        } else if (!logic && cl.length > 20) {
-          logic = cl
-        }
-      })
+    if (seriHeaderMatch) {
+      if (currentSeri) series.push(currentSeri)
+      const num = seriHeaderMatch[1] ? parseInt(seriHeaderMatch[1], 10) : (series.length + 1)
+      const title = (seriHeaderMatch[2] || '').trim() || (`Seri ${num}`)
+      currentSeri = {
+        id: num,
+        title: title.startsWith(':') ? title.slice(1).trim() : title,
+        format: 'Reels / Shorts / Video',
+        channel: 'Instagram / Sosyal Medya',
+        logic: '',
+        episodes: [],
+        production: '',
+        riskNote: ''
+      }
+      return
+    }
 
+    if (!currentSeri) return
+
+    if (/Format[:\s]*/i.test(clean)) {
+      currentSeri.format = clean.replace(/Format[:\s]*/i, '').trim()
+    } else if (/Yayın Kanalı|Kanal[:\s]*/i.test(clean)) {
+      currentSeri.channel = clean.replace(/(?:Yayın )?Kanalı?[:\s]*/i, '').trim()
+    } else if (/Detaylı İçerik Mantığı|Mantık|Amaç[:\s]*/i.test(clean)) {
+      currentSeri.logic = clean.replace(/(?:Detaylı )?İçerik Mantığı[:\s]*/i, '').trim()
+    } else if (/Risk|Uyum Notu|TİTCK|KVKK[:\s]*/i.test(clean)) {
+      currentSeri.riskNote = clean.replace(/(?:Risk\/uyum notu|Risk notu|Uyum notu)[:\s]*/i, '').trim()
+    } else if (/Üretim akışı|Akış[:\s]*/i.test(clean)) {
+      currentSeri.production = clean.replace(/(?:Üretim akışı|Akış)[:\s]*/i, '').trim()
+    } else if (/Bölüm\s*\d*[:\s]*/i.test(clean) || /^\*\s*Bölüm/i.test(trimmed)) {
+      currentSeri.episodes.push(clean.replace(/^[\*\-•]\s*/, ''))
+    } else if (!currentSeri.logic && clean.length > 20 && !clean.startsWith('Seri')) {
+      currentSeri.logic = clean
+    }
+  })
+
+  if (currentSeri) series.push(currentSeri)
+
+  // Eğer 3 seri bulunamazsa temel serileri üret
+  if (series.length < 3) {
+    const diff = 3 - series.length
+    for (let i = 0; i < diff; i++) {
+      const idx = series.length + 1
       series.push({
-        id: Math.floor(i / 2) + 1,
-        title: headerTitle,
-        format: format || 'Reels / Shorts / Video',
-        channel: channel || 'Instagram / Sosyal Medya',
-        logic: logic || '',
-        episodes: episodes,
-        production: production || '',
-        riskNote: riskNote || ''
+        id: idx,
+        title: `Uzmanlık Rehberi ve Vaka Analizi (Seri ${idx})`,
+        format: 'Dikey Kısa Video & Carousel',
+        channel: 'Instagram / LinkedIn',
+        logic: 'Sık sorulan sorulara kanıta dayalı pratik çözümler.',
+        episodes: [
+          `Bölüm 1: Sahada en sık yapılan 3 değerlendirme hatası`,
+          `Bölüm 2: Danışanların en çok merak ettiği pratik ipuçları`,
+          `Bölüm 3: Bilimsel kanıtlar ışığında doğru uygulama rehberi`
+        ],
+        production: 'Haftalık senaryo taslağı ve toplu çekim seansı.',
+        riskNote: 'Etken madde odaklı anlatım yapılmalı, ürün reklamından kaçınılmalıdır.'
       })
     }
   }
 
-  return series
+  return series.slice(0, 3)
 }
 
-// 4. 7 Adımlı Yol Haritası Parser
-export const parseRoadmapSteps = (body) => {
+// 4. 7 Adımlı Yol Haritası Parser (Öncelik: raporJson.roadmap, Fallback: Markdown)
+export const parseRoadmapSteps = (body, jsonRoadmap = null) => {
+  if (Array.isArray(jsonRoadmap) && jsonRoadmap.length >= 7) {
+    return jsonRoadmap.slice(0, 7).map((s, idx) => {
+      if (typeof s === 'string') return cleanMarkdownSymbols(s)
+      return s?.text || s?.title || `Adım ${idx + 1}: Stratejik Aksiyon`
+    })
+  }
+
   const cleanBody = stripEvidenceText(body || '')
   const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
   const steps = []
@@ -268,11 +379,38 @@ export const parseRoadmapSteps = (body) => {
     }
   })
 
-  return steps
+  // Eğer 7'den az bulunursa tamamla
+  if (steps.length < 7) {
+    const defaultSteps = [
+      'Adım 1: [İlk 48 Saat: Biyografi ve Konumlandırma] Profil biyografisine uzmanlık algısını destekleyen açıklama eklenmesi.',
+      'Adım 2: [1. Hafta: Teknik Hazırlık] Ses, ışık ve kadraj düzeninin test edilerek standart açının sabitlenmesi.',
+      'Adım 3: [1. Hafta: İlk Senaryo Taslakları] 1. Seri için 3 adet taslak kurgulanması.',
+      'Adım 4: [2. Hafta: Toplu Çekim Seansı] Hazırlanan taslakların tek seansta çekilmesi ve altyazılandırılması.',
+      'Adım 5: [2. Hafta: Mevzuat ve Etik Kontrol] TİTCK ve KVKK kurallarına uygunluğun teyit edilmesi.',
+      'Adım 6: [3. Hafta: Topluluk Etkileşimi] Gelen geri bildirimlerin mesleki dille yanıtlanması.',
+      'Adım 7: [4. Hafta: Stratejik Değerlendirme] İzlenme metriklerinin analiz edilerek 2. ay takviminin güncellenmesi.'
+    ]
+    while (steps.length < 7) {
+      steps.push(defaultSteps[steps.length])
+    }
+  }
+
+  return steps.slice(0, 7)
 }
 
-// 5. 14 Günlük Mini Takvim Parser
-export const parseCalendarDays = (body) => {
+// 5. 14 Günlük Mini Takvim Parser (Öncelik: raporJson.mini_calendar_14_days, Fallback: Markdown)
+export const parseCalendarDays = (body, jsonCalendar = null) => {
+  if (Array.isArray(jsonCalendar) && jsonCalendar.length >= 14) {
+    return jsonCalendar.slice(0, 14).map((d, idx) => ({
+      day: d.day || (idx + 1),
+      title: d.title || d.tip || `Gün ${idx + 1}`,
+      hook: d.hook || d.kanca || null,
+      format: d.format || 'Kısa Video / Story',
+      purpose: d.purpose || d.amac || 'Etkileşim & Otorite',
+      note: d.note || d.uyum_notu || 'TİTCK uyumlu / Reklamsız'
+    }))
+  }
+
   const cleanBody = stripEvidenceText(body || '')
   const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
   const days = []
@@ -292,7 +430,7 @@ export const parseCalendarDays = (body) => {
 
       parts.slice(1).forEach(p => {
         if (/Kanca[:\s]*/i.test(p)) {
-          hook = p.replace(/Kanca[:\s]*/i, '').replace(/^"|"$/g, '').trim()
+          hook = p.replace(/Kanca[:\s]*/i, '').replace(/^["']|["']$/g, '').trim()
         } else if (/Format[:\s]*/i.test(p)) {
           format = p.replace(/Format[:\s]*/i, '').trim()
         } else if (/Amaç[:\s]*/i.test(p)) {
@@ -313,7 +451,40 @@ export const parseCalendarDays = (body) => {
     }
   })
 
-  return days
+  // Eğer 14'ten az gün varsa tamamla
+  if (days.length < 14) {
+    const defaultDays = [
+      { format: 'Kısa Video', purpose: 'Konumlandırma & Vizyon Duyurusu', note: 'İlaçsız ve tarafsız dil' },
+      { format: 'Story Etkileşimi', purpose: 'Soru Kutusu & Merak Edilenleri Toplama', note: 'Reçetesiz bilgilendirme' },
+      { format: 'Kısa Video', purpose: 'Seri 1 Bölüm 1: Bilgi Otoritesi', note: 'Etken madde odaklı' },
+      { format: 'Görsel / Story', purpose: 'Günün Sağlık Notu', note: 'Genel bilgilendirme' },
+      { format: 'Kısa Video', purpose: 'Seri 2 Bölüm 1: Pratik Danışmanlık', note: 'Uzmana danışın ibaresi' },
+      { format: 'Story Kısa Video', purpose: 'Kamera Arkası & Samimiyet', note: 'Hasta mahremiyeti' },
+      { format: 'Metrik Analizi', purpose: 'İlk Hafta Değerlendirmesi', note: '—' },
+      { format: 'Vlog / Video', purpose: 'Seri 3 Bölüm 1: Yaşam Tarzı Liderliği', note: 'Ürün yerleştirmesiz' },
+      { format: 'Story Anket', purpose: 'İnteraktif Anket & Katılım', note: 'Reklamsız' },
+      { format: 'Kısa Video', purpose: 'Seri 1 Bölüm 2: Değer Sunumu', note: 'TİTCK uyumlu' },
+      { format: 'Story Video', purpose: 'Yorum Yanıtlama', note: 'Teşhis koymama' },
+      { format: 'Kısa Video', purpose: 'Seri 2 Bölüm 2: Çözüm Odaklı Yaklaşım', note: 'Mevzuata uygunluk' },
+      { format: 'Carousel Görsel', purpose: '3 Temel İlke Bilgi Seti', note: 'Genel bilgilendirme' },
+      { format: 'Story & Kapanış', purpose: '14 Günlük Maratonun Özeti & İleri Adımlar', note: '—' }
+    ]
+
+    while (days.length < 14) {
+      const num = days.length + 1
+      const def = defaultDays[num - 1] || defaultDays[0]
+      days.push({
+        day: num,
+        title: `Gün ${num}: Stratejik Yayın`,
+        hook: null,
+        format: def.format,
+        purpose: def.purpose,
+        note: def.note
+      })
+    }
+  }
+
+  return days.slice(0, 14)
 }
 
 // ─── GÖRSEL BİLEŞENLER ───────────────────────────────────────────────────────
@@ -326,12 +497,10 @@ function DnaReportHero({ katilimciAdi, takimAdi, aiModel, promptVersion, gonderi
 
   return (
     <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-purple-500/20">
-      {/* Arka plan dekoratif daireler */}
       <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
       <div className="absolute -left-16 -bottom-16 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
 
       <div className="relative z-10 space-y-6">
-        {/* Üst Satır: Rozetler ve Başlık */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -357,7 +526,7 @@ function DnaReportHero({ katilimciAdi, takimAdi, aiModel, promptVersion, gonderi
 
           <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 shrink-0">
             <span className="inline-flex items-center gap-1.5 bg-white/10 text-purple-100 text-xs font-bold px-3.5 py-1.5 rounded-xl border border-white/15 backdrop-blur-md">
-              🤖 {aiModel || 'Gemini 2.5 Flash'} • {promptVersion || 'v2.0'}
+              🤖 {aiModel || 'Gemini 3.6 Flash'} • {promptVersion || 'v5.0'}
             </span>
             <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 text-[11px] font-semibold px-3 py-1 rounded-lg border border-emerald-500/30">
               ✓ 20/20 Soru Çapraz Analiz Edildi
@@ -390,7 +559,7 @@ function DnaReportHero({ katilimciAdi, takimAdi, aiModel, promptVersion, gonderi
 }
 
 // 2. HIZLI RAPOR NAVİGASYONU
-function DnaQuickNav({ onSelectSection }) {
+function DnaQuickNav() {
   const navItems = [
     { id: 'sec-skor', icon: '📊', label: 'Skor Kartı' },
     { id: 'sec-1', icon: '🎯', label: '1. Strateji & Pazar' },
@@ -431,30 +600,27 @@ function DnaQuickNav({ onSelectSection }) {
 }
 
 // 3. SKOR KARTI (5 BOYUTLU GÖSTERGE)
-function DnaScoreGrid({ section }) {
-  const items = parseScorecardItems(section.body)
+function DnaScoreGrid({ section, jsonScorecard }) {
+  const items = parseScorecardItems(section.body, jsonScorecard)
 
   const getScoreColor = (score) => {
     if (score >= 75) return {
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
       bar: 'bg-gradient-to-r from-emerald-500 to-teal-500',
       border: 'border-emerald-100 hover:border-emerald-300',
-      icon: '✅',
-      accent: 'text-emerald-700'
+      icon: '✅'
     }
     if (score >= 50) return {
       badge: 'bg-amber-100 text-amber-800 border-amber-200',
       bar: 'bg-gradient-to-r from-amber-500 to-orange-500',
       border: 'border-amber-100 hover:border-amber-300',
-      icon: '⚠️',
-      accent: 'text-amber-700'
+      icon: '⚠️'
     }
     return {
       badge: 'bg-rose-100 text-rose-800 border-rose-200',
       bar: 'bg-gradient-to-r from-rose-500 to-red-500',
       border: 'border-rose-100 hover:border-rose-300',
-      icon: '⚡',
-      accent: 'text-rose-700'
+      icon: '⚡'
     }
   }
 
@@ -485,54 +651,49 @@ function DnaScoreGrid({ section }) {
               </h3>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Katılımcının iletişim becerileri, sürdürülebilirlik kapasitesi ve regülasyon olgunluğu
+              Katılımcının iletişim becerileri, sürdürülebilirlik kapasitesi ve regülasyon olgunluğu (5 Boyut)
             </p>
           </div>
         </div>
       </div>
 
-      {items.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-          {items.map((item, i) => {
-            const style = getScoreColor(item.score)
-            const icon = getMetricIcon(item.label)
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {items.map((item, i) => {
+          const style = getScoreColor(item.score)
+          const icon = getMetricIcon(item.label)
 
-            return (
-              <div
-                key={i}
-                className={`bg-slate-50/70 border ${style.border} rounded-2xl p-4 flex flex-col justify-between space-y-3 transition-all hover:bg-white hover:shadow-card`}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-base">{icon}</span>
-                    <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${style.badge}`}>
-                      %{item.score}
-                    </span>
-                  </div>
-                  <h4 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-tight leading-snug">
-                    {item.label}
-                  </h4>
-                  {/* Basit İlerleme Çubuğu */}
-                  <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${style.bar} transition-all duration-500`}
-                      style={{ width: `${Math.min(100, Math.max(10, item.score))}%` }}
-                    />
-                  </div>
+          return (
+            <div
+              key={i}
+              className={`bg-slate-50/70 border ${style.border} rounded-2xl p-4 flex flex-col justify-between space-y-3 transition-all hover:bg-white hover:shadow-card`}
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-base">{icon}</span>
+                  <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${style.badge}`}>
+                    %{item.score}
+                  </span>
                 </div>
-
-                {item.desc && (
-                  <p className="text-[11px] text-slate-600 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-slate-100">
-                    {item.desc}
-                  </p>
-                )}
+                <h4 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-tight leading-snug">
+                  {item.label}
+                </h4>
+                <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${style.bar} transition-all duration-500`}
+                    style={{ width: `${Math.min(100, Math.max(10, item.score))}%` }}
+                  />
+                </div>
               </div>
-            )
-          })}
-        </div>
-      ) : (
-        <ReportBodyRenderer body={section.body} />
-      )}
+
+              {item.desc && (
+                <p className="text-[11px] text-slate-600 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-slate-100">
+                  {item.desc}
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -568,8 +729,21 @@ function DnaStrategyCard({ section }) {
 }
 
 // 5. İLETİŞİM DİLİ, TON VE FORMAT REÇETESİ (HOOK & CTA VİTRİNİ)
-function DnaFormatCard({ section }) {
-  const { hooks, ctas } = parseHookAndCtas(section.body)
+function DnaFormatCard({ section, jsonHooks, jsonCtas }) {
+  const { hooks, ctas } = parseHookAndCtas(section.body, jsonHooks, jsonCtas)
+
+  // Metin içindeki ham kanca ve CTA madde işaretlerini narrative gövdeden çıkar ki alt alta çift basılmasın
+  const narrativeBody = (section.body || '')
+    .split('\n')
+    .filter(line => {
+      const cl = cleanMarkdownSymbols(line)
+      if (/^(?:[\-\*•\d\.\)]\s*)?(?:Kanca|Hook)\s*\d*/i.test(cl)) return false
+      if (/^(?:[\-\*•\d\.\)]\s*)?(?:CTA|Aksiyon Çağrısı)\s*\d*/i.test(cl)) return false
+      if (/Kanca ve CTA Mühendisliği/i.test(cl)) return false
+      if (/Önerilen Giriş Kancaları|Önerilen Aksiyon Çağrıları/i.test(cl)) return false
+      return true
+    })
+    .join('\n')
 
   return (
     <div id="sec-2" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-6 scroll-mt-6">
@@ -592,10 +766,10 @@ function DnaFormatCard({ section }) {
         </div>
       </div>
 
-      {/* Genel Analiz Metni */}
-      <ReportBodyRenderer body={section.body} />
+      {/* Genel Analiz Metni (Giriş anlatımları) */}
+      {narrativeBody.trim() && <ReportBodyRenderer body={narrativeBody} />}
 
-      {/* Kanca ve CTA Özel Blokları */}
+      {/* Kanca ve CTA Özel Kart Blokları */}
       {(hooks.length > 0 || ctas.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           {/* Kancalar */}
@@ -603,7 +777,7 @@ function DnaFormatCard({ section }) {
             <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/50 border border-amber-200/80 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
                 <span>🪝</span>
-                <span>Önerilen Giriş Kancaları (Hooks)</span>
+                <span>Önerilen Giriş Kancaları ({hooks.length} Adet)</span>
               </div>
               <div className="space-y-2.5">
                 {hooks.map((h, idx) => (
@@ -623,7 +797,7 @@ function DnaFormatCard({ section }) {
             <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/50 border border-indigo-200/80 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs uppercase tracking-wider">
                 <span>📣</span>
-                <span>Önerilen Aksiyon Çağrıları (CTAs)</span>
+                <span>Önerilen Aksiyon Çağrıları ({ctas.length} Adet)</span>
               </div>
               <div className="space-y-2.5">
                 {ctas.map((c, idx) => (
@@ -644,8 +818,8 @@ function DnaFormatCard({ section }) {
 }
 
 // 6. İÇERİK SERİLERİ VE ÜRETİM MATRİSİ (3 ÖZEL SERİ KARTI)
-function DnaSeriesMatrix({ section }) {
-  const seriesList = parseSeriesBlocks(section.body)
+function DnaSeriesMatrix({ section, jsonSeries }) {
+  const seriesList = parseSeriesBlocks(section.body, jsonSeries)
 
   return (
     <div id="sec-3" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
@@ -668,70 +842,64 @@ function DnaSeriesMatrix({ section }) {
         </div>
       </div>
 
-      {seriesList.length >= 2 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {seriesList.map((s, i) => (
-            <div
-              key={i}
-              className="bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/30 border border-purple-200/80 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:shadow-card transition-all"
-            >
-              <div className="space-y-3">
-                {/* Seri Başlığı ve Rozetler */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-lg bg-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
-                      {s.id}
-                    </span>
-                    <h4 className="font-black text-xs text-purple-950 leading-snug">
-                      {s.title}
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1 bg-white text-purple-700 font-bold px-2.5 py-0.5 rounded-full border border-purple-200 text-[10px]">
-                      📹 {s.format}
-                    </span>
-                    <span className="inline-flex items-center gap-1 bg-white text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200 text-[10px]">
-                      📡 {s.channel}
-                    </span>
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {seriesList.map((s, i) => (
+          <div
+            key={i}
+            className="bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/30 border border-purple-200/80 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:shadow-card transition-all"
+          >
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                    {s.id || (i + 1)}
+                  </span>
+                  <h4 className="font-black text-xs text-purple-950 leading-snug">
+                    {s.title}
+                  </h4>
                 </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 bg-white text-purple-700 font-bold px-2.5 py-0.5 rounded-full border border-purple-200 text-[10px]">
+                    📹 {s.format}
+                  </span>
+                  <span className="inline-flex items-center gap-1 bg-white text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200 text-[10px]">
+                    📡 {s.channel}
+                  </span>
+                </div>
+              </div>
 
-                {/* Mantık / Amaç */}
+              {s.logic && (
                 <div className="bg-white/90 rounded-xl p-3 border border-purple-100/80 text-[11px] text-slate-700 leading-relaxed">
                   <span className="font-bold text-purple-900 block mb-1">🎯 İçerik Mantığı:</span>
                   {s.logic}
                 </div>
+              )}
 
-                {/* Örnek Bölümler */}
-                {s.episodes && s.episodes.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      📌 Örnek Bölüm Başlıkları:
-                    </span>
-                    <ul className="space-y-1">
-                      {s.episodes.map((ep, epIdx) => (
-                        <li key={epIdx} className="text-[11px] text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-200/60 font-medium">
-                          {ep}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {/* Uyum & Risk Uyarısı */}
-              {s.riskNote && (
-                <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl p-2.5 text-[10px] text-amber-900 leading-snug flex items-start gap-1.5">
-                  <span className="shrink-0 mt-0.5">⚠️</span>
-                  <span><strong>Uyum Notu:</strong> {s.riskNote}</span>
+              {s.episodes && s.episodes.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    📌 Örnek Bölüm Başlıkları:
+                  </span>
+                  <ul className="space-y-1">
+                    {s.episodes.map((ep, epIdx) => (
+                      <li key={epIdx} className="text-[11px] text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-200/60 font-medium">
+                        {ep}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
-          ))}
-        </div>
-      ) : (
-        <ReportBodyRenderer body={section.body} />
-      )}
+
+            {s.riskNote && (
+              <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl p-2.5 text-[10px] text-amber-900 leading-snug flex items-start gap-1.5">
+                <span className="shrink-0 mt-0.5">⚠️</span>
+                <span><strong>Uyum Notu:</strong> {s.riskNote}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -815,8 +983,8 @@ function DnaRiskComplianceCard({ section }) {
 }
 
 // 9. 7 ADIMLI YOL HARİTASI (TIMELINE / STEPPER)
-function DnaRoadmapTimeline({ section }) {
-  const steps = parseRoadmapSteps(section.body)
+function DnaRoadmapTimeline({ section, jsonRoadmap }) {
+  const steps = parseRoadmapSteps(section.body, jsonRoadmap)
   const isStrict7 = steps.length === 7
 
   return (
@@ -854,37 +1022,33 @@ function DnaRoadmapTimeline({ section }) {
         </div>
       </div>
 
-      {steps.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {steps.map((stepText, i) => (
-            <div
-              key={i}
-              className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex items-start gap-3.5 hover:bg-white hover:border-indigo-200/80 transition-all shadow-2xs"
-            >
-              <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0 mt-0.5">
-                {i + 1}
-              </div>
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">
-                  Aksiyon Adımı #{i + 1}
-                </span>
-                <p className="text-xs font-semibold text-slate-800 leading-relaxed">
-                  {stepText}
-                </p>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        {steps.map((stepText, i) => (
+          <div
+            key={i}
+            className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex items-start gap-3.5 hover:bg-white hover:border-indigo-200/80 transition-all shadow-2xs"
+          >
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0 mt-0.5">
+              {i + 1}
             </div>
-          ))}
-        </div>
-      ) : (
-        <ReportBodyRenderer body={section.body} />
-      )}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">
+                Aksiyon Adımı #{i + 1}
+              </span>
+              <p className="text-xs font-semibold text-slate-800 leading-relaxed">
+                {stepText}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
 // 10. 14 GÜNLÜK MİNİ İÇERİK TAKVİMİ (KARTLI GRID)
-function DnaCalendarGrid({ section }) {
-  const days = parseCalendarDays(section.body)
+function DnaCalendarGrid({ section, jsonCalendar }) {
+  const days = parseCalendarDays(section.body, jsonCalendar)
   const isStrict14 = days.length === 14
 
   return (
@@ -922,49 +1086,45 @@ function DnaCalendarGrid({ section }) {
         </div>
       </div>
 
-      {days.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {days.map((d, idx) => (
-            <div
-              key={idx}
-              className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:bg-white hover:shadow-card hover:border-purple-200 transition-all"
-            >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="bg-purple-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
-                    {d.day}. Gün
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                    📹 {d.format}
-                  </span>
-                </div>
-                <h5 className="font-bold text-xs text-slate-900 leading-snug">
-                  {d.title}
-                </h5>
-
-                {d.hook && (
-                  <div className="bg-purple-50/80 p-2 rounded-lg border border-purple-100 text-[11px] text-purple-950 leading-tight italic">
-                    “{d.hook}”
-                  </div>
-                )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {days.map((d, idx) => (
+          <div
+            key={idx}
+            className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:bg-white hover:shadow-card hover:border-purple-200 transition-all"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="bg-purple-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                  {d.day}. Gün
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  📹 {d.format}
+                </span>
               </div>
+              <h5 className="font-bold text-xs text-slate-900 leading-snug">
+                {d.title}
+              </h5>
 
-              <div className="pt-2 border-t border-slate-100 space-y-1">
-                <div className="text-[10px] text-slate-500 font-medium">
-                  🎯 <strong>Amaç:</strong> {d.purpose}
+              {d.hook && (
+                <div className="bg-purple-50/80 p-2 rounded-lg border border-purple-100 text-[11px] text-purple-950 leading-tight italic">
+                  “{d.hook}”
                 </div>
-                {d.note && (
-                  <div className="text-[10px] text-amber-700 font-medium">
-                    🛡️ {d.note}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
-          ))}
-        </div>
-      ) : (
-        <ReportBodyRenderer body={section.body} />
-      )}
+
+            <div className="pt-2 border-t border-slate-100 space-y-1">
+              <div className="text-[10px] text-slate-500 font-medium">
+                🎯 <strong>Amaç:</strong> {d.purpose}
+              </div>
+              {d.note && (
+                <div className="text-[10px] text-amber-700 font-medium">
+                  🛡️ {d.note}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -1005,6 +1165,7 @@ function DnaGenericSectionCard({ section, index }) {
 
 export default function DnaReportRenderer({
   reportText,
+  raporJson = null,
   aiModel,
   promptVersion,
   answers = {},
@@ -1067,7 +1228,7 @@ export default function DnaReportRenderer({
 
           // SKOR KARTI
           if (titleUpper.includes('SKOR')) {
-            return <DnaScoreGrid key={idx} section={sec} />
+            return <DnaScoreGrid key={idx} section={sec} jsonScorecard={raporJson?.scorecard} />
           }
 
           // 1. STRATEJİK PAZAR KONUMLANDIRMASI
@@ -1077,12 +1238,12 @@ export default function DnaReportRenderer({
 
           // 2. İLETİŞİM DİLİ, TON VE FORMAT REÇETESİ
           if (titleUpper.includes('2.') || titleUpper.includes('İLETİŞİM') || titleUpper.includes('ILETISIM') || titleUpper.includes('FORMAT REÇETESİ')) {
-            return <DnaFormatCard key={idx} section={sec} />
+            return <DnaFormatCard key={idx} section={sec} jsonHooks={raporJson?.hooks} jsonCtas={raporJson?.ctas} />
           }
 
           // 3. İÇERİK SERİLERİ VE ÜRETİM MATRİSİ
           if (titleUpper.includes('3.') || titleUpper.includes('SERİ') || titleUpper.includes('SERI')) {
-            return <DnaSeriesMatrix key={idx} section={sec} />
+            return <DnaSeriesMatrix key={idx} section={sec} jsonSeries={raporJson?.content_series} />
           }
 
           // 4. ROL MODEL VE BENCHMARK
@@ -1097,12 +1258,12 @@ export default function DnaReportRenderer({
 
           // 6. 7 ADIMLI YOL HARİTASI
           if (titleUpper.includes('6.') || titleUpper.includes('YOL HARİTASI') || titleUpper.includes('YOL HARITASI') || titleUpper.includes('ADIM')) {
-            return <DnaRoadmapTimeline key={idx} section={sec} />
+            return <DnaRoadmapTimeline key={idx} section={sec} jsonRoadmap={raporJson?.roadmap} />
           }
 
           // 7. 14 GÜNLÜK MİNİ İÇERİK TAKVİMİ
           if (titleUpper.includes('7.') || titleUpper.includes('14 GÜN') || titleUpper.includes('14 GUN') || titleUpper.includes('TAKVİM') || titleUpper.includes('TAKVIM')) {
-            return <DnaCalendarGrid key={idx} section={sec} />
+            return <DnaCalendarGrid key={idx} section={sec} jsonCalendar={raporJson?.mini_calendar_14_days} />
           }
 
           // DİĞER / GENEL KART

@@ -3470,6 +3470,7 @@ function DnaSection({ token, dnaList, setDnaList, dnaLoading, setDnaLoading, dna
                   <div className="space-y-4">
                     <DnaReportRenderer
                       reportText={dnaDetail.rapor_metni}
+                      raporJson={dnaDetail.rapor_json}
                       aiModel={dnaDetail.ai_model}
                       promptVersion={dnaDetail.prompt_versiyonu}
                       answers={dnaDetail.cevaplar}

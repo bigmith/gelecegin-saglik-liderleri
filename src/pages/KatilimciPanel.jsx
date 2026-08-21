@@ -2473,6 +2473,7 @@ export default function KatilimciPanel() {
                         {dnaResultTab === 'rapor' && (
                           <DnaReportRenderer
                             reportText={dnaData.rapor_metni}
+                            raporJson={dnaData.rapor_json}
                             aiModel={dnaData.ai_model}
                             promptVersion={dnaData.prompt_versiyonu}
                             answers={dnaData.cevaplar}

@@ -221,6 +221,140 @@ export function validateReportStructure(reportText: string) {
   }
 }
 
+export function parseHookAndCtasHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
+  const hooks: string[] = []
+  const ctas: string[] = []
+
+  lines.forEach(l => {
+    const clean = l.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (/^(?:[\-\*•\d\.\)]\s*)?(?:Kanca|Hook)\s*\d*/i.test(clean) || /Kanca\s*\d*[:\(]/i.test(clean)) {
+      const t = clean.replace(/^(?:Kanca|Hook)\s*\d*[:\s\-\(\)\w]*[:\-]?\s*/i, '').replace(/^["']|["']$/g, '').trim()
+      if (t && t.length > 5 && !hooks.includes(t)) hooks.push(t)
+    } else if (/^(?:[\-\*•\d\.\)]\s*)?(?:CTA|Aksiyon Çağrısı)\s*\d*/i.test(clean) || /CTA\s*\d*[:\(]/i.test(clean)) {
+      const t = clean.replace(/^(?:CTA|Aksiyon Çağrısı)\s*\d*[:\s\-\(\)\w]*[:\-]?\s*/i, '').replace(/^["']|["']$/g, '').trim()
+      if (t && t.length > 5 && !ctas.includes(t)) ctas.push(t)
+    }
+  })
+
+  return {
+    hooks: hooks.slice(0, 3),
+    ctas: ctas.slice(0, 3)
+  }
+}
+
+export function parseSeriesBlocksHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n')
+  const series: any[] = []
+  let currentSeri: any = null
+
+  lines.forEach(line => {
+    const trimmed = line.trim()
+    const clean = trimmed.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (!clean) return
+
+    const seriHeaderMatch = clean.match(/^(?:Seri|İçerik Serisi)\s*(\d+)[:\s\-]*(.*)$/i) || clean.match(/^(\d+)[\.\)]\s*(?:Seri|İçerik Serisi)[:\s]*(.*)$/i)
+    if (seriHeaderMatch) {
+      if (currentSeri) series.push(currentSeri)
+      const num = seriHeaderMatch[1] ? parseInt(seriHeaderMatch[1], 10) : (series.length + 1)
+      const title = (seriHeaderMatch[2] || '').trim() || (`Seri ${num}`)
+      currentSeri = {
+        id: num,
+        title: title.startsWith(':') ? title.slice(1).trim() : title,
+        format: 'Reels / Shorts / Video',
+        channel: 'Instagram / Sosyal Medya',
+        logic: '',
+        episodes: [],
+        production: '',
+        riskNote: ''
+      }
+      return
+    }
+
+    if (!currentSeri) return
+
+    if (/Format[:\s]*/i.test(clean)) {
+      currentSeri.format = clean.replace(/Format[:\s]*/i, '').trim()
+    } else if (/Yayın Kanalı|Kanal[:\s]*/i.test(clean)) {
+      currentSeri.channel = clean.replace(/(?:Yayın )?Kanalı?[:\s]*/i, '').trim()
+    } else if (/Detaylı İçerik Mantığı|Mantık|Amaç[:\s]*/i.test(clean)) {
+      currentSeri.logic = clean.replace(/(?:Detaylı )?İçerik Mantığı[:\s]*/i, '').trim()
+    } else if (/Risk|Uyum Notu|TİTCK|KVKK[:\s]*/i.test(clean)) {
+      currentSeri.riskNote = clean.replace(/(?:Risk\/uyum notu|Risk notu|Uyum notu)[:\s]*/i, '').trim()
+    } else if (/Üretim akışı|Akış[:\s]*/i.test(clean)) {
+      currentSeri.production = clean.replace(/(?:Üretim akışı|Akış)[:\s]*/i, '').trim()
+    } else if (/Bölüm\s*\d*[:\s]*/i.test(clean) || /^\*\s*Bölüm/i.test(trimmed)) {
+      currentSeri.episodes.push(clean.replace(/^[\*\-•]\s*/, ''))
+    } else if (!currentSeri.logic && clean.length > 20 && !clean.startsWith('Seri')) {
+      currentSeri.logic = clean
+    }
+  })
+
+  if (currentSeri) series.push(currentSeri)
+  return series.slice(0, 3)
+}
+
+export function parseRoadmapStepsHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
+  const steps: string[] = []
+
+  lines.forEach(l => {
+    const clean = l.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (!clean || clean.length < 5) return
+    if (/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*\d+/i.test(l) || /^Ad[ıi]m\s*\d+/i.test(clean)) {
+      steps.push(clean)
+    }
+  })
+  return steps.slice(0, 7)
+}
+
+export function parseCalendarDaysHelper(text: string) {
+  const cleanBody = (text || '').replace(/\r\n/g, '\n')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
+  const days: any[] = []
+
+  lines.forEach(l => {
+    const clean = l.replace(/^#+\s*/, '').replace(/^\s*[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim()
+    if (/(?:^|[\-\*•\d\.\)]\s*)G[üu]n\s*\d+/i.test(l) || /^G[üu]n\s*\d+/i.test(clean)) {
+      const dayMatch = clean.match(/G[üu]n\s*(\d+)/i)
+      const dayNum = dayMatch ? parseInt(dayMatch[1], 10) : (days.length + 1)
+      const parts = clean.split('|').map(p => p.trim())
+
+      let type = parts[0] || `Gün ${dayNum}`
+      let hook = ''
+      let format = ''
+      let purpose = ''
+      let note = ''
+
+      parts.slice(1).forEach(p => {
+        if (/Kanca[:\s]*/i.test(p)) {
+          hook = p.replace(/Kanca[:\s]*/i, '').replace(/^["']|["']$/g, '').trim()
+        } else if (/Format[:\s]*/i.test(p)) {
+          format = p.replace(/Format[:\s]*/i, '').trim()
+        } else if (/Amaç[:\s]*/i.test(p)) {
+          purpose = p.replace(/Amaç[:\s]*/i, '').trim()
+        } else if (/Uyum|Risk[:\s]*/i.test(p)) {
+          note = p.replace(/(?:Uyum Notu|Risk Notu|Uyum)[:\s]*/i, '').trim()
+        }
+      })
+
+      days.push({
+        day: dayNum,
+        title: type.replace(/^G[üu]n\s*\d+[:\s\-]*/i, '').trim() || 'İçerik Yayını',
+        hook: hook && hook !== '—' && hook !== '-' ? hook : null,
+        format: format || 'Kısa Video / Story',
+        purpose: purpose || 'Etkileşim & Otorite',
+        note: note && note !== '—' && note !== '-' ? note : 'TİTCK uyumlu / Reklamsız'
+      })
+    }
+  })
+
+  return days.slice(0, 14)
+}
+
 export function repairRoadmap7(cevaplar: Record<string, any>, _profileName?: string): string {
   const c = cevaplar || {}
   const rawTopicsList = Array.isArray(c.soru_2) ? c.soru_2 : (c.soru_2 ? [String(c.soru_2)] : ['Sağlık'])
@@ -835,7 +969,10 @@ ${formattedAnswers}`
 
     const scorecard = extractScorecardFromText(raporMetni, cevaplar)
     const detectedArchetype = String(cevaplar?.soru_16 || 'Sağlık İletişim Lideri')
-    const primaryTopic = Array.isArray(cevaplar?.soru_2) ? cevaplar.soru_2[0] : (cevaplar?.soru_2 || 'Sağlık')
+    const parsedHooksCtas = parseHookAndCtasHelper(raporMetni)
+    const parsedSeries = parseSeriesBlocksHelper(raporMetni)
+    const parsedRoadmap = parseRoadmapStepsHelper(raporMetni)
+    const parsedCalendar = parseCalendarDaysHelper(raporMetni)
 
     const raporJson = {
       cevaplar,
@@ -844,6 +981,11 @@ ${formattedAnswers}`
       archetype: detectedArchetype,
       summary: `${detectedArchetype} arketipi ve ${primaryTopic} odağında hazırlanan 20 soruluk stratejik DNA analiz raporu.`,
       prompt_version: fullPromptVersion,
+      hooks: parsedHooksCtas.hooks.map((h: string) => ({ text: h })),
+      ctas: parsedHooksCtas.ctas.map((c: string) => ({ text: c })),
+      content_series: parsedSeries,
+      roadmap: parsedRoadmap.map((s: string, i: number) => ({ step: i + 1, title: `Adım ${i + 1}`, text: s })),
+      mini_calendar_14_days: parsedCalendar,
       validation: validateReportStructure(raporMetni)
     }
 
