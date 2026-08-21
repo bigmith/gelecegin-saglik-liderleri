@@ -393,13 +393,13 @@ export const parseRoadmapSteps = (body, jsonRoadmap = null) => {
   // Eğer 7'den az bulunursa tamamla
   if (steps.length < 7) {
     const defaultSteps = [
-      'Adım 1: [İlk 48 Saat: Biyografi ve Konumlandırma] Profil biyografisine uzmanlık algısını destekleyen açıklama eklenmesi.',
-      'Adım 2: [1. Hafta: Teknik Hazırlık] Ses, ışık ve kadraj düzeninin test edilerek standart açının sabitlenmesi.',
-      'Adım 3: [1. Hafta: İlk Senaryo Taslakları] 1. Seri için 3 adet taslak kurgulanması.',
-      'Adım 4: [2. Hafta: Toplu Çekim Seansı] Hazırlanan taslakların tek seansta çekilmesi ve altyazılandırılması.',
-      'Adım 5: [2. Hafta: Mevzuat ve Etik Kontrol] TİTCK ve KVKK kurallarına uygunluğun teyit edilmesi.',
-      'Adım 6: [3. Hafta: Topluluk Etkileşimi] Gelen geri bildirimlerin mesleki dille yanıtlanması.',
-      'Adım 7: [4. Hafta: Stratejik Değerlendirme] İzlenme metriklerinin analiz edilerek 2. ay takviminin güncellenmesi.'
+      'Biyografi ve Konumlandırma: Profil biyografisine uzmanlık algısını destekleyen açıklama eklenmesi.',
+      'Teknik Hazırlık: Ses, ışık ve kadraj düzeninin test edilerek standart açının sabitlenmesi.',
+      'İlk Senaryo Taslakları: İlk içerik serisi için 3 adet pratik taslak kurgulanması.',
+      'Toplu Çekim Seansı: Hazırlanan taslakların tek seansta çekilmesi ve altyazılandırılması.',
+      'Mevzuat ve Etik Kontrol: TİTCK ve KVKK kurallarına uygunluğun teyit edilmesi.',
+      'Topluluk Etkileşimi: Gelen geri bildirimlerin mesleki dille yanıtlanması ve yeni soruların toplanması.',
+      'Stratejik Değerlendirme: İzlenme metriklerinin analiz edilerek 2. ay takviminin güncellenmesi.'
     ]
     while (steps.length < 7) {
       steps.push(defaultSteps[steps.length])
