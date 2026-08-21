@@ -1805,45 +1805,73 @@ export async function getAdminKatilimciTeslimleri(katilimciId) {
 }
 
 export async function getAdminIcerikDnaList() {
-  const { data, error } = await supabase
-    .from('core_icerikdnatesti')
-    .select(`
-      *,
-      katilimci:core_katilimci (
-        id,
-        aday:core_aday (ad, soyad, ad_soyad, eposta, universite),
-        takim:core_takim (id, takim_adi)
-      )
-    `)
-    .order('gonderim_tarihi', { ascending: false })
+  try {
+    const { data, error } = await supabase
+      .from('core_icerikdnatesti')
+      .select(`
+        *,
+        katilimci:core_katilimci (
+          id,
+          aday:core_aday (ad, soyad, eposta, universite),
+          takim:core_takim (id, takim_adi)
+        )
+      `)
+      .order('gonderim_tarihi', { ascending: false })
 
-  if (error) {
-    console.error('getAdminIcerikDnaList error:', error)
+    if (error) {
+      console.warn('getAdminIcerikDnaList joined select failed, falling back to direct table:', error.message)
+      const { data: rawData, error: rawErr } = await supabase
+        .from('core_icerikdnatesti')
+        .select('*')
+        .order('gonderim_tarihi', { ascending: false })
+
+      if (rawErr || !rawData) return []
+
+      return rawData.map(d => ({
+        id: d.id,
+        katilimci_id: d.katilimci_id,
+        katilimci_ad_soyad: `Katılımcı #${d.katilimci_id}`,
+        katilimci_adi: `Katılımcı #${d.katilimci_id}`,
+        katilimci_eposta: '',
+        universite: '',
+        takim_adi: '—',
+        durum: d.durum || 'TAMAMLANDI',
+        ai_model: d.ai_model || 'Gemini 3.6 Flash',
+        prompt_versiyonu: d.prompt_versiyonu || 'v1',
+        gonderim_tarihi: d.gonderim_tarihi,
+        rapor_metni: d.rapor_metni || (d.rapor_json ? d.rapor_json.rapor_metni : ''),
+        rapor_json: d.rapor_json || null,
+        cevaplar: d.cevaplar || (d.rapor_json ? d.rapor_json.cevaplar : {}),
+        hata_mesaji: d.hata_mesaji || null
+      }))
+    }
+
+    return (data || []).map(d => {
+      const adayObj = d.katilimci?.aday || {}
+      const adSoyad = [adayObj.ad, adayObj.soyad].filter(Boolean).join(' ').trim() || adayObj.eposta || `Katılımcı #${d.katilimci_id}`
+
+      return {
+        id: d.id,
+        katilimci_id: d.katilimci_id,
+        katilimci_ad_soyad: adSoyad,
+        katilimci_adi: adSoyad,
+        katilimci_eposta: adayObj.eposta || '',
+        universite: adayObj.universite || '',
+        takim_adi: d.katilimci?.takim?.takim_adi || '—',
+        durum: d.durum || 'TAMAMLANDI',
+        ai_model: d.ai_model || 'Gemini 3.6 Flash',
+        prompt_versiyonu: d.prompt_versiyonu || 'v1',
+        gonderim_tarihi: d.gonderim_tarihi,
+        rapor_metni: d.rapor_metni || (d.rapor_json ? d.rapor_json.rapor_metni : ''),
+        rapor_json: d.rapor_json || null,
+        cevaplar: d.cevaplar || (d.rapor_json ? d.rapor_json.cevaplar : {}),
+        hata_mesaji: d.hata_mesaji || null
+      }
+    })
+  } catch (err) {
+    console.error('getAdminIcerikDnaList unexpected error:', err)
     return []
   }
-
-  return (data || []).map(d => {
-    const adayObj = d.katilimci?.aday || {}
-    const adSoyad = adayObj.ad_soyad || `${adayObj.ad || ''} ${adayObj.soyad || ''}`.trim() || `Katılımcı #${d.katilimci_id}`
-
-    return {
-      id: d.id,
-      katilimci_id: d.katilimci_id,
-      katilimci_ad_soyad: adSoyad,
-      katilimci_adi: adSoyad,
-      katilimci_eposta: adayObj.eposta || '',
-      universite: adayObj.universite || '',
-      takim_adi: d.katilimci?.takim?.takim_adi || '—',
-      durum: d.durum || 'TAMAMLANDI',
-      ai_model: d.ai_model || 'Gemini 2.5 Flash',
-      prompt_versiyonu: d.prompt_versiyonu || 'v1',
-      gonderim_tarihi: d.gonderim_tarihi,
-      rapor_metni: d.rapor_metni || (d.rapor_json ? d.rapor_json.rapor_metni : ''),
-      rapor_json: d.rapor_json || null,
-      cevaplar: d.cevaplar || (d.rapor_json ? d.rapor_json.cevaplar : {}),
-      hata_mesaji: d.hata_mesaji || null
-    }
-  })
 }
 
 export async function updateAdminPerformansScore(katilimci_id, scoreForm) {

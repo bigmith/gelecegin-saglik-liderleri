@@ -4506,13 +4506,14 @@ ${s7}`
       const katIds = (dnas || []).map(d => d.katilimci_id).filter(Boolean)
       const { data: katilimcilar } = await adminClient
         .from('core_katilimci')
-        .select('id, ad_soyad, eposta, aday:core_aday(ad_soyad, eposta)')
+        .select('id, ad, soyad, eposta, aday:core_aday(ad, soyad, eposta)')
         .in('id', katIds)
 
       const katMap = new Map()
       for (const k of katilimcilar || []) {
-        const name = k.ad_soyad || (k.aday as any)?.ad_soyad || 'Katılımcı'
-        const email = k.eposta || (k.aday as any)?.eposta || ''
+        const aday = (k.aday as any) || {}
+        const name = [k.ad, k.soyad].filter(Boolean).join(' ').trim() || [aday.ad, aday.soyad].filter(Boolean).join(' ').trim() || aday.eposta || 'Katılımcı'
+        const email = k.eposta || aday.eposta || ''
         katMap.set(k.id, { name, email })
       }
 
@@ -4657,13 +4658,14 @@ ${s7}`
       const katIds = (dnas || []).map(d => d.katilimci_id).filter(Boolean)
       const { data: katilimcilar } = await adminClient
         .from('core_katilimci')
-        .select('id, ad_soyad, eposta, aday:core_aday(ad_soyad, eposta)')
+        .select('id, ad, soyad, eposta, aday:core_aday(ad, soyad, eposta)')
         .in('id', katIds)
 
       const katMap = new Map()
       for (const k of katilimcilar || []) {
-        const name = k.ad_soyad || (k.aday as any)?.ad_soyad || 'Katılımcı'
-        const email = k.eposta || (k.aday as any)?.eposta || ''
+        const aday = (k.aday as any) || {}
+        const name = [k.ad, k.soyad].filter(Boolean).join(' ').trim() || [aday.ad, aday.soyad].filter(Boolean).join(' ').trim() || aday.eposta || 'Katılımcı'
+        const email = k.eposta || aday.eposta || ''
         katMap.set(k.id, { name, email })
       }
 
@@ -4838,13 +4840,14 @@ ${s7}`
       const katIds = (dnas || []).map(d => d.katilimci_id).filter(Boolean)
       const { data: katilimcilar } = await adminClient
         .from('core_katilimci')
-        .select('id, ad_soyad, eposta, aday:core_aday(ad_soyad, eposta)')
+        .select('id, ad, soyad, eposta, aday:core_aday(ad, soyad, eposta)')
         .in('id', katIds)
 
       const katMap = new Map()
       for (const k of katilimcilar || []) {
-        const name = k.ad_soyad || (k.aday as any)?.ad_soyad || 'Katılımcı'
-        const email = k.eposta || (k.aday as any)?.eposta || ''
+        const aday = (k.aday as any) || {}
+        const name = [k.ad, k.soyad].filter(Boolean).join(' ').trim() || [aday.ad, aday.soyad].filter(Boolean).join(' ').trim() || aday.eposta || 'Katılımcı'
+        const email = k.eposta || aday.eposta || ''
         katMap.set(k.id, { name, email })
       }
 
@@ -4986,13 +4989,14 @@ ${s7}`
       const katIds = (dnas || []).map(d => d.katilimci_id).filter(Boolean)
       const { data: katilimcilar } = await adminClient
         .from('core_katilimci')
-        .select('id, ad_soyad, eposta, aday:core_aday(ad_soyad, eposta)')
+        .select('id, ad, soyad, eposta, aday:core_aday(ad, soyad, eposta)')
         .in('id', katIds)
 
       const katMap = new Map()
       for (const k of (katilimcilar || [])) {
-        const name = k.ad_soyad || (k.aday as any)?.ad_soyad || 'Katılımcı'
-        const email = k.eposta || (k.aday as any)?.eposta || ''
+        const aday = (k.aday as any) || {}
+        const name = [k.ad, k.soyad].filter(Boolean).join(' ').trim() || [aday.ad, aday.soyad].filter(Boolean).join(' ').trim() || aday.eposta || 'Katılımcı'
+        const email = k.eposta || aday.eposta || ''
         katMap.set(k.id, { name, email })
       }
 

@@ -753,10 +753,11 @@ serve(async (req) => {
     if (!participantName && katilimciId) {
       const { data: katRec } = await adminClient
         .from('core_katilimci')
-        .select('ad_soyad, aday:core_aday(ad_soyad)')
+        .select('id, ad, soyad, aday:core_aday(ad, soyad)')
         .eq('id', katilimciId)
         .maybeSingle()
-      participantName = katRec?.ad_soyad || (katRec?.aday as any)?.ad_soyad || 'Katılımcı'
+      const aday = (katRec?.aday as any) || {}
+      participantName = [katRec?.ad, katRec?.soyad].filter(Boolean).join(' ').trim() || [aday.ad, aday.soyad].filter(Boolean).join(' ').trim() || 'Katılımcı'
     }
     if (!participantName) participantName = 'Katılımcı'
 
