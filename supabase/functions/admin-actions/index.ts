@@ -5126,9 +5126,48 @@ ${s7}`
       })
     }
 
+    // ─── APPLY TARGETED CONTENT FIX ─────────────────────────────────────────
+    if (action === 'apply_targeted_content_fix') {
+      const updates = (payload?.updates || []) as any[]
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return jsonRes(req, { ok: false, error: 'Güncellenecek kayıt listesi (updates) boş.' }, 400)
+      }
+
+      const results = []
+      let updatedCount = 0
+
+      for (const u of updates) {
+        const { error: updErr } = await adminClient
+          .from('core_icerikdnatesti')
+          .update({
+            rapor_metni: u.rapor_metni,
+            rapor_json: u.rapor_json,
+            prompt_versiyonu: u.prompt_versiyonu || 'dna-v5-strict-targeted-fix',
+            guncellenme_tarihi: new Date().toISOString()
+          })
+          .eq('id', u.dna_id)
+
+        if (!updErr) {
+          updatedCount++
+          results.push({ dna_id: u.dna_id, katilimci_id: u.katilimci_id, status: 'SUCCESS' })
+        } else {
+          results.push({ dna_id: u.dna_id, katilimci_id: u.katilimci_id, status: 'FAILED', error: updErr.message })
+        }
+      }
+
+      return jsonRes(req, {
+        ok: true,
+        data: {
+          total_submitted: updates.length,
+          updated_count: updatedCount,
+          results
+        }
+      })
+    }
+
     // Standard endpoints
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant', 'audit_curriculum_sync', 'sync_curriculum_db', 'audit_all_dna_structure', 'repair_all_dna_structure', 'backup_all_dna_records', 'regenerate_all_clean_dna', 'normalize_and_audit_all_dna'].includes(action)) {
+    if (!authHeader && !['dry_run_cleanup', 'clean_task_environment', 'clean_dna_tests', 'full_dry_run', 'test_smtp_reset_mail', 'import_and_setup_participants', 'check_csv_candidates_in_db', 'verify_single_email_reset', 'test_generate_link_only', 'send_password_reset_via_brevo', 'validate_reset_token', 'set_password_with_token', 'resend_all_participant_invitations', 'get_program_haftalari', 'get_aktif_program_haftalari', 'update_program_hafta', 'reject_candidate', 'approve_candidate', 'create_mentor', 'delete_mentor', 'import_candidates_csv', 'audit_launch_recipients', 'audit_participant_email_hotfix', 'execute_participant_email_hotfix', 'get_defne_full_audit', 'run_e2e_resolver_and_dna_test', 'compare_dna_mock_profiles', 'audit_vesile_defne_dna', 'regenerate_vesile_defne_dna', 'audit_all_participants_login_status', 'heal_and_resend_pending_resets', 'audit_delete_participant', 'dry_run_delete_participant', 'execute_delete_participant', 'verify_delete_participant', 'audit_passivate_participant', 'dry_run_passivate_participant', 'passivate_participant', 'activate_participant', 'audit_curriculum_sync', 'sync_curriculum_db', 'audit_all_dna_structure', 'repair_all_dna_structure', 'backup_all_dna_records', 'regenerate_all_clean_dna', 'normalize_and_audit_all_dna', 'apply_targeted_content_fix'].includes(action)) {
       return jsonRes(req, { ok: false, error: 'Yetkilendirme başlığı eksik.' }, 401)
     }
 
