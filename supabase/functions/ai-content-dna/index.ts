@@ -503,19 +503,23 @@ function generateStructuredFallbackReport(cevaplar: Record<string, any>, profile
     dynamicHook3 = `"Hekim veya eczacınıza gitmeden önce ${thirdTopic} hakkında kendinize sormanız gereken ilk soru:"`
   }
 
-  // Dynamic CTAs based on S8
-  let dynamicCta1 = `"Bu klinik notu, ${mainTopic} konusunda bir dahaki sefere doğru adımı atmak için profilinizde saklayın."`
-  let dynamicCta2 = `"${secondTopic} alanındaki kendi deneyiminizi veya aklınıza takılan spesifik soruyu aşağıya iletin, yanıtlayalım."`
-  let dynamicCta3 = `"Ailenizde veya çevrenizde ${thirdTopic} ile ilgilenen biri varsa, doğru bilgiyi ulaştırmak için bu analizi iletebilirsiniz."`
+  // Dynamic CTAs based on S8 (Doğal, akıcı, tek cümlelik Türkçe)
+  let dynamicCta1 = `"${mainTopic} konusunda doğru adımı unutmamak için bu videoyu kaydedebilirsiniz."`
+  let dynamicCta2 = `"${secondTopic} alanındaki kendi deneyiminizi veya aklınıza takılan soruyu yorumlarda paylaşın, konuşalım."`
+  let dynamicCta3 = `"Benzer durumlar yaşayan ve doğru bilgiye ihtiyaç duyan bir arkadaşınıza bu videoyu ulaştırabilirsiniz."`
 
   if (ctaPref.toLowerCase().includes('kaydet') || vision.toLowerCase().includes('kaydet')) {
-    dynamicCta1 = `"${vision.length > 5 ? vision : 'Gerektiğinde danışabileceğiniz bu hap bilgiyi'} unutmamak için şimdiden arşivinize ekleyin."`
-    dynamicCta2 = `"${mainTopic} rehberini bir sonraki eczane ziyaretinizde referans almak üzere kaydedebilirsiniz."`
-    dynamicCta3 = `"${secondTopic} kontrol listenizi hazırlarken bu içeriği temel başvuru kaynağı olarak saklayın."`
+    dynamicCta1 = `"${mainTopic} ile ilgili bu pratik rehberi ihtiyaç anında açıp bakmak için kaydedebilirsiniz."`
+    dynamicCta2 = `"${secondTopic} seçerken kutu arkasını kontrol etmeyi unutmamak için videoyu profilinizde saklayın."`
+    dynamicCta3 = `"Doğru kullanım adımlarını hatırlamak için bu bilgilendirici videoyu kaydedebilirsiniz."`
   } else if (ctaPref.toLowerCase().includes('yorum') || ctaPref.toLowerCase().includes('soru')) {
-    dynamicCta1 = `"${mainTopic} kullanırken yaşadığınız en büyük tereddüt neydi? Yorumlarda buluşup konuşalım."`
-    dynamicCta2 = `"${secondTopic} hakkında bir sonraki videoda hangi konuyu ele almamı istersiniz? Fikirlerinizi yazın."`
-    dynamicCta3 = `"Bu konuda sizin gözleminiz nedir? Deneyimlerinizi paylaşarak topluluğa katkı sağlayın."`
+    dynamicCta1 = `"${mainTopic} kullanırken en çok nerede kararsız kalıyorsunuz? Yorumlara yazın, birlikte inceleyelim."`
+    dynamicCta2 = `"${secondTopic} hakkında bir sonraki videoda hangi konuyu ele almamı istersiniz? Fikirlerinizi bırakın."`
+    dynamicCta3 = `"Siz bu konuda nasıl bir rutin uyguluyorsunuz? Kendi deneyiminizi yorumlarda paylaşın."`
+  } else if (ctaPref.toLowerCase().includes('eczane') || ctaPref.toLowerCase().includes('klinik')) {
+    dynamicCta1 = `"Kendi durumunuza ve tahlillerinize uygun doğru ürünleri belirlemek için eczanemize uğrayabilirsiniz."`
+    dynamicCta2 = `"Evdeki ürünleriniz arasında kararsız kaldığınız bir içerik varsa yoruma yazın, birlikte değerlendirelim."`
+    dynamicCta3 = `"İlaç ve takviye etkileşimleri hakkında merak ettiklerinizi yorumlarda sormaktan çekinmeyin."`
   }
 
   const s6 = repairRoadmap7(cevaplar, profileName)
@@ -819,13 +823,14 @@ ZORUNLU ÇIKTI FORMATI (Aşağıdaki Markdown başlık yapısını ve sırasın�
 - İdeal Video Süresi ve Format Mimarisi:
   [S5 seçilen video süresi ve S3 format üzerinden kurgu dinamizmi, B-roll kullanımı ve dikkat tutma mimarisi]
 - Kanca ve CTA Mühendisliği:
+  (ÖNEMLİ KURAL: Kancalar ilk 3 saniyede merak uyandıran doğal konuşma cümleleri olmalıdır. CTA'lar doğal Türkçe, kısa, en fazla 1 cümle ve videoda söylenebilir net eylem çağrıları olmalıdır. Kurumsal, yapay, çeviri kokan veya jenerik kalıplar kullanma.)
   Katılımcının S2 nişine, S7 kanca stiline ve S8 eylem hedefine özel tasarlanmış tamamen özgün örnekler:
   - Kanca 1 (Stratejik Açılış): "[Özgün kanca metni]"
   - Kanca 2 (Merak ve Kanıt): "[Özgün kanca metni]"
   - Kanca 3 (Pratik Öngörü): "[Özgün kanca metni]"
-  - CTA 1 (Aksiyonel Yönlendirme): "[Özgün CTA metni]"
-  - CTA 2 (Etkileşim Odaklı): "[Özgün CTA metni]"
-  - CTA 3 (Farkındalık & Yayılım): "[Özgün CTA metni]"
+  - CTA 1 (Aksiyonel Yönlendirme): "[Özgün, kısa ve doğal CTA metni]"
+  - CTA 2 (Etkileşim Odaklı): "[Özgün, kısa ve doğal CTA metni]"
+  - CTA 3 (Farkındalık & Yayılım): "[Özgün, kısa ve doğal CTA metni]"
 
 ## 3. KİŞİSELLEŞTİRİLMİŞ İÇERİK SERİLERİ VE ÜRETİM MATRİSİ
 
