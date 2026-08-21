@@ -363,21 +363,32 @@ export const parseRoadmapSteps = (body, jsonRoadmap = null) => {
   if (Array.isArray(jsonRoadmap) && jsonRoadmap.length >= 7) {
     return jsonRoadmap.slice(0, 7).map((s, idx) => {
       if (typeof s === 'string') return cleanMarkdownSymbols(s)
-      return s?.text || s?.title || `Adım ${idx + 1}: Stratejik Aksiyon`
+      const title = s?.title || `Adım ${idx + 1}`
+      const desc = s?.description || s?.desc || ''
+      const text = s?.text || (desc ? `${title}: ${desc}` : title)
+      return cleanMarkdownSymbols(text)
     })
   }
 
   const cleanBody = stripEvidenceText(body || '')
-  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
+  const lines = cleanBody.split('\n')
   const steps = []
+  let currentStep = null
 
-  lines.forEach(l => {
-    const clean = cleanMarkdownSymbols(l)
-    if (!clean || clean.length < 5) return
-    if (/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*\d+/i.test(l) || /^Ad[ıi]m\s*\d+/i.test(clean)) {
-      steps.push(clean)
+  lines.forEach(line => {
+    const trimmed = line.trim()
+    if (!trimmed) return
+
+    const isStepHeader = /(?:^|[\-\*•\d\.\)]\s*|###\s*)Ad[ıi]m\s*(\d+)[:\s\-]*(.*)/i.test(trimmed)
+    if (isStepHeader) {
+      if (currentStep) steps.push(cleanMarkdownSymbols(currentStep))
+      currentStep = trimmed
+    } else if (currentStep) {
+      currentStep += ' ' + trimmed
     }
   })
+
+  if (currentStep) steps.push(cleanMarkdownSymbols(currentStep))
 
   // Eğer 7'den az bulunursa tamamla
   if (steps.length < 7) {
