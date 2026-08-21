@@ -1,6 +1,17 @@
 import React, { useState } from 'react'
 
-// ─── HELPER: Markdown Temizleme ve Ayrıştırma ─────────────────────────────────
+// ─── HELPER: Metin Temizleme ve Ayrıştırma ─────────────────────────────────────
+
+// Dayanak ve AI teknik etiketlerini katılımcı metninden temizler
+export const stripEvidenceAndJargon = (str) => {
+  if (!str || typeof str !== 'string') return ''
+  return str
+    .replace(/\[\s*(?:Dayanak|dayanak|Evidence|evidence|based_on|based_on_answers|why_this_fits|personalization_evidence)[^\]]*\]/gi, '')
+    .replace(/(?:^|\n)\s*(?:Dayanak|dayanak|Evidence|evidence)\s*:\s*[^\n]*/gi, '')
+    .replace(/\bS\d+\s*=\s*[^|\n,]+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
 
 export const cleanMarkdownSymbols = (str) => {
   if (!str || typeof str !== 'string') return ''
@@ -16,7 +27,8 @@ export const cleanMarkdownSymbols = (str) => {
 
 export const renderInlineMarkdown = (text) => {
   if (!text || typeof text !== 'string') return ''
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g)
+  const cleaned = stripEvidenceAndJargon(text)
+  const parts = cleaned.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g)
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return (
@@ -43,16 +55,32 @@ export const renderInlineMarkdown = (text) => {
   })
 }
 
+// Başlıkları son kullanıcı dostu sade ifadelere dönüştürür
+export const humanizeSectionTitle = (title) => {
+  if (!title) return ''
+  const t = title.toUpperCase()
+  if (t.includes('SKOR')) return 'Dijital DNA Skor Kartı'
+  if (t.includes('1.') || t.includes('STRATEJİ') || t.includes('KONUMLANDIRMA')) return 'Seni Sosyal Medyada Nasıl Konumlandıralım?'
+  if (t.includes('2.') || t.includes('İLETİŞİM') || t.includes('FORMAT REÇETESİ') || t.includes('KANCA') || t.includes('CTA')) return 'Anlatım Tarzın ve En Uygun Formatların'
+  if (t.includes('3.') || t.includes('SERİ')) return 'Önerilen 3 İçerik Serisi'
+  if (t.includes('4.') || t.includes('ROL MODEL') || t.includes('BENCHMARK')) return 'İlham Alabileceğin Hesaplar ve Tarzlar'
+  if (t.includes('5.') || t.includes('RİSK') || t.includes('MEVZUAT') || t.includes('TİTCK') || t.includes('KVKK') || t.includes('TÜKENMİŞLİK')) return 'Dikkat Etmen Gerekenler & Mevzuat'
+  if (t.includes('6.') || t.includes('YOL HARİTASI') || t.includes('7 ADIM') || t.includes('ADIM')) return 'Başlamak İçin 7 Adım'
+  if (t.includes('7.') || t.includes('14 GÜN') || t.includes('TAKVİM')) return 'İlk 14 Gün Ne Paylaşabilirsin?'
+  return cleanMarkdownSymbols(title)
+}
+
 export const ReportBodyRenderer = ({ body }) => {
   if (!body || typeof body !== 'string') return null
-  const lines = body.split('\n')
+  const cleanBody = stripEvidenceAndJargon(body)
+  const lines = cleanBody.split('\n')
   const elements = []
   let listItems = []
 
   const flushList = () => {
     if (listItems.length > 0) {
       elements.push(
-        <ul key={`ul-${elements.length}`} className="space-y-2 my-2.5 pl-1">
+        <ul key={`ul-${elements.length}`} className="space-y-2 my-2 pl-1">
           {listItems.map((item, idx) => (
             <li key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 leading-relaxed">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-2 shrink-0" />
@@ -72,13 +100,18 @@ export const ReportBodyRenderer = ({ body }) => {
       return
     }
 
+    // Dayanak satırlarını atla
+    if (/^(?:\[\s*Dayanak|Dayanak\s*:|\[\s*based_on)/i.test(trimmed)) {
+      return
+    }
+
     // Alt Başlık (### veya **)
-    if (trimmed.startsWith('###') || (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 60)) {
+    if (trimmed.startsWith('###') || (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 70)) {
       flushList()
       const headingText = cleanMarkdownSymbols(trimmed)
       elements.push(
-        <h5 key={`h5-${lineIdx}`} className="text-xs font-bold text-purple-950 uppercase tracking-wider mt-4 mb-2 flex items-center gap-1.5">
-          <span className="w-1.5 h-3.5 bg-purple-600 rounded-full inline-block"></span>
+        <h5 key={`h5-${lineIdx}`} className="text-xs font-bold text-purple-950 tracking-wide mt-3 mb-1.5 flex items-center gap-1.5">
+          <span className="w-1.5 h-3 bg-purple-600 rounded-full inline-block"></span>
           <span>{headingText}</span>
         </h5>
       )
@@ -88,14 +121,16 @@ export const ReportBodyRenderer = ({ body }) => {
     // Liste Maddesi (- veya * veya •)
     if (trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('•') || /^\d+[\.\)]/.test(trimmed)) {
       const cleanItem = trimmed.replace(/^[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '')
-      listItems.push(cleanItem)
+      if (cleanItem.trim()) {
+        listItems.push(cleanItem)
+      }
       return
     }
 
     // Normal Paragraf
     flushList()
     elements.push(
-      <p key={`p-${lineIdx}`} className="text-xs text-slate-700 leading-relaxed my-2">
+      <p key={`p-${lineIdx}`} className="text-xs text-slate-700 leading-relaxed my-1.5">
         {renderInlineMarkdown(trimmed)}
       </p>
     )
@@ -132,9 +167,10 @@ export const parseMarkdownSections = (text) => {
 
 // ─── BÖLÜM PARSERLERİ ─────────────────────────────────────────────────────────
 
-// 1. Skor Kartı Parser
+// 1. Skor Kartı Parser (5 Boyut)
 const parseScorecardItems = (body) => {
-  const lines = (body || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const cleanBody = stripEvidenceAndJargon(body || '')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
   const items = []
   let currentItem = null
 
@@ -151,44 +187,73 @@ const parseScorecardItems = (body) => {
       const val = parts.slice(1).join(':').trim()
       const pctMatch = val.match(/%?(\d+)/)
       const score = pctMatch ? parseInt(pctMatch[1], 10) : 80
-      currentItem = { label, val, score, desc: '' }
+      
+      // İlk cümleyi veya kısa özeti al
+      let shortDesc = val.replace(/%?\d+/, '').replace(/^[:\-\s]+/, '').trim()
+      currentItem = { label, score, desc: shortDesc }
     } else if (currentItem) {
-      currentItem.desc = currentItem.desc ? `${currentItem.desc} ${cleanLine}` : cleanLine
+      if (!currentItem.desc) {
+        currentItem.desc = cleanLine
+      } else if (currentItem.desc.length < 120) {
+        currentItem.desc = `${currentItem.desc} ${cleanLine}`
+      }
     } else {
-      items.push({ label: 'Performans Kriteri', val: cleanLine, score: 75, desc: '' })
+      items.push({ label: 'Performans Kriteri', score: 75, desc: cleanLine })
     }
   })
   if (currentItem) items.push(currentItem)
-  return items
+
+  // Default etiketleri insanileştir
+  return items.map(it => {
+    let simpleLabel = it.label
+    let icon = '📊'
+    if (/arketip/i.test(it.label)) { simpleLabel = 'Arketip & Dil Uyumu'; icon = '🎭' }
+    else if (/marka/i.test(it.label)) { simpleLabel = 'Marka Netliği'; icon = '💎' }
+    else if (/kamera/i.test(it.label)) { simpleLabel = 'Kamera Rahatlığı'; icon = '📹' }
+    else if (/kapasite|üretim/i.test(it.label)) { simpleLabel = 'Üretim Kapasitesi'; icon = '⚡' }
+    else if (/kriz|dayanıklılık/i.test(it.label)) { simpleLabel = 'Mevzuat & Kriz Refleksi'; icon = '🛡️' }
+
+    return {
+      ...it,
+      simpleLabel,
+      icon,
+      desc: it.desc ? it.desc.split('.')[0] + '.' : 'Kişiselleştirilmiş analiz skoru.'
+    }
+  })
 }
 
 // 2. Kanca ve CTA Parser
 const parseHookAndCtas = (body) => {
   const hooks = []
   const ctas = []
-  const lines = (body || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const cleanBody = stripEvidenceAndJargon(body || '')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
 
   lines.forEach(l => {
     const clean = cleanMarkdownSymbols(l)
     if (/Kanca\s*\d*|Hook/i.test(clean)) {
-      hooks.push(clean)
+      // Temiz kanca cümlesini çıkar
+      const match = clean.replace(/^(?:[-*•]\s*)?(?:Kanca\s*\d*|Hook\s*\d*)[^:]*:\s*/i, '').replace(/^["'«“]|["'»”]$/g, '').trim()
+      if (match && match.length > 5) hooks.push(match)
     } else if (/CTA\s*\d*|Aksiyon Çağrısı/i.test(clean)) {
-      ctas.push(clean)
+      // Temiz CTA cümlesini çıkar
+      const match = clean.replace(/^(?:[-*•]\s*)?(?:CTA\s*\d*|Aksiyon Çağrısı\s*\d*)[^:]*:\s*/i, '').replace(/^["'«“]|["'»”]$/g, '').trim()
+      if (match && match.length > 5) ctas.push(match)
     }
   })
 
   return { hooks, ctas }
 }
 
-// 3. İçerik Serileri Parser
+// 3. İçerik Serileri Parser (3 Sade Seri)
 const parseSeriesBlocks = (body) => {
-  const rawBody = body || ''
+  const rawBody = stripEvidenceAndJargon(body || '')
   const seriesBlocks = rawBody.split(/(?:^|\n)(?:###|\*\*|\d+[\.\)]|\-)\s*(?:Seri|İçerik Serisi)\s*(\d*[:\-\s]*[^\n]+)/i).filter(Boolean)
   const series = []
 
   if (seriesBlocks.length >= 2) {
     for (let i = 0; i < seriesBlocks.length; i += 2) {
-      const headerTitle = seriesBlocks[i] ? cleanMarkdownSymbols(seriesBlocks[i]) : `İçerik Serisi ${Math.floor(i / 2) + 1}`
+      const headerTitle = seriesBlocks[i] ? cleanMarkdownSymbols(seriesBlocks[i]) : `Seri ${Math.floor(i / 2) + 1}`
       const content = seriesBlocks[i + 1] || ''
       const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
 
@@ -196,7 +261,6 @@ const parseSeriesBlocks = (body) => {
       let channel = ''
       let logic = ''
       let riskNote = ''
-      let production = ''
       const episodes = []
 
       lines.forEach(l => {
@@ -205,28 +269,25 @@ const parseSeriesBlocks = (body) => {
           format = cl.replace(/Format[:\s]*/i, '').trim()
         } else if (/Yayın Kanalı|Kanal[:\s]*/i.test(cl)) {
           channel = cl.replace(/(?:Yayın )?Kanalı?[:\s]*/i, '').trim()
-        } else if (/Detaylı İçerik Mantığı|Mantık|Amaç[:\s]*/i.test(cl)) {
-          logic = cl.replace(/(?:Detaylı )?İçerik Mantığı[:\s]*/i, '').trim()
+        } else if (/Detaylı İçerik Mantığı|Mantık|Amaç|Hedef[:\s]*/i.test(cl)) {
+          logic = cl.replace(/(?:Detaylı )?(?:İçerik Mantığı|Mantık|Amaç|Hedef)[:\s]*/i, '').trim()
         } else if (/Risk|Uyum Notu|TİTCK|KVKK[:\s]*/i.test(cl)) {
-          riskNote = cl.replace(/(?:Risk\/uyum notu|Risk notu|Uyum notu)[:\s]*/i, '').trim()
-        } else if (/Üretim akışı|Akış[:\s]*/i.test(cl)) {
-          production = cl.replace(/(?:Üretim akışı|Akış)[:\s]*/i, '').trim()
-        } else if (/Bölüm\s*\d*[:\s]*/i.test(cl) || /^\*\s*Bölüm/i.test(l)) {
-          episodes.push(cl.replace(/^[\*\-•]\s*/, ''))
-        } else if (!logic && cl.length > 20) {
+          riskNote = cl.replace(/(?:Risk\/uyum notu|Risk notu|Uyum notu|Uyum)[:\s]*/i, '').trim()
+        } else if (/Bölüm\s*\d*[:\s]*/i.test(cl) || /^\*\s*Bölüm/i.test(l) || /^[-*•]\s*Bölüm/i.test(cl)) {
+          episodes.push(cl.replace(/^[\*\-•]\s*/, '').replace(/^Bölüm\s*\d*[:\s\-]*/i, ''))
+        } else if (!logic && cl.length > 20 && !cl.startsWith('Format') && !cl.startsWith('Bölüm')) {
           logic = cl
         }
       })
 
       series.push({
         id: Math.floor(i / 2) + 1,
-        title: headerTitle,
-        format: format || 'Reels / Shorts / Video',
-        channel: channel || 'Instagram / Sosyal Medya',
-        logic: logic || '',
-        episodes: episodes,
-        production: production || '',
-        riskNote: riskNote || ''
+        title: headerTitle.replace(/^Seri\s*\d*[:\-\s]*/i, '').trim() || `İçerik Serisi ${Math.floor(i / 2) + 1}`,
+        format: format || 'Reels / Shorts (Kısa Video)',
+        channel: channel || 'Instagram / LinkedIn',
+        logic: logic || 'Uzmanlık alanınızda güven inşa eden ve sık sorulan soruları yanıtlayan seri.',
+        episodes: episodes.slice(0, 3),
+        riskNote: riskNote || 'TİTCK uyumlu; tıbbi iddia ve ilaç ismi olmadan genel etken madde bilgisi.'
       })
     }
   }
@@ -236,14 +297,52 @@ const parseSeriesBlocks = (body) => {
 
 // 4. 7 Adımlı Yol Haritası Parser
 export const parseRoadmapSteps = (body) => {
-  const lines = (body || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const cleanBody = stripEvidenceAndJargon(body || '')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
   const steps = []
 
   lines.forEach(l => {
-    const clean = cleanMarkdownSymbols(l)
+    const clean = cleanMarkdownSymbols(stripEvidenceAndJargon(l))
     if (!clean || clean.length < 5) return
-    if (/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*\d+/i.test(l) || /^Ad[ıi]m\s*\d+/i.test(clean)) {
-      steps.push(clean)
+
+    const match = clean.match(/(?:^|[\-\*•\d\.\)]\s*)Ad[ıi]m\s*(\d+)[:\s\-]*(.*)/i)
+    if (match) {
+      const stepNum = parseInt(match[1], 10)
+      const rest = match[2] ? match[2].trim() : ''
+
+      let title = `Adım ${stepNum}`
+      let desc = rest
+      let tip = ''
+
+      // [Başlık] Açıklama yapısı kontrolü
+      const bracketMatch = rest.match(/^\[([^\]]+)\]\s*(.*)/)
+      if (bracketMatch) {
+        title = bracketMatch[1].trim()
+        desc = bracketMatch[2].trim()
+      } else if (rest.includes(':')) {
+        const parts = rest.split(':')
+        if (parts[0].length < 35) {
+          title = parts[0].trim()
+          desc = parts.slice(1).join(':').trim()
+        }
+      }
+
+      // İpucu varsa ayır
+      if (/İpucu:|ipucu:|Not:/i.test(desc)) {
+        const tipParts = desc.split(/İpucu:|ipucu:|Not:/i)
+        desc = tipParts[0].trim()
+        tip = tipParts[1].trim()
+      }
+
+      // Desc içindeki gereksiz teknik kalıntıları temizle
+      desc = desc.replace(/^-\s*/, '').trim()
+
+      steps.push({
+        num: stepNum,
+        title: title || `Aksiyon Adımı #${stepNum}`,
+        desc: desc || 'Planlanan uygulama adımı.',
+        tip: tip || null
+      })
     }
   })
 
@@ -252,17 +351,19 @@ export const parseRoadmapSteps = (body) => {
 
 // 5. 14 Günlük Mini Takvim Parser
 export const parseCalendarDays = (body) => {
-  const lines = (body || '').split('\n').map(l => l.trim()).filter(Boolean)
+  const cleanBody = stripEvidenceAndJargon(body || '')
+  const lines = cleanBody.split('\n').map(l => l.trim()).filter(Boolean)
   const days = []
 
   lines.forEach(l => {
-    const clean = cleanMarkdownSymbols(l)
+    const clean = cleanMarkdownSymbols(stripEvidenceAndJargon(l))
     if (/(?:^|[\-\*•\d\.\)]\s*)G[üu]n\s*\d+/i.test(l) || /^G[üu]n\s*\d+/i.test(clean)) {
-      const dayMatch = clean.match(/G[üu]n\s*(\d+)/i)
+      const dayMatch = clean.match(/G[üu]n\s*(\d+)[:\s\-]*(.*)/i)
       const dayNum = dayMatch ? parseInt(dayMatch[1], 10) : (days.length + 1)
-      const parts = clean.split('|').map(p => p.trim())
+      const lineContent = dayMatch ? dayMatch[2] : clean
 
-      let type = parts[0] || `Gün ${dayNum}`
+      const parts = lineContent.split('|').map(p => p.trim())
+      let title = parts[0] ? parts[0].replace(/^\[|\]$/g, '').trim() : `Gün ${dayNum}`
       let hook = ''
       let format = ''
       let purpose = ''
@@ -270,23 +371,35 @@ export const parseCalendarDays = (body) => {
 
       parts.slice(1).forEach(p => {
         if (/Kanca[:\s]*/i.test(p)) {
-          hook = p.replace(/Kanca[:\s]*/i, '').replace(/^"|"$/g, '').trim()
+          hook = p.replace(/Kanca[:\s]*/i, '').replace(/^["'«“]|["'»”]$/g, '').trim()
         } else if (/Format[:\s]*/i.test(p)) {
           format = p.replace(/Format[:\s]*/i, '').trim()
         } else if (/Amaç[:\s]*/i.test(p)) {
           purpose = p.replace(/Amaç[:\s]*/i, '').trim()
         } else if (/Uyum|Risk[:\s]*/i.test(p)) {
-          note = p.replace(/(?:Uyum Notu|Risk Notu|Uyum)[:\s]*/i, '').trim()
+          note = p.replace(/(?:Uyum Notu|Risk Notu|Uyum|Risk)[:\s]*/i, '').trim()
         }
       })
 
+      if (hook === '—' || hook === '-') hook = ''
+      if (note === '—' || note === '-') note = ''
+
+      // Küçük rozet sadeleştirmesi
+      let simpleBadge = null
+      if (note) {
+        if (note.includes('İlaçsız') || note.includes('Reklamsız')) simpleBadge = 'İlaçsız Bilgi'
+        else if (note.includes('Mahremiyet') || note.includes('KVKK')) simpleBadge = 'KVKK / Mahremiyet'
+        else if (note.includes('Danışın')) simpleBadge = 'Uzmana Danışın'
+        else simpleBadge = 'TİTCK Uyumlu'
+      }
+
       days.push({
         day: dayNum,
-        title: type.replace(/^G[üu]n\s*\d+[:\s\-]*/i, '').trim() || 'İçerik Yayını',
-        hook: hook && hook !== '—' && hook !== '-' ? hook : null,
+        title: title || `İçerik Yayını #${dayNum}`,
+        hook: hook && hook.length > 5 ? hook : null,
         format: format || 'Kısa Video / Story',
         purpose: purpose || 'Etkileşim & Otorite',
-        note: note && note !== '—' && note !== '-' ? note : 'TİTCK uyumlu / Reklamsız'
+        note: simpleBadge
       })
     }
   })
@@ -296,23 +409,21 @@ export const parseCalendarDays = (body) => {
 
 // ─── GÖRSEL BİLEŞENLER ───────────────────────────────────────────────────────
 
-// 1. HERO ALANI
-function DnaReportHero({ katilimciAdi, takimAdi, aiModel, promptVersion, gonderimTarihi, answers, summaryStats }) {
+// 1. HERO BÖLÜMÜ
+function DnaReportHero({ katilimciAdi, takimAdi, aiModel, gonderimTarihi }) {
   const dateStr = gonderimTarihi
     ? new Date(gonderimTarihi).toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })
     : 'Güncel Rapor'
 
   return (
     <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-purple-500/20">
-      {/* Arka plan dekoratif daireler */}
       <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
       <div className="absolute -left-16 -bottom-16 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
 
-      <div className="relative z-10 space-y-6">
-        {/* Üst Satır: Rozetler ve Başlık */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
+      <div className="relative z-10 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-xs">
                 <span>🧬</span> DİJİTAL DNA STRATEJİ RAPORU
               </span>
@@ -326,40 +437,17 @@ function DnaReportHero({ katilimciAdi, takimAdi, aiModel, promptVersion, gonderi
               )}
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              {katilimciAdi ? `${katilimciAdi} — Kişiselleştirilmiş İçerik ve Operasyonel DNA Raporu` : 'Kişiselleştirilmiş İçerik ve Operasyonel DNA Raporu'}
+              {katilimciAdi ? `${katilimciAdi} — Kişisel İçerik ve Strateji Raporu` : 'Kişisel İçerik ve Strateji Raporu'}
             </h2>
-            <p className="text-xs sm:text-sm text-purple-200/90 leading-relaxed max-w-3xl">
-              20 soruluk İçerik Üretici DNA Envanteri cevaplarınızın çapraz analiziyle hazırlanan; konumlandırma, hitabet, içerik serileri, yasal uyum ve 14 günlük aksiyon takvimi reçeteniz.
+            <p className="text-xs sm:text-sm text-purple-200/90 leading-relaxed max-w-2xl">
+              20 soruluk DNA testinize göre hazırlanan; iletişim tarzınız, video serileriniz ve 14 günlük pratik paylaşım rehberiniz.
             </p>
           </div>
 
-          <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 shrink-0">
-            <span className="inline-flex items-center gap-1.5 bg-white/10 text-purple-100 text-xs font-bold px-3.5 py-1.5 rounded-xl border border-white/15 backdrop-blur-md">
-              🤖 {aiModel || 'Gemini 2.5 Flash'} • {promptVersion || 'v2.0'}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-flex items-center gap-1 bg-white/10 text-purple-100 text-xs font-bold px-3 py-1.5 rounded-xl border border-white/15 backdrop-blur-md">
+              ✓ Kişiye Özel Analiz
             </span>
-            <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 text-[11px] font-semibold px-3 py-1 rounded-lg border border-emerald-500/30">
-              ✓ 20/20 Soru Çapraz Analiz Edildi
-            </span>
-          </div>
-        </div>
-
-        {/* 4 Boyutlu Özet Çipleri */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-          <div className="bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-md border border-white/10 rounded-2xl p-4 space-y-1">
-            <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">Mevcut Seviye</span>
-            <p className="text-xs sm:text-sm font-black text-white truncate">{summaryStats.seviye}</p>
-          </div>
-          <div className="bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-md border border-white/10 rounded-2xl p-4 space-y-1">
-            <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">Haftalık Kapasite</span>
-            <p className="text-xs sm:text-sm font-black text-white truncate">{summaryStats.kapasite}</p>
-          </div>
-          <div className="bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-md border border-white/10 rounded-2xl p-4 space-y-1">
-            <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">Kamera Skoru</span>
-            <p className="text-xs sm:text-sm font-black text-white truncate">{summaryStats.kamera}</p>
-          </div>
-          <div className="bg-white/5 hover:bg-white/10 transition-colors backdrop-blur-md border border-white/10 rounded-2xl p-4 space-y-1">
-            <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">Ana Arketip</span>
-            <p className="text-xs sm:text-sm font-black text-white truncate">{summaryStats.arketip}</p>
           </div>
         </div>
       </div>
@@ -367,17 +455,91 @@ function DnaReportHero({ katilimciAdi, takimAdi, aiModel, promptVersion, gonderi
   )
 }
 
-// 2. HIZLI RAPOR NAVİGASYONU
-function DnaQuickNav({ onSelectSection }) {
+// 2. DNA ÖZETİ & MİNİ AKSİYON KUTUSU (YENİ SADE MODÜL)
+function DnaSummaryCard({ summaryStats, answers }) {
+  // Dinamik güçlü yön ve dikkat alanı çıkarımı
+  const cameraVal = Number(answers?.soru_9) || 3
+  const strongArea = cameraVal >= 4
+    ? 'Doğal Kamera Rahatlığı & Akıcı Hitabet'
+    : answers?.soru_11
+    ? String(answers.soru_11).split(':')[0]
+    : 'Güçlü Mesleki Uzmanlık & Otorite'
+
+  const focusArea = answers?.soru_10
+    ? String(answers.soru_10).split(':')[0]
+    : 'Zaman Yönetimi ve Toplu Çekim Disiplini'
+
+  return (
+    <div className="bg-gradient-to-br from-purple-50/70 via-white to-indigo-50/50 rounded-3xl p-6 border border-purple-100/90 shadow-soft space-y-5">
+      {/* 5 Boyutlu Özet Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="bg-white p-3.5 rounded-2xl border border-purple-100 shadow-2xs space-y-1">
+          <span className="text-[10px] font-extrabold text-purple-700 uppercase tracking-wider block">🎭 Ana Tarzın</span>
+          <p className="text-xs font-black text-slate-800 truncate">{summaryStats.arketip}</p>
+        </div>
+        <div className="bg-white p-3.5 rounded-2xl border border-emerald-100 shadow-2xs space-y-1">
+          <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider block">⚡ En Güçlü Yönün</span>
+          <p className="text-xs font-black text-slate-800 truncate">{strongArea}</p>
+        </div>
+        <div className="bg-white p-3.5 rounded-2xl border border-amber-100 shadow-2xs space-y-1">
+          <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider block">🎯 Odak / Dikkat Alanı</span>
+          <p className="text-xs font-black text-slate-800 truncate">{focusArea}</p>
+        </div>
+        <div className="bg-white p-3.5 rounded-2xl border border-indigo-100 shadow-2xs space-y-1">
+          <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-wider block">📹 Başlangıç Formatı</span>
+          <p className="text-xs font-black text-slate-800 truncate">{summaryStats.format}</p>
+        </div>
+        <div className="bg-white p-3.5 rounded-2xl border border-purple-100 shadow-2xs space-y-1 col-span-2 sm:col-span-1">
+          <span className="text-[10px] font-extrabold text-purple-700 uppercase tracking-wider block">📅 Önerilen Tempo</span>
+          <p className="text-xs font-black text-slate-800 truncate">{summaryStats.kapasite}</p>
+        </div>
+      </div>
+
+      {/* Bugün Ne Yapmalıyım? (3 Maddelik Mini Aksiyon Kutusu) */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-indigo-100/90 space-y-3">
+        <div className="flex items-center gap-2 text-indigo-900 font-extrabold text-xs uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+          <span>Bugün Ne Yapmalıyım? (3 Hızlı Adım)</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/60">
+            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">1</span>
+            <div className="space-y-0.5">
+              <h5 className="text-xs font-bold text-slate-900">Biyografini Düzenle</h5>
+              <p className="text-[11px] text-slate-600 leading-snug">Uzmanlık nişini ve kime fayda sağladığını profiline 1 cümlede yaz.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50/50 border border-purple-100/60">
+            <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">2</span>
+            <div className="space-y-0.5">
+              <h5 className="text-xs font-bold text-slate-900">İlk Konunu Seç</h5>
+              <p className="text-[11px] text-slate-600 leading-snug">Aşağıdaki İçerik Serisi 1'deki ilk konu başlığını not al.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100/60">
+            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">3</span>
+            <div className="space-y-0.5">
+              <h5 className="text-xs font-bold text-slate-900">14 Günlük Takvimi İncele</h5>
+              <p className="text-[11px] text-slate-600 leading-snug">İlk videon için çekim açını belirle ve kısa bir deneme kaydı al.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 3. HIZLI RAPOR NAVİGASYONU
+function DnaQuickNav() {
   const navItems = [
     { id: 'sec-skor', icon: '📊', label: 'Skor Kartı' },
-    { id: 'sec-1', icon: '🎯', label: '1. Strateji & Pazar' },
-    { id: 'sec-2', icon: '🗣️', label: '2. İletişim & Format' },
-    { id: 'sec-3', icon: '🎬', label: '3. İçerik Serileri' },
-    { id: 'sec-4', icon: '⭐', label: '4. Benchmark' },
-    { id: 'sec-5', icon: '🛡️', label: '5. Risk & Mevzuat' },
-    { id: 'sec-6', icon: '🗺️', label: '6. Yol Haritası' },
-    { id: 'sec-7', icon: '📅', label: '7. 14 Günlük Takvim' },
+    { id: 'sec-1', icon: '🎯', label: 'Konumlandırma' },
+    { id: 'sec-2', icon: '🗣️', label: 'Anlatım & Format' },
+    { id: 'sec-3', icon: '🎬', label: 'İçerik Serileri' },
+    { id: 'sec-4', icon: '⭐', label: 'İlham & Tarz' },
+    { id: 'sec-5', icon: '🛡️', label: 'Mevzuat & Dikkat' },
+    { id: 'sec-6', icon: '🗺️', label: '7 Adım' },
+    { id: 'sec-7', icon: '📅', label: '14 Günlük Takvim' },
   ]
 
   const scrollTo = (id) => {
@@ -388,8 +550,8 @@ function DnaQuickNav({ onSelectSection }) {
   }
 
   return (
-    <div className="bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-2xl p-2.5 shadow-soft overflow-x-auto">
-      <div className="flex items-center gap-2 min-w-max">
+    <div className="bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-2xl p-2 shadow-soft overflow-x-auto">
+      <div className="flex items-center gap-1.5 min-w-max">
         <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 py-1">
           Hızlı Geçiş:
         </span>
@@ -408,7 +570,7 @@ function DnaQuickNav({ onSelectSection }) {
   )
 }
 
-// 3. SKOR KARTI (5 BOYUTLU GÖSTERGE)
+// 4. SKOR KARTI (5 BOYUTLU GÖSTERGE - SADELEŞTİRİLMİŞ)
 function DnaScoreGrid({ section }) {
   const items = parseScorecardItems(section.body)
 
@@ -416,56 +578,38 @@ function DnaScoreGrid({ section }) {
     if (score >= 75) return {
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
       bar: 'bg-gradient-to-r from-emerald-500 to-teal-500',
-      border: 'border-emerald-100 hover:border-emerald-300',
-      icon: '✅',
-      accent: 'text-emerald-700'
+      border: 'border-emerald-100 hover:border-emerald-200'
     }
     if (score >= 50) return {
       badge: 'bg-amber-100 text-amber-800 border-amber-200',
       bar: 'bg-gradient-to-r from-amber-500 to-orange-500',
-      border: 'border-amber-100 hover:border-amber-300',
-      icon: '⚠️',
-      accent: 'text-amber-700'
+      border: 'border-amber-100 hover:border-amber-200'
     }
     return {
       badge: 'bg-rose-100 text-rose-800 border-rose-200',
       bar: 'bg-gradient-to-r from-rose-500 to-red-500',
-      border: 'border-rose-100 hover:border-rose-300',
-      icon: '⚡',
-      accent: 'text-rose-700'
+      border: 'border-rose-100 hover:border-rose-200'
     }
-  }
-
-  const getMetricIcon = (label) => {
-    const l = (label || '').toLowerCase()
-    if (l.includes('arketip')) return '🎭'
-    if (l.includes('marka')) return '💎'
-    if (l.includes('kamera') || l.includes('prod')) return '📹'
-    if (l.includes('kapasite') || l.includes('üretim')) return '⚡'
-    if (l.includes('kriz') || l.includes('dayanıklılık')) return '🛡️'
-    return '📊'
   }
 
   return (
     <div id="sec-skor" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
-      <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base shadow-2xs">
-            ⭐
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
+          📊
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-extrabold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-md uppercase border border-amber-200">
+              5 Boyutlu Değerlendirme
+            </span>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+              Dijital DNA Skor Kartı
+            </h3>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-md uppercase border border-amber-200">
-                Operasyonel Radar
-              </span>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                İçerik DNA ve Operasyonel Skor Kartı
-              </h3>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Katılımcının iletişim becerileri, sürdürülebilirlik kapasitesi ve regülasyon olgunluğu
-            </p>
-          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            İletişim becerileriniz, sürdürülebilir tempo ve içerik olgunluğunuz
+          </p>
         </div>
       </div>
 
@@ -473,24 +617,22 @@ function DnaScoreGrid({ section }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           {items.map((item, i) => {
             const style = getScoreColor(item.score)
-            const icon = getMetricIcon(item.label)
 
             return (
               <div
                 key={i}
-                className={`bg-slate-50/70 border ${style.border} rounded-2xl p-4 flex flex-col justify-between space-y-3 transition-all hover:bg-white hover:shadow-card`}
+                className={`bg-slate-50/70 border ${style.border} rounded-2xl p-4 flex flex-col justify-between space-y-2.5 transition-all hover:bg-white hover:shadow-card`}
               >
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-base">{icon}</span>
+                    <span className="text-base">{item.icon}</span>
                     <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${style.badge}`}>
                       %{item.score}
                     </span>
                   </div>
-                  <h4 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-tight leading-snug">
-                    {item.label}
+                  <h4 className="text-[11px] font-extrabold text-slate-800 tracking-tight leading-snug">
+                    {item.simpleLabel || item.label}
                   </h4>
-                  {/* Basit İlerleme Çubuğu */}
                   <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
                     <div
                       className={`h-full rounded-full ${style.bar} transition-all duration-500`}
@@ -500,7 +642,7 @@ function DnaScoreGrid({ section }) {
                 </div>
 
                 {item.desc && (
-                  <p className="text-[11px] text-slate-600 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-slate-100">
+                  <p className="text-[11px] text-slate-600 leading-relaxed bg-white/90 p-2 rounded-xl border border-slate-100">
                     {item.desc}
                   </p>
                 )}
@@ -515,11 +657,11 @@ function DnaScoreGrid({ section }) {
   )
 }
 
-// 4. STRATEJİK PAZAR KONUMLANDIRMASI & ARKETİP KARTI
+// 5. STRATEJİK KONUMLANDIRMA (BÖLÜM 1)
 function DnaStrategyCard({ section }) {
   return (
     <div id="sec-1" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
         <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
           🎯
         </div>
@@ -529,29 +671,29 @@ function DnaStrategyCard({ section }) {
               Bölüm 01
             </span>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              {section.title || 'Stratejik Pazar Konumlandırması ve Arketip Analizi'}
+              {humanizeSectionTitle(section.title)}
             </h3>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Uzmanlık nişi, pazar konumu ve algı köprüsü stratejisi
+            Uzmanlık odağınız, hedef kitle algınız ve dijital kimlik köprünüz
           </p>
         </div>
       </div>
 
-      <div className="bg-purple-50/40 rounded-2xl p-5 border border-purple-100/80">
+      <div className="bg-purple-50/30 rounded-2xl p-5 border border-purple-100/70">
         <ReportBodyRenderer body={section.body} />
       </div>
     </div>
   )
 }
 
-// 5. İLETİŞİM DİLİ, TON VE FORMAT REÇETESİ (HOOK & CTA VİTRİNİ)
+// 6. ANLATIM TARZI VE FORMAT (HOOK & CTA - BÖLÜM 2)
 function DnaFormatCard({ section }) {
   const { hooks, ctas } = parseHookAndCtas(section.body)
 
   return (
-    <div id="sec-2" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-6 scroll-mt-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+    <div id="sec-2" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
         <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
           🗣️
         </div>
@@ -561,11 +703,11 @@ function DnaFormatCard({ section }) {
               Bölüm 02
             </span>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              {section.title || 'İletişim Dili, Ton ve Format Reçetesi'}
+              {humanizeSectionTitle(section.title)}
             </h3>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Diksiyon, tempo, dikkat tutma mimarisi ve kopyalanabilir giriş/çıkış kalıpları
+            Konuşma temponuz, ideal video süreniz ve kullanabileceğiniz hazır kalıplar
           </p>
         </div>
       </div>
@@ -573,20 +715,20 @@ function DnaFormatCard({ section }) {
       {/* Genel Analiz Metni */}
       <ReportBodyRenderer body={section.body} />
 
-      {/* Kanca ve CTA Özel Blokları */}
+      {/* Sade Kanca ve CTA Blokları */}
       {(hooks.length > 0 || ctas.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
           {/* Kancalar */}
           {hooks.length > 0 && (
-            <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/50 border border-amber-200/80 rounded-2xl p-5 space-y-3">
+            <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/40 border border-amber-200/80 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
                 <span>🪝</span>
-                <span>Önerilen Giriş Kancaları (Hooks)</span>
+                <span>Videoya Böyle Başlayabilirsin (3 Giriş Örneği)</span>
               </div>
               <div className="space-y-2.5">
                 {hooks.map((h, idx) => (
                   <div key={idx} className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-2xs flex items-start gap-2.5">
-                    <span className="text-amber-500 font-bold text-sm leading-none shrink-0">“</span>
+                    <span className="text-amber-500 font-bold text-sm leading-none shrink-0 mt-0.5">“</span>
                     <p className="text-xs font-semibold text-slate-800 leading-snug italic">
                       {h}
                     </p>
@@ -598,15 +740,15 @@ function DnaFormatCard({ section }) {
 
           {/* CTA Örnekleri */}
           {ctas.length > 0 && (
-            <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/50 border border-indigo-200/80 rounded-2xl p-5 space-y-3">
+            <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/40 border border-indigo-200/80 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs uppercase tracking-wider">
                 <span>📣</span>
-                <span>Önerilen Aksiyon Çağrıları (CTAs)</span>
+                <span>Videoyu Böyle Bitirebilirsin (3 Kapanış Örneği)</span>
               </div>
               <div className="space-y-2.5">
                 {ctas.map((c, idx) => (
                   <div key={idx} className="bg-white p-3.5 rounded-xl border border-indigo-200/60 shadow-2xs flex items-start gap-2.5">
-                    <span className="text-indigo-500 font-bold text-sm leading-none shrink-0">👉</span>
+                    <span className="text-indigo-500 font-bold text-sm leading-none shrink-0 mt-0.5">👉</span>
                     <p className="text-xs font-semibold text-slate-800 leading-snug">
                       {c}
                     </p>
@@ -621,13 +763,13 @@ function DnaFormatCard({ section }) {
   )
 }
 
-// 6. İÇERİK SERİLERİ VE ÜRETİM MATRİSİ (3 ÖZEL SERİ KARTI)
+// 7. İÇERİK SERİLERİ (BÖLÜM 3 - 3 SADE KART)
 function DnaSeriesMatrix({ section }) {
   const seriesList = parseSeriesBlocks(section.body)
 
   return (
     <div id="sec-3" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
         <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
           🎬
         </div>
@@ -637,11 +779,11 @@ function DnaSeriesMatrix({ section }) {
               Bölüm 03
             </span>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              {section.title || 'Kişiselleştirilmiş İçerik Serileri ve Üretim Matrisi'}
+              {humanizeSectionTitle(section.title)}
             </h3>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Sürdürülebilir, tekrar üretilebilir 3 spesifik video serisi reçetesi
+            Sürekli konu aramak zorunda kalmayacağınız, sürdürülebilir 3 video formatı
           </p>
         </div>
       </div>
@@ -651,7 +793,7 @@ function DnaSeriesMatrix({ section }) {
           {seriesList.map((s, i) => (
             <div
               key={i}
-              className="bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/30 border border-purple-200/80 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:shadow-card transition-all"
+              className="bg-gradient-to-br from-purple-50/30 via-white to-indigo-50/20 border border-purple-200/70 rounded-2xl p-5 flex flex-col justify-between space-y-3.5 hover:shadow-card transition-all"
             >
               <div className="space-y-3">
                 {/* Seri Başlığı ve Rozetler */}
@@ -676,7 +818,7 @@ function DnaSeriesMatrix({ section }) {
 
                 {/* Mantık / Amaç */}
                 <div className="bg-white/90 rounded-xl p-3 border border-purple-100/80 text-[11px] text-slate-700 leading-relaxed">
-                  <span className="font-bold text-purple-900 block mb-1">🎯 İçerik Mantığı:</span>
+                  <span className="font-bold text-purple-900 block mb-0.5">🎯 Kimin İçin? / İçerik Mantığı:</span>
                   {s.logic}
                 </div>
 
@@ -684,7 +826,7 @@ function DnaSeriesMatrix({ section }) {
                 {s.episodes && s.episodes.length > 0 && (
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      📌 Örnek Bölüm Başlıkları:
+                      📌 İlk 3 Bölüm Fikri:
                     </span>
                     <ul className="space-y-1">
                       {s.episodes.map((ep, epIdx) => (
@@ -697,11 +839,11 @@ function DnaSeriesMatrix({ section }) {
                 )}
               </div>
 
-              {/* Uyum & Risk Uyarısı */}
+              {/* Uyum Rozeti */}
               {s.riskNote && (
-                <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl p-2.5 text-[10px] text-amber-900 leading-snug flex items-start gap-1.5">
-                  <span className="shrink-0 mt-0.5">⚠️</span>
-                  <span><strong>Uyum Notu:</strong> {s.riskNote}</span>
+                <div className="bg-amber-50/80 border border-amber-200/60 rounded-xl p-2 text-[10px] text-amber-900 leading-snug flex items-start gap-1.5">
+                  <span className="shrink-0">⚠️</span>
+                  <span>{s.riskNote}</span>
                 </div>
               )}
             </div>
@@ -714,11 +856,11 @@ function DnaSeriesMatrix({ section }) {
   )
 }
 
-// 7. ROL MODEL VE BENCHMARK KARTI
+// 8. ROL MODEL VE BENCHMARK (BÖLÜM 4)
 function DnaBenchmarkCard({ section }) {
   return (
     <div id="sec-4" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
         <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
           ⭐
         </div>
@@ -728,11 +870,11 @@ function DnaBenchmarkCard({ section }) {
               Bölüm 04
             </span>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              {section.title || 'Rol Model ve Benchmark Analizi'}
+              {humanizeSectionTitle(section.title)}
             </h3>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Sektörel benchmark modellemesi ve görsel/işitsel estetik rehberi
+            Sektördeki iyi örneklerden ilham alırken kendi özgün sesinizi koruma rehberi
           </p>
         </div>
       </div>
@@ -744,11 +886,11 @@ function DnaBenchmarkCard({ section }) {
   )
 }
 
-// 8. OPERASYONEL RİSKLER VE MEVZUAT FARKINDALIĞI KARTI
+// 9. DİKKAT EDİLECEKLER & MEVZUAT (BÖLÜM 5 - SADELEŞTİRİLMİŞ)
 function DnaRiskComplianceCard({ section }) {
   return (
     <div id="sec-5" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
         <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
           🛡️
         </div>
@@ -758,31 +900,31 @@ function DnaRiskComplianceCard({ section }) {
               Bölüm 05
             </span>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-              {section.title || 'Operasyonel Riskler, Mevzuat Farkındalığı ve Tükenmişlik Analizi'}
+              {humanizeSectionTitle(section.title)}
             </h3>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            TİTCK/KVKK uyum ilkeleri, kriz simülasyonu ve sürdürülebilir üretim kalkanı
+            TİTCK / KVKK sınırları, sakin iletişim ve tükenmişliği önleme taktikleri
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-5 space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-4 space-y-2">
           <h4 className="text-xs font-bold text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
-            <span>⚠️</span> Yasal Sınırlar & TİTCK/KVKK Uyarısı
+            <span>⚠️</span> Yasal Sınırlar & TİTCK / KVKK Özeti
           </h4>
           <p className="text-xs text-rose-950 leading-relaxed">
-            Ruhsatlı ilaçların doğrudan veya dolaylı reklamı kesinlikle yasaktır. Hasta bilgileri, reçeteler veya tetkik sonuçları hiçbir koşulda açık paylaşılamaz. Marka yerine jenerik etken madde kullanılmalıdır.
+            Ruhsatlı ilaçların reklamı yasaktır. Hasta bilgileri veya reçeteler paylaşılamaz. Marka yerine jenerik etken madde üzerinden genel bilgilendirme yapılmalıdır.
           </p>
         </div>
 
-        <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-5 space-y-3">
+        <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-4 space-y-2">
           <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🛡️</span> Kriz Yönetimi & Tükenmişlik Önleme
+            <span>🛡️</span> Sakin İletişim & Toplu Çekim
           </h4>
           <p className="text-xs text-indigo-950 leading-relaxed">
-            Haksız eleştirilerde duygusal tepkiden kaçınarak literatür referanslı sakin açıklama sabitleyin. Ayda 2 yarım gün ayrılarak 8-10 video tek seansta (Batch Production) çekilmelidir.
+            Haksız yorumlarda tartışmaya girmeden bilimsel ve sakin kalın. Ayda 2 yarım gün ayırarak 6-8 videoyu tek seansta toplu (batch) çekin.
           </p>
         </div>
       </div>
@@ -792,14 +934,14 @@ function DnaRiskComplianceCard({ section }) {
   )
 }
 
-// 9. 7 ADIMLI YOL HARİTASI (TIMELINE / STEPPER)
+// 10. BAŞLAMAK İÇİN 7 ADIM (BÖLÜM 6 - SADE KARTLAR)
 function DnaRoadmapTimeline({ section }) {
   const steps = parseRoadmapSteps(section.body)
   const isStrict7 = steps.length === 7
 
   return (
-    <div id="sec-6" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-6 scroll-mt-6">
-      <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 flex-wrap">
+    <div id="sec-6" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
             🗺️
@@ -810,11 +952,11 @@ function DnaRoadmapTimeline({ section }) {
                 Bölüm 06
               </span>
               <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                {section.title || '7 Adımlı Kapsamlı Uygulama ve Gelişim Yol Haritası'}
+                {humanizeSectionTitle(section.title)}
               </h3>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Bugünden itibaren devreye alınacak takvime bağlı stratejik aksiyon adımları
+              Bugünden itibaren sırayla uygulayabileceğiniz 7 pratik görev
             </p>
           </div>
         </div>
@@ -822,33 +964,38 @@ function DnaRoadmapTimeline({ section }) {
         <div>
           {isStrict7 ? (
             <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
-              ✓ 7/7 Adım Eksiksiz
+              ✓ 7 Adım Tamam
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
-              ⚠️ {steps.length}/7 Adım
+              {steps.length} Adım
             </span>
           )}
         </div>
       </div>
 
       {steps.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {steps.map((stepText, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {steps.map((step, i) => (
             <div
               key={i}
               className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex items-start gap-3.5 hover:bg-white hover:border-indigo-200/80 transition-all shadow-2xs"
             >
-              <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0 mt-0.5">
-                {i + 1}
+              <div className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0 mt-0.5">
+                {step.num || (i + 1)}
               </div>
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">
-                  Aksiyon Adımı #{i + 1}
-                </span>
-                <p className="text-xs font-semibold text-slate-800 leading-relaxed">
-                  {stepText}
+                <h5 className="text-xs font-bold text-slate-900 leading-snug">
+                  {step.title}
+                </h5>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {step.desc}
                 </p>
+                {step.tip && (
+                  <span className="inline-block text-[10px] font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md mt-1">
+                    💡 {step.tip}
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -860,14 +1007,14 @@ function DnaRoadmapTimeline({ section }) {
   )
 }
 
-// 10. 14 GÜNLÜK MİNİ İÇERİK TAKVİMİ (KARTLI GRID)
+// 11. İLK 14 GÜN NE PAYLAŞABİLİRSİN? (BÖLÜM 7 - KOMPAKT TAKVİM GRİD)
 function DnaCalendarGrid({ section }) {
   const days = parseCalendarDays(section.body)
   const isStrict14 = days.length === 14
 
   return (
-    <div id="sec-7" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-6 scroll-mt-6">
-      <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 flex-wrap">
+    <div id="sec-7" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-soft space-y-5 scroll-mt-6">
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base shadow-2xs shrink-0">
             📅
@@ -878,11 +1025,11 @@ function DnaCalendarGrid({ section }) {
                 Bölüm 07
               </span>
               <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                {section.title || 'İlk 14 Gün İçin Mini İçerik Takvimi'}
+                {humanizeSectionTitle(section.title)}
               </h3>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              İlk 2 haftada uygulanacak mikro yayın akışı ve kanca planı
+              İlk 2 haftada paylaşabileceğiniz hazır içerik fikirleri ve kancalar
             </p>
           </div>
         </div>
@@ -890,29 +1037,29 @@ function DnaCalendarGrid({ section }) {
         <div>
           {isStrict14 ? (
             <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
-              ✓ 14/14 Gün Eksiksiz
+              ✓ 14 Günlük Takvim
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-extrabold px-3 py-1 rounded-full">
-              ⚠️ {days.length}/14 Gün
+              {days.length} Gün
             </span>
           )}
         </div>
       </div>
 
       {days.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {days.map((d, idx) => (
             <div
               key={idx}
-              className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:bg-white hover:shadow-card hover:border-purple-200 transition-all"
+              className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5 flex flex-col justify-between space-y-2.5 hover:bg-white hover:shadow-card hover:border-purple-200 transition-all"
             >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-1.5">
                   <span className="bg-purple-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
                     {d.day}. Gün
                   </span>
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="text-[10px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200 truncate">
                     📹 {d.format}
                   </span>
                 </div>
@@ -927,14 +1074,12 @@ function DnaCalendarGrid({ section }) {
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 space-y-1">
-                <div className="text-[10px] text-slate-500 font-medium">
-                  🎯 <strong>Amaç:</strong> {d.purpose}
-                </div>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px] text-slate-500">
+                <span className="truncate">🎯 {d.purpose}</span>
                 {d.note && (
-                  <div className="text-[10px] text-amber-700 font-medium">
-                    🛡️ {d.note}
-                  </div>
+                  <span className="shrink-0 bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded font-medium border border-amber-200/60">
+                    {d.note}
+                  </span>
                 )}
               </div>
             </div>
@@ -947,7 +1092,7 @@ function DnaCalendarGrid({ section }) {
   )
 }
 
-// 11. GENEL / DİĞER BÖLÜM KARTI
+// 12. GENEL / DİĞER BÖLÜM KARTI
 function DnaGenericSectionCard({ section, index }) {
   const titleLower = (section.title || '').toLowerCase()
   let icon = '📌'
@@ -955,7 +1100,7 @@ function DnaGenericSectionCard({ section, index }) {
 
   if (titleLower.includes('arketip')) { icon = '🎭'; badge = 'Arketip' }
   else if (titleLower.includes('dili') || titleLower.includes('karakter')) { icon = '🗣️'; badge = 'İletişim Dili' }
-  else if (titleLower.includes('reçete') || titleLower.includes('teknik')) { icon = '📋'; badge = 'Format Reçetesi' }
+  else if (titleLower.includes('reçete') || titleLower.includes('teknik')) { icon = '📋'; badge = 'Format' }
   else if (titleLower.includes('rol model') || titleLower.includes('benchmark')) { icon = '⭐'; badge = 'Benchmark' }
 
   return (
@@ -969,7 +1114,7 @@ function DnaGenericSectionCard({ section, index }) {
             <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md uppercase">
               {badge}
             </span>
-            <h4 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">{section.title}</h4>
+            <h4 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">{humanizeSectionTitle(section.title)}</h4>
           </div>
           <p className="text-[11px] text-slate-400">Analiz detay ve strateji notları</p>
         </div>
@@ -1010,14 +1155,16 @@ export default function DnaReportRenderer({
     seviye: 'Orta Seviye',
     kapasite: '2-3 İçerik / Hafta',
     kamera: '7/10 (Rahat)',
-    arketip: 'Eğitici & Yol Gösterici'
+    arketip: 'Eğitici & Yol Gösterici',
+    format: '30-45 sn Kısa Video (Reels)'
   }
 
   if (answers && typeof answers === 'object') {
     if (answers.soru_15) summaryStats.seviye = cleanMarkdownSymbols(String(answers.soru_15))
-    if (answers.soru_14) summaryStats.kapasite = cleanMarkdownSymbols(String(answers.soru_14))
+    if (answers.soru_14) summaryStats.kapasite = `${cleanMarkdownSymbols(String(answers.soru_14))} İçerik / Hafta`
     if (answers.soru_9) summaryStats.kamera = `${cleanMarkdownSymbols(String(answers.soru_9))}/5`
     if (answers.soru_16) summaryStats.arketip = cleanMarkdownSymbols(String(answers.soru_16)).split(':')[0]
+    if (answers.soru_3) summaryStats.format = cleanMarkdownSymbols(String(answers.soru_3)).split('(')[0].trim()
   }
 
   const sections = parseMarkdownSections(reportText)
@@ -1031,14 +1178,18 @@ export default function DnaReportRenderer({
         aiModel={aiModel}
         promptVersion={promptVersion}
         gonderimTarihi={gonderimTarihi}
-        answers={answers}
-        summaryStats={summaryStats}
       />
 
-      {/* 2. Hızlı Rapor Navigasyonu */}
+      {/* 2. DNA Özeti & Mini Aksiyon Kutusu */}
+      <DnaSummaryCard
+        summaryStats={summaryStats}
+        answers={answers}
+      />
+
+      {/* 3. Hızlı Rapor Navigasyonu */}
       <DnaQuickNav />
 
-      {/* 3. Bölüm Kartları */}
+      {/* 4. Bölüm Kartları */}
       <div className="space-y-6">
         {sections.map((sec, idx) => {
           const titleUpper = (sec.title || '').toUpperCase()
@@ -1053,12 +1204,12 @@ export default function DnaReportRenderer({
             return <DnaStrategyCard key={idx} section={sec} />
           }
 
-          // 2. İLETİŞİM DİLİ, TON VE FORMAT REÇETESİ
-          if (titleUpper.includes('2.') || titleUpper.includes('İLETİŞİM') || titleUpper.includes('ILETISIM') || titleUpper.includes('FORMAT REÇETESİ')) {
+          // 2. İLETİŞİM DİLİ, TON VE FORMAT
+          if (titleUpper.includes('2.') || titleUpper.includes('İLETİŞİM') || titleUpper.includes('ILETISIM') || titleUpper.includes('FORMAT REÇETESİ') || titleUpper.includes('FORMAT')) {
             return <DnaFormatCard key={idx} section={sec} />
           }
 
-          // 3. İÇERİK SERİLERİ VE ÜRETİM MATRİSİ
+          // 3. İÇERİK SERİLERİ
           if (titleUpper.includes('3.') || titleUpper.includes('SERİ') || titleUpper.includes('SERI')) {
             return <DnaSeriesMatrix key={idx} section={sec} />
           }
@@ -1068,7 +1219,7 @@ export default function DnaReportRenderer({
             return <DnaBenchmarkCard key={idx} section={sec} />
           }
 
-          // 5. OPERASYONEL RİSKLER VE MEVZUAT FARKINDALIĞI
+          // 5. RİSKLER VE MEVZUAT FARKINDALIĞI
           if (titleUpper.includes('5.') || titleUpper.includes('RİSK') || titleUpper.includes('RISK') || titleUpper.includes('MEVZUAT') || titleUpper.includes('TİTCK') || titleUpper.includes('KVKK')) {
             return <DnaRiskComplianceCard key={idx} section={sec} />
           }
@@ -1088,18 +1239,19 @@ export default function DnaReportRenderer({
         })}
       </div>
 
-      {/* Ham Metin / Debug Görüntüleyici (Varsayılan Kapalı) */}
+      {/* Ham Metin & Teknik Detay Görüntüleyici (Accordion) */}
       <div className="pt-2">
         <button
+          type="button"
           onClick={() => setShowRawText(!showRawText)}
-          className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5"
+          className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1.5 p-2 rounded-xl hover:bg-slate-100 cursor-pointer"
         >
           <span>{showRawText ? '▼' : '►'}</span>
-          <span>Ham Markdown Metnini {showRawText ? 'Gizle' : 'Göster'}</span>
+          <span>{isAdmin ? 'Ham Rapor & Teknik Metni İncele' : 'Detaylı Ham Rapor Metnini Göster'}</span>
         </button>
 
         {showRawText && (
-          <div className="mt-3 bg-slate-900 text-slate-200 p-5 rounded-2xl font-mono text-xs overflow-x-auto whitespace-pre-wrap max-h-96 border border-slate-800">
+          <div className="mt-3 bg-slate-900 text-slate-200 p-5 rounded-2xl font-mono text-xs overflow-x-auto whitespace-pre-wrap max-h-96 border border-slate-800 shadow-inner">
             {reportText}
           </div>
         )}

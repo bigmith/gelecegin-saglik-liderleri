@@ -126,11 +126,11 @@ function extractScorecardFromText(text: string, cevaplar: Record<string, any>) {
   }
 
   return {
-    arketip_eslesmesi: parsePercent(/Arketip Eşleşmesi[:\s]+%?(\d+)/i, dynamicDefaults.arketip_eslesmesi),
-    marka_tutarliligi: parsePercent(/Marka Tutarlılığı[:\s]+%?(\d+)/i, dynamicDefaults.marka_tutarliligi),
-    kamera_prod_hazirligi: parsePercent(/Kamera ve Prodüksiyon Hazırlığı[:\s]+%?(\d+)/i, dynamicDefaults.kamera_prod_hazirligi),
-    icerik_kapasitesi: parsePercent(/İçerik Üretim Kapasitesi[:\s]+%?(\d+)/i, dynamicDefaults.icerik_kapasitesi),
-    kriz_dayanikliligi: parsePercent(/Kriz Yönetimi Dayanıklılığı[:\s]+%?(\d+)/i, dynamicDefaults.kriz_dayanikliligi)
+    arketip_eslesmesi: parsePercent(/(?:Arketip & Dil Uyumu|Arketip Eşleşmesi)[:\s]+%?(\d+)/i, dynamicDefaults.arketip_eslesmesi),
+    marka_tutarliligi: parsePercent(/(?:Marka Netliği|Marka Tutarlılığı)[:\s]+%?(\d+)/i, dynamicDefaults.marka_tutarliligi),
+    kamera_prod_hazirligi: parsePercent(/(?:Kamera Rahatlığı|Kamera ve Prodüksiyon Hazırlığı)[:\s]+%?(\d+)/i, dynamicDefaults.kamera_prod_hazirligi),
+    icerik_kapasitesi: parsePercent(/(?:Üretim Kapasitesi|İçerik Üretim Kapasitesi)[:\s]+%?(\d+)/i, dynamicDefaults.icerik_kapasitesi),
+    kriz_dayanikliligi: parsePercent(/(?:Mevzuat & Kriz Refleksi|Kriz Yönetimi Dayanıklılığı)[:\s]+%?(\d+)/i, dynamicDefaults.kriz_dayanikliligi)
   }
 }
 
@@ -229,15 +229,15 @@ export function repairRoadmap7(cevaplar: Record<string, any>, _profileName?: str
   const targetWords = String(c.soru_19 || 'Danışılan, Pratik, Yol Gösterici')
   const vision = String(c.soru_20 || 'Doğru sağlık bilgisinin dijital referans adresi.')
 
-  return `## 6. 7 ADIMLI KAPSAMLI UYGULAMA VE GELİŞİM YOL HARİTASI
+  return `## 6. BAŞLAMAK İÇİN 7 ADIM
 
-- Adım 1: [İlk 48 Saat: Biyografi ve Konumlandırma] Profil biyografisine "${targetWords}" algısını destekleyen ve "${vision}" vaadini öne çıkaran net bir açıklama yerleştirilmesi.
-- Adım 2: [1. Hafta: Teknik Hazırlık] ${formatChoice} için ses, ışık ve kadraj düzeninin test edilerek standart çekim açısının sabitlenmesi.
-- Adım 3: [1. Hafta: İlk Senaryo Taslakları] Seri 1 (${mainTopic}) için 3 adet taslak kurgulanması.
-- Adım 4: [2. Hafta: Toplu Çekim Seansı] Hazırlanan taslakların tek seansta çekilmesi ve altyazılandırılması.
-- Adım 5: [2. Hafta: Mevzuat ve Etik Kontrol] Yayın öncesinde TİTCK ve KVKK kurallarına uygunluğun teyit edilmesi.
-- Adım 6: [3. Hafta: Topluluk Etkileşimi] Gelen geri bildirimlerin mesleki dille yanıtlanması ve yeni soruların toplanması.
-- Adım 7: [4. Hafta: Stratejik Değerlendirme] İzlenme ve etkileşim metriklerinin analiz edilerek 2. ay içerik planının güncellenmesi.`
+- Adım 1: [İlk 48 Saat: Profil ve Konumlandırma] Biyografine "${targetWords}" algısını yansıtan ve "${vision}" amacını özetleyen net 1 cümle ekle.
+- Adım 2: [1. Hafta: Teknik Ortam ve Kadraj] ${formatChoice} için ses, ışık ve kamera açını belirleyip sabit bir çekim köşesi oluştur.
+- Adım 3: [1. Hafta: İlk İçerik Taslakları] 1. Seri (${mainTopic}) için 3 kısa senaryo taslağı ve kancası hazırla.
+- Adım 4: [2. Hafta: Toplu Çekim Seansı] Hazırladığın taslakları tek bir oturumda çekerek altyazılarını tamamla.
+- Adım 5: [2. Hafta: TİTCK ve Mevzuat Kontrolü] Videoda ilaç ismi veya tedavi iddiası olmadığını, genel etken madde bilgisi verildiğini kontrol et.
+- Adım 6: [3. Hafta: İlk Paylaşım ve Yorumlar] İlk videonu yayınla; gelen soruları ve yorumları yeni içerik fikri olarak not al.
+- Adım 7: [4. Hafta: Aylık Değerlendirme] Hangi konunun daha çok ilgi gördüğünü inceleyip 2. ay için yayın planını güncelle.`
 }
 
 export function repairMiniCalendar14(cevaplar: Record<string, any>, _profileName?: string): string {
@@ -249,12 +249,12 @@ export function repairMiniCalendar14(cevaplar: Record<string, any>, _profileName
   const duration = String(c.soru_5 || '30-45 saniye')
   const hookPref = String(c.soru_7 || 'Sonucu en başta söyleyerek')
 
-  let dynamicHook1 = `"${mainTopic} alanında klinikte en sık karşılaştığım bu kritik tabloyu doğrudan açıklıyorum:"`
-  let dynamicHook2 = `"${secondTopic} konusunda doğru bildiğiniz bu yöntemin aslında sağlığınıza maliyeti ne olabilir?"`
+  let dynamicHook1 = `"${mainTopic} alanında en sık karşılaştığım bu kritik tabloyu doğrudan açıklıyorum:"`
+  let dynamicHook2 = `"${secondTopic} konusunda doğru bildiğiniz bu yöntemin aslında sağlığınıza etkisi ne olabilir?"`
   let dynamicHook3 = `"${mainTopic} ve ${secondTopic} hakkında uzman tavsiyesi almadan önce şu temel gerçeği mutlaka bilmelisiniz:"`
 
   if (hookPref.toLowerCase().includes('sonuc') || hookPref.toLowerCase().includes('başta')) {
-    dynamicHook1 = `"${mainTopic} takviyesi alırken bu hatayı yapıyorsanız paranızı ve sağlığınızı çöpe atıyorsunuz:"`
+    dynamicHook1 = `"${mainTopic} takviyesi alırken bu hatayı yapıyorsanız bütçenizi ve sağlığınızı riske atıyorsunuz:"`
     dynamicHook2 = `"${secondTopic} için aradığınız en net çözüm aslında şu basit adımda gizli:"`
     dynamicHook3 = `"${mainTopic} kullanımında sonucu değiştiren ilk kuralı baştan söylüyorum:"`
   } else if (hookPref.toLowerCase().includes('soru') || hookPref.toLowerCase().includes('merak')) {
@@ -263,22 +263,22 @@ export function repairMiniCalendar14(cevaplar: Record<string, any>, _profileName
     dynamicHook3 = `"Hekim veya eczacınıza gitmeden önce ${mainTopic} hakkında kendinize sormanız gereken ilk soru:"`
   }
 
-  return `## 7. İLK 14 GÜN İÇİN MİNİ İÇERİK TAKVİMİ
+  return `## 7. İLK 14 GÜN NE PAYLAŞABİLİRSİN?
 
-- Gün 1: [Konumlandırma / Vizyon] | Kanca: "${dynamicHook1}" | Format: ${duration} ${formatChoice} | Amaç: Yeni profil odağını duyurma | Uyum Notu: İlaçsız ve tarafsız dil
-- Gün 2: [Soru Kutusu] | Kanca: "—" | Format: Story Etkileşimi | Amaç: "${mainTopic} konusunda en çok merak edilenleri toplama" | Uyum Notu: Reçetesiz bilgilendirme
+- Gün 1: [Konumlandırma & Tanışma] | Kanca: "${dynamicHook1}" | Format: ${duration} ${formatChoice} | Amaç: Yeni profil odağını duyurma | Uyum Notu: İlaçsız genel bilgi
+- Gün 2: [Soru Kutusu & Merak Edilenler] | Kanca: "—" | Format: Story Etkileşimi | Amaç: "${mainTopic} hakkında soruları toplama" | Uyum Notu: Genel bilgilendirme
 - Gün 3: [Seri 1 - Bölüm 1] | Kanca: "${dynamicHook2}" | Format: ${formatChoice} | Amaç: ${mainTopic} konusunda bilgi otoritesi kurma | Uyum Notu: Etken madde odaklı
-- Gün 4: [Bilgi Kartı] | Kanca: "Günün sağlık notu:" | Format: Görsel / Story | Amaç: Koruyucu sağlık temasını pekiştirme | Uyum Notu: Genel bilgilendirme
-- Gün 5: [Seri 2 - Bölüm 1] | Kanca: "${dynamicHook3}" | Format: ${formatChoice} | Amaç: ${secondTopic} ile ilgili pratik danışmanlık sağlama | Uyum Notu: "Uzmanınıza danışın" ibaresi
-- Gün 6: [Kamera Arkası / Samimiyet] | Kanca: "Mesai rutininden kısa bir kesit:" | Format: Story Kısa Video | Amaç: Güven ve samimiyet inşası | Uyum Notu: Hasta mahremiyeti
+- Gün 4: [Pratik Bilgi Notu] | Kanca: "Günün sağlık notu:" | Format: Görsel / Story | Amaç: Koruyucu sağlık bilinci oluşturma | Uyum Notu: Genel bilgilendirme
+- Gün 5: [Seri 2 - Bölüm 1] | Kanca: "${dynamicHook3}" | Format: ${formatChoice} | Amaç: ${secondTopic} ile ilgili pratik danışmanlık sağlama | Uyum Notu: Uzmanınıza danışın
+- Gün 6: [Kamera Arkası & Samimiyet] | Kanca: "Mesai rutininden kısa bir kesit:" | Format: Story Kısa Video | Amaç: Güven ve samimiyet inşası | Uyum Notu: Hasta mahremiyeti
 - Gün 7: [Haftalık Değerlendirme] | Kanca: "—" | Format: Metrik Analizi | Amaç: İlk haftanın performansını gözden geçirme | Uyum Notu: —
-- Gün 8: [Seri 3 - Bölüm 1] | Kanca: "Sağlıklı bir gün için benimsediğim 3 mesleki alışkanlık:" | Format: Vlog ${formatChoice} | Amaç: Yaşam tarzı liderliği | Uyum Notu: Ürün yerleştirmesiz
-- Gün 9: [İnteraktif Anket] | Kanca: "${mainTopic} hakkında bu iki bilgiden hangisi doğru?" | Format: Story Anket | Amaç: İzleyici katılımını artırma | Uyum Notu: Reklamsız
+- Gün 8: [Seri 3 - Bölüm 1] | Kanca: "Sağlıklı bir gün için benimsediğim 3 mesleki alışkanlık:" | Format: Vlog ${formatChoice} | Amaç: Yaşam tarzı liderliği | Uyum Notu: Reklamsız
+- Gün 9: [İnteraktif Doğru-Yanlış Anketi] | Kanca: "${mainTopic} hakkında bu iki bilgiden hangisi doğru?" | Format: Story Anket | Amaç: İzleyici katılımını artırma | Uyum Notu: Reklamsız
 - Gün 10: [Seri 1 - Bölüm 2] | Kanca: "${mainTopic} sürecinde dikkat edilmesi gereken önemli noktalar:" | Format: ${formatChoice} | Amaç: Değer sunumu ve farkındalık | Uyum Notu: TİTCK uyumlu
 - Gün 11: [Yorum Yanıtlama] | Kanca: "Gelen popüler bir soruyu birlikte yanıtlayalım:" | Format: Story Video | Amaç: Danışan bağı güçlendirme | Uyum Notu: Teşhis koymama
 - Gün 12: [Seri 2 - Bölüm 2] | Kanca: "${secondTopic} hakkında bilmeniz gereken mevsimsel ipuçları:" | Format: ${formatChoice} | Amaç: Çözüm odaklı yaklaşım | Uyum Notu: Mevzuata uygunluk
-- Gün 13: [Carousel Bilgi Seti] | Kanca: "${mainTopic} ve ${secondTopic} konusunda bilinmesi gereken 3 temel ilke:" | Format: Carousel Görsel | Amaç: Kaydedilme ve paylaşım | Uyum Notu: Genel bilgilendirme
-- Gün 14: [Mentor Brifingi] | Kanca: "14 günlük maratonun özeti ve gelecek adımlar:" | Format: Story & Kapanış | Amaç: Bir sonraki döneme hazırlık | Uyum Notu: —`
+- Gün 13: [3 Maddelik Kaydetmelik Bilgi Seti] | Kanca: "${mainTopic} ve ${secondTopic} konusunda bilinmesi gereken 3 temel ilke:" | Format: Carousel Görsel | Amaç: Kaydedilme ve paylaşım | Uyum Notu: Genel bilgilendirme
+- Gün 14: [Kapanış & Yeni Hafta Hedefleri] | Kanca: "14 günlük maratonun özeti ve gelecek adımlar:" | Format: Story & Kapanış | Amaç: Bir sonraki döneme hazırlık | Uyum Notu: —`
 }
 
 export function repairReportStructureIfNeeded(reportText: string, cevaplar: Record<string, any>, profileName?: string): string {
@@ -349,18 +349,18 @@ function generateStructuredFallbackReport(cevaplar: Record<string, any>, profile
   const isHighCamera = cameraScore >= 4
 
   const cameraAdvice = isLowCamera
-    ? `Kamera karşısında zorlanma düzeyi (${cameraScore}/5) ve ${formatChoice} tercihi nedeniyle; başlangıçta yüzü doğrudan uzun süre kadrajda tutmak yerine, B-roll görüntüleri üzerine seslendirme (voiceover) ve infografik kart geçişleriyle güvenli bir ısınma evresi planlanmalıdır.`
+    ? `Kamera karşısında başlangıçta biraz zorlandığınız için (${cameraScore}/5), ilk videolarda yüzünüzü sürekli kadrajda tutmak yerine B-roll görüntüleri üzerine seslendirme ve infografik kart geçişleriyle rahat bir başlangıç yapabilirsiniz.`
     : isHighCamera
-    ? `Kamera özgüven seviyesi (${cameraScore}/5) oldukça yüksek olduğu için doğrudan izleyiciyle göz teması kurulan, ${tempo} tempolu ve dinamik jest/mimik içeren konuşan kafa (talking head) formatı birincil kaldıraç olacaktır.`
-    : `Kamera rahatlığı (${cameraScore}/5) dengeli bir seviyededir; prompter desteği veya kısa 15 saniyelik parçalı çekimler ile akıcı ${tempo} bir ritim kolayca yakalanabilir.`
+    ? `Kamera özgüveniniz yüksek olduğu için (${cameraScore}/5), doğrudan izleyiciyle göz teması kurduğunuz, ${tempo} tempolu konuşan kişi (talking head) formatı sizin için en güçlü kaldıraç olacaktır.`
+    : `Kamera rahatlığınız dengeli bir seviyede (${cameraScore}/5); kısa 15 saniyelik parçalı çekimler ve prompter desteği ile akıcı bir ritim kolayca yakalayabilirsiniz.`
 
   // Dynamic Hooks based on S7 & S2
-  let dynamicHook1 = `"${mainTopic} alanında klinikte en sık karşılaştığım bu kritik tabloyu doğrudan açıklıyorum:"`
-  let dynamicHook2 = `"${secondTopic} konusunda doğru bildiğiniz bu yöntemin aslında sağlığınıza maliyeti ne olabilir?"`
+  let dynamicHook1 = `"${mainTopic} alanında en sık karşılaştığım bu kritik tabloyu doğrudan açıklıyorum:"`
+  let dynamicHook2 = `"${secondTopic} konusunda doğru bildiğiniz bu yöntemin aslında sağlığınıza etkisi ne olabilir?"`
   let dynamicHook3 = `"${thirdTopic} hakkında uzman tavsiyesi almadan önce şu temel gerçeği mutlaka bilmelisiniz:"`
 
   if (hookPref.toLowerCase().includes('sonuc') || hookPref.toLowerCase().includes('başta')) {
-    dynamicHook1 = `"${mainTopic} takviyesi alırken bu hatayı yapıyorsanız paranızı ve sağlığınızı çöpe atıyorsunuz:"`
+    dynamicHook1 = `"${mainTopic} takviyesi alırken bu hatayı yapıyorsanız bütçenizi ve sağlığınızı riske atıyorsunuz:"`
     dynamicHook2 = `"${secondTopic} için aradığınız en net çözüm aslında şu basit adımda gizli:"`
     dynamicHook3 = `"${thirdTopic} kullanımında sonucu değiştiren ilk kuralı baştan söylüyorum:"`
   } else if (hookPref.toLowerCase().includes('soru') || hookPref.toLowerCase().includes('merak')) {
@@ -370,116 +370,113 @@ function generateStructuredFallbackReport(cevaplar: Record<string, any>, profile
   }
 
   // Dynamic CTAs based on S8
-  let dynamicCta1 = `"Bu klinik notu, ${mainTopic} konusunda bir dahaki sefere doğru adımı atmak için profilinizde saklayın."`
-  let dynamicCta2 = `"${secondTopic} alanındaki kendi deneyiminizi veya aklınıza takılan spesifik soruyu aşağıya iletin, yanıtlayalım."`
-  let dynamicCta3 = `"Ailenizde veya çevrenizde ${thirdTopic} ile ilgilenen biri varsa, doğru bilgiyi ulaştırmak için bu analizi iletebilirsiniz."`
+  let dynamicCta1 = `"Bu pratik notu, ${mainTopic} konusunda bir dahaki sefere doğru adımı atmak için profilinizde saklayabilirsiniz."`
+  let dynamicCta2 = `"${secondTopic} alanındaki kendi deneyiminizi veya aklınıza takılan soruyu yorumlarda paylaşın, birlikte yanıtlayalım."`
+  let dynamicCta3 = `"Ailenizde veya çevrenizde ${thirdTopic} ile ilgilenen biri varsa, doğru bilgiye ulaşması için bu videoyu gönderebilirsiniz."`
 
   if (ctaPref.toLowerCase().includes('kaydet') || vision.toLowerCase().includes('kaydet')) {
-    dynamicCta1 = `"${vision.length > 5 ? vision : 'Gerektiğinde danışabileceğiniz bu hap bilgiyi'} unutmamak için şimdiden arşivinize ekleyin."`
+    dynamicCta1 = `"${vision.length > 5 ? vision : 'Gerektiğinde danışabileceğiniz bu bilgiyi'} unutmamak için arşivinize ekleyin."`
     dynamicCta2 = `"${mainTopic} rehberini bir sonraki eczane ziyaretinizde referans almak üzere kaydedebilirsiniz."`
-    dynamicCta3 = `"${secondTopic} kontrol listenizi hazırlarken bu içeriği temel başvuru kaynağı olarak saklayın."`
+    dynamicCta3 = `"${secondTopic} kontrol listenizi hazırlarken bu içeriği temel başvuru kaynağı olarak saklayabilirsiniz."`
   } else if (ctaPref.toLowerCase().includes('yorum') || ctaPref.toLowerCase().includes('soru')) {
-    dynamicCta1 = `"${mainTopic} kullanırken yaşadığınız en büyük tereddüt neydi? Yorumlarda buluşup konuşalım."`
-    dynamicCta2 = `"${secondTopic} hakkında bir sonraki videoda hangi konuyu ele almamı istersiniz? Fikirlerinizi yazın."`
-    dynamicCta3 = `"Bu konuda sizin gözleminiz nedir? Deneyimlerinizi paylaşarak topluluğa katkı sağlayın."`
+    dynamicCta1 = `"${mainTopic} kullanırken yaşadığınız en büyük tereddüt neydi? Yorumlarda buluşalım."`
+    dynamicCta2 = `"${secondTopic} hakkında bir sonraki videoda hangi konuyu ele almamı istersiniz? Yorumlara yazın."`
+    dynamicCta3 = `"Bu konuda sizin deneyiminiz nedir? Fikirlerinizi paylaşarak topluluğa katkı sağlayabilirsiniz."`
   }
 
   const s6 = repairRoadmap7(cevaplar, profileName)
   const s7 = repairMiniCalendar14(cevaplar, profileName)
 
-  return `## İÇERİK DNA VE OPERASYONEL SKOR KARTI
+  return `## DİJİTAL DNA SKOR KARTI
 
-- Arketip Eşleşmesi: %${scores.arketip_eslesmesi}  
-  Seçilen odak alanları (${rawTopics}) ile hedeflenen iletişim dili (${tone}) arasındaki pazar uyumu ve uzmanlık örtüşmesi.
-- Marka Tutarlılığı: %${scores.marka_tutarliligi}  
-  Mevcut marka algısı (${brandWords}) ile hedef kitlede uyandırılmak istenen intiba (${targetWords}) arasındaki rasyonel gap analizi.
-- Kamera ve Prodüksiyon Hazırlığı: %${scores.kamera_prod_hazirligi}  
-  Kamera karşısındaki özgüven seviyesi (${cameraScore}/5) ile planlanan format mimarisinin (${formatChoice}) prodüksiyon sürdürülebilirliği.
-- İçerik Üretim Kapasitesi: %${scores.icerik_kapasitesi}  
-  Haftalık planlanan ${weeklyCap} içerik hedefi ile birincil operasyonel darboğazın (${bottleneck}) dengeli iş yükü yönetimi.
-- Kriz Yönetimi Dayanıklılığı: %${scores.kriz_dayanikliligi}  
-  Sosyal medyadaki olası eleştirilere karşı belirlenen refleks (${crisis}) ve mevzuat/etik olgunluk skoru.
+- Arketip & Dil Uyumu: %${scores.arketip_eslesmesi}  
+  Seçtiğiniz odak alanları (${rawTopics}) ile iletişim diliniz (${tone}) arasındaki pazar uyumu.
+- Marka Netliği: %${scores.marka_tutarliligi}  
+  Mevcut algınız (${brandWords}) ile hedeflediğiniz intiba (${targetWords}) arasındaki tutarlılık.
+- Kamera Rahatlığı: %${scores.kamera_prod_hazirligi}  
+  Kamera karşısındaki rahatlığınız (${cameraScore}/5) ve seçtiğiniz ${formatChoice} formatının uygulanabilirliği.
+- Üretim Kapasitesi: %${scores.icerik_kapasitesi}  
+  Haftalık planlanan ${weeklyCap} içerik hedefi ile zaman yönetiminizin dengeli planı.
+- Mevzuat & Kriz Refleksi: %${scores.kriz_dayanikliligi}  
+  Olası eleştirilere karşı sakin yaklaşımınız (${crisis}) ve regülasyon olgunluğu.
 
-## 1. STRATEJİK PAZAR KONUMLANDIRMASI VE ARKETİP ANALİZİ
+## 1. SENİ SOSYAL MEDYADA NASIL KONUMLANDIRALIM?
 
 - Ana Profil Tespiti:
-  [Dayanak: S16=${archetypeChoice.split(':')[0]} | S4=${tone}] Katılımcı, analiz sonuçlarına göre ağırlıklı olarak "${archetypeChoice.split(':')[0]}" profilinde konumlanmaktadır. İletişim dilindeki "${tone}" yaklaşımı, mesleki otoriteyi samimi ve anlaşılır bir çerçevede sunmaktadır.
-- Stratejik Hedef ve Motivasyon Analizi:
-  [Dayanak: S1=${primaryGoal} | S2=${rawTopics}] İçerik üretme hedefinin "${primaryGoal}" ekseninde olması ve "${motivation}" motivasyonundan beslenmesi, güvenilir bir dijital marka inşası için sağlam bir zemin oluşturmaktadır.
-- Mevcut Algı vs. Hedef Algı:
-  [Dayanak: S18=${brandWords} ➔ S19=${targetWords} | S20=${vision}] Katılımcının bugün sahip olduğu "${brandWords}" intibasını, hedeflediği "${targetWords}" algısına taşıyabilmesi için "${narration}" anlatım tarzını benimsemesi gerekmektedir.
+  Analiz sonuçlarınıza göre ağırlıklı olarak "${archetypeChoice.split(':')[0]}" arketipinde yer almaktasınız. İletişim tarzınızdaki "${tone}" üslubunuz, mesleki otoriteyi samimi ve anlaşılır bir çerçevede sunmaktadır.
+- Stratejik Hedef ve Motivasyon:
+  İçerik üretme hedefinizin "${primaryGoal}" ekseninde olması ve "${motivation}" motivasyonundan beslenmesi, güvenilir bir dijital marka inşası için sağlam bir temel oluşturuyor.
+- Mevcut Algıdan Hedef Algıya Köprü:
+  Bugün sahip olduğunuz "${brandWords}" intibasını, hedeflediğiniz "${targetWords}" algısına taşımak için "${narration}" anlatım tarzını benimsemeniz faydalı olacaktır.
 
-## 2. İLETİŞİM DİLİ, TON VE FORMAT REÇETESİ
+## 2. ANLATIM TARZIN VE EN UYGUN FORMATLARIN
 
-- Konuşma Temposu ve Hitabet Modeli:
-  [Dayanak: S6=${tempo} | S9=${cameraScore}/5 | S3=${formatChoice}] ${cameraAdvice}
-- İdeal Video Süresi ve Format Mimarisi:
-  [Dayanak: S5=${duration} | S3=${formatChoice}] Planlanan ideal süre ${duration} aralığıdır. ${formatChoice} yapısına uygun olarak ilk 3 saniyede kanca, gövdede çözüm odaklı bilgi ve sonda net yönlendirme uygulanmalıdır.
-- Kanca ve CTA Mühendisliği:
-  Katılımcının ${mainTopic} ve ${secondTopic} odak alanlarına özel tasarlanmış reçeteler:
-  - Kanca 1 (Stratejik Açılış): ${dynamicHook1}
-  - Kanca 2 (Merak ve Kanıt): ${dynamicHook2}
-  - Kanca 3 (Pratik Öngörü): ${dynamicHook3}
-  - CTA 1 (Aksiyonel Yönlendirme): ${dynamicCta1}
-  - CTA 2 (Etkileşim Odaklı): ${dynamicCta2}
-  - CTA 3 (Farkındalık & Yayılım): ${dynamicCta3}
+- Konuşma Temposu ve Sunum Tarzı:
+  ${cameraAdvice}
+- İdeal Video Süresi ve Yapısı:
+  Sizin için en uygun süre ${duration} aralığıdır. ${formatChoice} yapısına uygun olarak ilk 3 saniyede kanca, gövdede çözüm odaklı hap bilgi ve sonda net bir kapanış uygulanmalıdır.
+- Videoya Giriş ve Kapanış Kalıpları:
+  ${mainTopic} ve ${secondTopic} odak alanlarınıza özel örnekler:
+  - Kanca 1: ${dynamicHook1}
+  - Kanca 2: ${dynamicHook2}
+  - Kanca 3: ${dynamicHook3}
+  - CTA 1: ${dynamicCta1}
+  - CTA 2: ${dynamicCta2}
+  - CTA 3: ${dynamicCta3}
 
-## 3. KİŞİSELLEŞTİRİLMİŞ İÇERİK SERİLERİ VE ÜRETİM MATRİSİ
+## 3. ÖNERİLEN 3 İÇERİK SERİSİ
 
-- Seri 1: ${mainTopic} Odağında ${archetypeChoice.split(':')[0]} Dosyası
+- Seri 1: ${mainTopic} Odağında ${archetypeChoice.split(':')[0]} Serisi
   - Format: ${duration} ${formatChoice}
   - Yayın Kanalı: Instagram & LinkedIn
-  - Detaylı İçerik Mantığı: ${mainTopic} konusunda doğru bilginin bilimsel ve pratik boyutunu ele alan öncü seri.
+  - Kimin İçin? / İçerik Mantığı: ${mainTopic} konusunda doğru bilgiyi anlaşılır ve pratik şekilde aktaran öncü seri.
   - Örnek bölüm başlıkları:
-    * Bölüm 1: ${mainTopic} pratiğinde yapılan en kritik değerlendirme hataları
-    * Bölüm 2: Danışanların ${mainTopic} seçerken dikkat etmesi gereken parametreler
-    * Bölüm 3: Bilimsel kanıtlar ışığında ${mainTopic} kullanım protokolü
-  - Üretim akışı: Haftalık senaryo taslağı, toplu çekim ve altyazı optimizasyonu.
-  - Risk/uyum notu: Ruhsatlı ilaç markası kullanılmamalı, etken madde ve genel ilkeler üzerinden anlatılmalıdır.
+    * Bölüm 1: ${mainTopic} konusunda en sık yapılan hatalar
+    * Bölüm 2: Danışanların ${mainTopic} seçerken dikkat etmesi gerekenler
+    * Bölüm 3: Bilimsel kanıtlar ışığında ${mainTopic} kullanım rehberi
+  - Uyum notu: Ruhsatlı ilaç markası kullanılmamalı, etken madde ve genel ilkeler üzerinden anlatılmalıdır.
 
-- Seri 2: ${secondTopic} & Danışan Kılavuzu
+- Seri 2: ${secondTopic} & Danışan Rehberi
   - Format: ${formatChoice} & Carousel
   - Yayın Kanalı: Instagram & TikTok
-  - Detaylı İçerik Mantığı: ${secondTopic} hakkında sahada en sık karşılaşılan soru ve sorunlara yönelik hap çözümler.
+  - Kimin İçin? / İçerik Mantığı: ${secondTopic} hakkında sahada en sık karşılaşılan soru ve sorunlara yönelik hap çözümler.
   - Örnek bölüm başlıkları:
     * Bölüm 1: ${secondTopic} ile ilgili en yaygın yanlış inanışlar
     * Bölüm 2: Kimler ${secondTopic} takviyelerinde daha temkinli olmalı?
     * Bölüm 3: ${secondTopic} sürecinde yaşam tarzı düzenlemeleri
-  - Üretim akışı: Soru kutusundan gelen temaların 15-30 saniyelik parçalara dönüştürülmesi.
-  - Risk/uyum notu: Bireysel teşhis veya reçete önerisi yapılmamalı, hekime ve eczacıya danışma vurgusu korunmalıdır.
+  - Uyum notu: Bireysel teşhis veya reçete önerisi yapılmamalı, hekime ve eczacıya danışma vurgusu korunmalıdır.
 
-- Seri 3: ${narration} ile ${thirdTopic} Günlüğü
+- Seri 3: Mesleki Rutin ile ${thirdTopic} Günlüğü
   - Format: Vlog & Arka Plan ${formatChoice}
   - Yayın Kanalı: Instagram Reels & Hikâyeler
-  - Detaylı İçerik Mantığı: Mesleki rutini ve sağlıklı yaşam disiplinini şeffaf şekilde yansıtan güven serisi.
+  - Kimin İçin? / İçerik Mantığı: Mesleki rutini ve sağlıklı yaşam disiplinini şeffaf şekilde yansıtan güven serisi.
   - Örnek bölüm başlıkları:
     * Bölüm 1: Bir sağlık profesyonelinin ${thirdTopic} rutini
     * Bölüm 2: Yoğun çalışma temposunda enerjiyi koruma yöntemleri
     * Bölüm 3: Mesleki gözlemle sahada fark ettiğim önemli detaylar
-  - Üretim akışı: Günlük B-roll arşivinden haftalık 1 kısa video kurgulama.
-  - Risk/uyum notu: Hasta mahremiyeti ve KVKK kurallarına tam riayet edilmeli, kişisel veriler kadraja girmemelidir.
+  - Uyum notu: Hasta mahremiyeti ve KVKK kurallarına tam riayet edilmeli, kişisel veriler kadraja girmemelidir.
 
-## 4. ROL MODEL VE BENCHMARK ANALİZİ
+## 4. İLHAM ALABİLECEĞİN HESAPLAR VE TARZLAR
 
 - Referans Alınan Tarzların Değerlendirilmesi:
-  [Dayanak: S17=${benchmarks}] Belirtilen benchmark üreticiler (${benchmarks}), ${archetypeChoice.split(':')[0]} tonuyla uyumlu örneklerdir. Bu hesapların kurgu dinamizmi ve anlatım mimarisi ilham kaynağı olarak incelenmelidir.
-- Görsel ve İşitsel Estetik Yönlendirmeler:
+  Belirttiğiniz benchmark üreticiler (${benchmarks}), hedeflediğiniz ${archetypeChoice.split(':')[0]} tonuyla uyumlu örneklerdir. Bu hesapların video dinamizmi ve anlatım akışı ilham kaynağı olarak incelenebilir.
+- Görsel ve İşitsel Estetik:
   Işık ve ses dengesi kurulmalı, doğal bir mesleki arka plan tercih edilmeli ve gereksiz görsel karmaşadan kaçınılmalıdır.
-- Kopyalamadan Modelleme:
-  İçerik başlıkları birebir alınmamalı; kendi uzmanlık birikimi ve "${brandWords}" kimliğiyle harmanlanmış özgün formatlar geliştirilmelidir.
+- Özgün Sesini Koruma:
+  İçerik başlıkları birebir kopyalanmamalı; kendi uzmanlık birikiminiz ve "${brandWords}" kimliğinizle harmanlanmış özgün formatlar geliştirilmelidir.
 
-## 5. OPERASYONEL RİSKLER, MEVZUAT FARKINDALIĞI VE TÜKENMİŞLİK ANALİZİ
+## 5. DİKKAT ETMEN GEREKENLER & MEVZUAT
 
-- Birincil Operasyonel Darboğaz:
-  [Dayanak: S10=${bottleneck}] Katılımcının en çok zorlandığı "${bottleneck}" konusunu yönetmek için; içerik fikir havuzu oluşturulmalı ve çekimler tek oturumda toplu olarak tamamlanmalıdır.
-- TİTCK/KVKK ve Sağlık İletişimi Uyarıları:
-  * TİTCK: İlaç tanıtımı ve örtülü reklam yasağına titizlikle uyulmalıdır.
-  * KVKK: Danışan veya hasta verileri hiçbir şekilde ifşa edilmemelidir.
-  * Endikasyon: Gıda takviyelerine tıbbi tedavi edici iddialar yüklenemez.
-- Kriz Yönetimi Simülasyonu:
-  [Dayanak: S13=${crisis}] Olası tartışma veya haksız eleştirilerde "${crisis}" refleksi korunarak profesyonel sınır muhafaza edilmelidir.
-- Tükenmişlik Önleme:
-  [Dayanak: S14=Haftada ${weeklyCap} içerik] Haftalık ${weeklyCap} içerik hacmi aşırı yük oluşturmayacak şekilde takvimlendirilmeli, sürdürülebilir bir tempo hedeflenmelidir.
+- Birincil Darboğazı Aşma:
+  En çok zorlandığınız "${bottleneck}" konusunu yönetmek için; içerik fikir havuzu oluşturulmalı ve çekimler tek oturumda toplu olarak tamamlanmalıdır.
+- TİTCK ve KVKK Hatırlatmaları:
+  * TİTCK: İlaç tanıtımı ve örtülü reklam yasağına dikkat edilmelidir.
+  * KVKK: Danışan veya hasta verileri hiçbir şekilde paylaşılmamalıdır.
+  * Endikasyon: Takviyelere tıbbi tedavi edici iddialar yüklenemez.
+- Sakin İletişim Refleksi:
+  Olası tartışma veya haksız eleştirilerde "${crisis}" tutumu korunarak profesyonel sınır muhafaza edilmelidir.
+- Sürdürülebilir Tempo:
+  Haftalık ${weeklyCap} içerik hacmi aşırı yük oluşturmayacak şekilde takvimlendirilmeli, sürdürülebilir bir tempo hedeflenmelidir.
 
 ${s6}
 
@@ -629,129 +626,126 @@ serve(async (req) => {
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
     let raporMetni = ""
     let aiModel = "Stratejik Kişiselleştirilmiş Analiz"
-    const promptVersiyonu = "dna-v5-strict"
-    const fullPromptVersion = "operational-dna-v5-strict-structure"
+    const promptVersiyonu = "dna-v6-simple"
+    const fullPromptVersion = "operational-dna-v6-simple-human"
 
     const formattedAnswers = formatAnswersForPrompt(cevaplar, participantName)
 
     if (geminiKey) {
       try {
-        const systemPrompt = `Sen, sağlık profesyonelleri (eczacı, hekim, diyetisyen, fizyoterapist, diş hekimi ve diğer sağlık uzmanları) için dijital içerik stratejileri, kişisel marka konumlandırma, sağlık iletişimi, regülasyon farkındalığı, KVKK hassasiyeti ve operasyonel risk yönetimi alanında uzmanlaşmış kıdemli bir "İçerik Stratejisi ve Dijital DNA Analiz Uzmanı"sın.
+        const systemPrompt = `Sen, sağlık profesyonelleri (eczacı, hekim, diyetisyen, fizyoterapist, diş hekimi ve diğer sağlık uzmanları) için dijital içerik üretimi, kişisel marka konumlandırma ve sağlık iletişimi alanında uzmanlaşmış samimi, pratik ve yol gösterici bir "İçerik Koçu"sun.
 
 RAPORUN AMACI:
-Katılımcının (${participantName}) 20 soruluk "İçerik Üretici DNA Envanteri" cevaplarını çapraz analiz ederek kişiye özel, tamamen özgün, somut, uygulanabilir ve profesyonel bir "Kişiselleştirilmiş İçerik ve Operasyonel DNA Raporu" üretmektir.
+Katılımcının (${participantName}) 20 soruluk "İçerik Üretici DNA Envanteri" cevaplarını analiz ederek kişiye özel, tamamen özgün, gereksiz akademik/yapay zekâ jargonundan uzak, sıcak, anlaşılır ve hemen yarın uygulanabilir bir "Kişisel İçerik ve Strateji Raporu" hazırlamaktır.
 
-ÖNEMLİ KİŞİSELLEŞTİRME VE KANIT DAYANAĞI KURALLARI (ŞABLON YASAKTIR):
-1. AYNI CTA, HOOK, İÇERİK SERİSİ, ROADMAP VEYA TAKVİM CÜMLESİNİ FARKLI KATILIMCILAR İÇİN TEKRAR KULLANMAK KESİNLİKLE YASAKTIR.
-2. Sadece konu adını değiştirip aynı şablon cümleleri basmak (Örn: "Bu bilgiyi ihtiyaç duyduğunuzda kolayca bulmak için kaydedin", "En çok merak ettiğiniz soruyu yoruma yazın", "Benzer şikâyeti olan bir yakınınız varsa paylaşın") KESİNLİKLE YASAKTIR.
-3. Her öneri, kanca (hook) ve eylem çağrısı (CTA); katılımcının seçtiği niş (S2), hedef kitle, format tercihi (S3), kamera rahatlığı (S9), konuşma temposu (S6), kriz refleksi (S13), hedef marka kelimeleri (S18-S19) ve vizyon cümlesi (S20) ile birebir bağlantılı ve yaratıcı olmalıdır.
-4. Önerilen 3 İçerik Serisi, katılımcının seçtiği spesifik 1. ve 2. niş alanlara (S2) ve hedef arketipine (S16) göre sıfırdan kurgulanmış özgün isimler, mantıklar ve bölüm başlıkları taşımalıdır.
-5. Her ana bölümün girişinde ve alt başlıklarında katılımcının verdiği yanıtları doğal danışmanlık diliyle dayanak göster (Örn: '[Dayanak: S2 Niş: Dermakozmetik & Fitoterapi, S3 Format: Soru-Cevap Röportaj, S9 Kamera: 4/5]').
-6. Skor kartındaki yüzde değerlerini katılımcının yanıtlarına göre dinamik ve gerçekçi olarak puanla (Sabit puanlar üretme).
-7. TİTCK (Türkiye İlaç ve Tıbbi Cihaz Kurumu), Sağlık Bakanlığı Sağlık İletişimi Kılavuzları ve KVKK regülasyonları ile etik sağlık iletişimi ilkelerine tam uyum farkındalığı üret. Tıbbi teşhis, reçete yönlendirmesi veya ilaç reklamı KESİNLİKLE YASAKTIR.
-8. RAPORUN TÜM BÖLÜMLERİ (1. Bölümden 7. Bölümün 14. Gününe kadar) TAMAMEN VE EKSİKSİZ ÜRETİLMELİDİR.
-   - BÖLÜM 6 (7 ADIMLI YOL HARİTASI): KESİNLİKLE VE TAM OLARAK 7 ADIMDAN OLUŞMALIDIR (Adım 1, Adım 2, Adım 3, Adım 4, Adım 5, Adım 6, Adım 7). 7'den az veya 7'den fazla adım yazmak KESİNLİKLE YASAKTIR.
-   - BÖLÜM 7 (14 GÜNLÜK MİNİ TAKVİM): KESİNLİKLE VE TAM OLARAK 14 GÜNDEN OLUŞMALIDIR (Gün 1, Gün 2, Gün 3, ..., Gün 14). 14'ten az veya 14'ten fazla gün yazmak KESİNLİKLE YASAKTIR.
+ÜSLUP VE DİL KURALLARI:
+1. DİLİN TONU: Sıcak, samimi, doğrudan, motive edici ve sağlık profesyoneline saygılı olmalı. Günlük konuşma diline yakın, hap ve pratik cümleler kur.
+2. YASAKLI JARGONLAR (KULLANMA): "mühendisliği", "mimari", "operasyonel DNA", "ritmik model", "vizyon", "skor kartı temelli optimizasyon", "simülasyon", "matris", "gap analizi" gibi soğuk AI ve kurumsal danışmanlık terimlerini KESİNLİKLE KULLANMA.
+3. KULLANILACAK SADE KARŞILIKLAR:
+   - "anlatım tarzı", "başlangıç cümlesi", "kapanış kalıbı", "paylaşım planı", "dikkat edilecekler", "ilk 14 gün", "başlamak için 7 adım".
+4. DAYANAKLAR: Analizin elbette katılımcının verdiği yanıtlara dayansın; ancak metnin içinde '[Dayanak: S16=...]' veya '[Dayanak: S2=...]' gibi köşeli parantezli teknik etiketler YAZMA. Gerekirse cümle içinde doğal olarak geçir ("Kamera karşısında rahat olduğunu belirttiğin için...").
+5. TİTCK VE KVKK: Yasal uyarıları katılımcıyı boğacak uzun hukuk paragrafları olarak yazma; pratik, net ve yapıcı hatırlatmalar olarak aktar (İlaç ismi vermeme, hasta mahremiyetini koruma, genel etken madde bilgisi verme).
+6. ŞABLON VE GENEL-GEÇER CÜMLELER YASAKTIR: Katılımcının seçtiği spesifik niş alanlara (S2), hedef kitlesine, formatına ve konuşma temposuna uygun tamamen özgün içerikler üret.
+7. KESİN VE EKSİKSİZ BÖLÜMLER:
+   - BÖLÜM 6 (7 ADIM): KESİNLİKLE VE TAM OLARAK 7 ADIMDAN OLUŞMALIDIR (Adım 1, Adım 2, ..., Adım 7). Her adım kısa bir başlık ve tek cümlelik net bir yapılacak iş içermelidir.
+   - BÖLÜM 7 (14 GÜNLÜK TAKVİM): KESİNLİKLE VE TAM OLARAK 14 GÜNDEN OLUŞMALIDIR (Gün 1, Gün 2, ..., Gün 14).
 
-ZORUNLU ÇIKTI FORMATI (Aşağıdaki Markdown başlık yapısını ve sırasını BİREBİR ve EKSİKSİZ kullan):
+ZORUNLU ÇIKTI FORMATI (Aşağıdaki Markdown başlık yapısını ve sırasını BİREBİR kullan):
 
-## İÇERİK DNA VE OPERASYONEL SKOR KARTI
+## DİJİTAL DNA SKOR KARTI
 
-- Arketip Eşleşmesi: %[0-100]  
-  [Seçilen konular ile iletişim dili arasındaki uyum analizi ve gerekçesi]
-- Marka Tutarlılığı: %[0-100]  
-  [Mevcut konumlandırma ile hedeflenen marka kelimeleri arasındaki gap analizi]
-- Kamera ve Prodüksiyon Hazırlığı: %[0-100]  
-  [Kamera rahatlığı ve format tercihleri dengesi analizi]
-- İçerik Üretim Kapasitesi: %[0-100]  
-  [Planlanan haftalık sıklık ile zorlanılan alanların rasyonel analizi]
-- Kriz Yönetimi Dayanıklılığı: %[0-100]  
-  [Haksız eleştiriye verilen tepkinin mesleki olgunluk ve regülasyon skoru]
+- Arketip & Dil Uyumu: %[0-100]  
+  [Seçilen konular ile iletişim dili arasındaki uyum ve 1 cümlelik pratik yorum]
+- Marka Netliği: %[0-100]  
+  [Mevcut algı ile hedeflenen intiba arasındaki netlik ve 1 cümlelik pratik yorum]
+- Kamera Rahatlığı: %[0-100]  
+  [Kamera karşısındaki rahatlık ve format uyumu hakkında 1 cümlelik pratik yorum]
+- Üretim Kapasitesi: %[0-100]  
+  [Haftalık içerik hedefi ile zaman yönetimi hakkında 1 cümlelik pratik yorum]
+- Mevzuat & Kriz Refleksi: %[0-100]  
+  [Olası eleştirilere karşı sakin yaklaşım ve etik olgunluk hakkında 1 cümlelik pratik yorum]
 
-## 1. STRATEJİK PAZAR KONUMLANDIRMASI VE ARKETİP ANALİZİ
+## 1. SENİ SOSYAL MEDYADA NASIL KONUMLANDIRALIM?
 
 - Ana Profil Tespiti:
-  [Katılımcının S16 ve S4 verisine göre net arketip tespiti, alt dinamikleri ve gerekçesi]
-- Stratejik Hedef ve Motivasyon Analizi:
-  [Kişinin S1 içerik üretme amacı ile S2 seçtiği nişin rasyonel uyumu ve mesleki kaldıraç etkisi]
-- Mevcut Algı vs. Hedef Algı:
-  [Kişinin S18 mevcut algısı ile S19 hedef algısı ve S20 vizyonu arasındaki köprü stratejisi]
+  [Katılımcının hedef tarzı ve iletişim üslubuna dair net, sıcak değerlendirme]
+- Stratejik Hedef ve Motivasyon:
+  [İçerik üretme amacı ve niş alanın katılımcıya sağlayacağı değer]
+- Mevcut Algıdan Hedef Algıya Köprü:
+  [Bugünkü intibayı hedeflediği güvenilir uzman algısına taşıma önerisi]
 
-## 2. İLETİŞİM DİLİ, TON VE FORMAT REÇETESİ
+## 2. ANLATIM TARZIN VE EN UYGUN FORMATLARIN
 
-- Konuşma Temposu ve Hitabet Modeli:
-  [S6 konuşma temposu ve S9 kamera rahatlığına göre somut diksiyon, beden dili ve sunum yönergeleri]
-- İdeal Video Süresi ve Format Mimarisi:
-  [S5 seçilen video süresi ve S3 format üzerinden kurgu dinamizmi, B-roll kullanımı ve dikkat tutma mimarisi]
-- Kanca ve CTA Mühendisliği:
-  Katılımcının S2 nişine, S7 kanca stiline ve S8 eylem hedefine özel tasarlanmış tamamen özgün örnekler:
-  - Kanca 1 (Stratejik Açılış): "[Özgün kanca metni]"
-  - Kanca 2 (Merak ve Kanıt): "[Özgün kanca metni]"
-  - Kanca 3 (Pratik Öngörü): "[Özgün kanca metni]"
-  - CTA 1 (Aksiyonel Yönlendirme): "[Özgün CTA metni]"
-  - CTA 2 (Etkileşim Odaklı): "[Özgün CTA metni]"
-  - CTA 3 (Farkındalık & Yayılım): "[Özgün CTA metni]"
+- Konuşma Temposu ve Sunum Tarzı:
+  [Kamera rahatlığı ve konuşma temposuna göre doğrudan uygulanabilir hitabet önerisi]
+- İdeal Video Süresi ve Yapısı:
+  [Seçilen video süresi ve formata göre videonun giriş, gelişme ve sonuç yapısı]
+- Videoya Giriş ve Kapanış Kalıpları:
+  Katılımcının odak alanlarına özel tasarlanmış tamamen özgün örnekler:
+  - Kanca 1: "[Özgün giriş cümlesi]"
+  - Kanca 2: "[Özgün giriş cümlesi]"
+  - Kanca 3: "[Özgün giriş cümlesi]"
+  - CTA 1: "[Özgün kapanış / yönlendirme cümlesi]"
+  - CTA 2: "[Özgün kapanış / yönlendirme cümlesi]"
+  - CTA 3: "[Özgün kapanış / yönlendirme cümlesi]"
 
-## 3. KİŞİSELLEŞTİRİLMİŞ İÇERİK SERİLERİ VE ÜRETİM MATRİSİ
+## 3. ÖNERİLEN 3 İÇERİK SERİSİ
 
-Sürdürülebilir, katılımcının S2 nişine ve S3 formatına tam uygun 3 spesifik ve özgün içerik serisi:
+Sürdürülebilir, katılımcının niş alanlarına tam uygun 3 spesifik video serisi:
 
 - Seri 1: [Özgün Seri Adı]
-  - Format: [Video / Carousel / Shorts vb.]
-  - Yayın Kanalı: [Instagram / TikTok / YouTube / LinkedIn]
-  - Detaylı İçerik Mantığı: [Serinin amacı, kime hitap ettiği ve değer önerisi]
+  - Format: [Kısa Video / Carousel vb.]
+  - Yayın Kanalı: [Instagram / TikTok / LinkedIn vb.]
+  - Kimin İçin? / İçerik Mantığı: [Serinin amacı, kime hitap ettiği ve sunduğu fayda]
   - Örnek bölüm başlıkları:
     * Bölüm 1: [Başlık]
     * Bölüm 2: [Başlık]
     * Bölüm 3: [Başlık]
-  - Üretim akışı: [Araştırma, senaryo, çekim ve kurgu adımları]
-  - Risk/uyum notu: [TİTCK / KVKK / Etik açıdan dikkat edilecek husus]
+  - Uyum notu: [Kısa TİTCK / Etik hatırlatması]
 
 - Seri 2: [Özgün Seri Adı]
-  - Format: [Video / Carousel / Shorts vb.]
-  - Yayın Kanalı: [Instagram / TikTok / YouTube / LinkedIn]
-  - Detaylı İçerik Mantığı: [Serinin amacı, kime hitap ettiği ve değer önerisi]
+  - Format: [Kısa Video / Carousel vb.]
+  - Yayın Kanalı: [Instagram / TikTok / LinkedIn vb.]
+  - Kimin İçin? / İçerik Mantığı: [Serinin amacı, kime hitap ettiği ve sunduğu fayda]
   - Örnek bölüm başlıkları:
     * Bölüm 1: [Başlık]
     * Bölüm 2: [Başlık]
     * Bölüm 3: [Başlık]
-  - Üretim akışı: [Araştırma, senaryo, çekim ve kurgu adımları]
-  - Risk/uyum notu: [TİTCK / KVKK / Etik açıdan dikkat edilecek husus]
+  - Uyum notu: [Kısa TİTCK / Etik hatırlatması]
 
 - Seri 3: [Özgün Seri Adı]
-  - Format: [Video / Carousel / Shorts vb.]
-  - Yayın Kanalı: [Instagram / TikTok / YouTube / LinkedIn]
-  - Detaylı İçerik Mantığı: [Serinin amacı, kime hitap ettiği ve değer önerisi]
+  - Format: [Kısa Video / Carousel vb.]
+  - Yayın Kanalı: [Instagram / TikTok / LinkedIn vb.]
+  - Kimin İçin? / İçerik Mantığı: [Serinin amacı, kime hitap ettiği ve sunduğu fayda]
   - Örnek bölüm başlıkları:
     * Bölüm 1: [Başlık]
     * Bölüm 2: [Başlık]
     * Bölüm 3: [Başlık]
-  - Üretim akışı: [Araştırma, senaryo, çekim ve kurgu adımları]
-  - Risk/uyum notu: [TİTCK / KVKK / Etik açıdan dikkat edilecek husus]
+  - Uyum notu: [Kısa TİTCK / Etik hatırlatması]
 
-## 4. ROL MODEL VE BENCHMARK ANALİZİ
+## 4. İLHAM ALABİLECEĞİN HESAPLAR VE TARZLAR
 
 - Referans Alınan Tarzların Değerlendirilmesi:
-  [Kişinin belirttiği S17 benchmark hesaplar ile S16 arketip tercihleri arasındaki stratejik çıkarımlar]
-- Görsel ve İşitsel Estetik Yönlendirmeler:
-  [Stüdyo düzeni, ışıklandırma, mikrofon/ses, kadraj kompozisyonu ve renk paleti standartları]
-- Kopyalamadan Modelleme:
-  [Benchmark içeriklerin taklit edilmeden, kendi mesleki özgünlüğüyle nasıl sentezleneceği]
+  [Belirtilen rol model hesapların güçlü yönleri ve katılımcının tarzıyla uyumu]
+- Görsel ve İşitsel Estetik:
+  [Işık, ses, kadraj ve arka plan için basit, pratik öneriler]
+- Özgün Sesini Koruma:
+  [Taklit etmeden kendi mesleki deneyimini ve samimiyetini öne çıkarma taktiği]
 
-## 5. OPERASYONEL RİSKLER, MEVZUAT FARKINDALIĞI VE TÜKENMİŞLİK ANALİZİ
+## 5. DİKKAT ETMEN GEREKENLER & MEVZUAT
 
-- Birincil Operasyonel Darboğaz:
-  [Katılımcının S10 en çok zorlandığı alan için kök neden analizi ve adım adım çözüm protokolü]
-- TİTCK/KVKK ve Sağlık İletişimi Uyarıları:
-  [S2 seçilen konular bazında reklam yasağı, endikasyon belirtme, ürün yönlendirmesi ve hasta mahremiyeti sınırları]
-- Kriz Yönetimi Simülasyonu:
-  [S13 kriz tepkisine göre uygulanacak sakin ve kanıta dayalı kriz protokolü]
-- Tükenmişlik Önleme:
-  [S14 haftalık kapasitesine göre batch-production ve sürdürülebilirlik taktiği]
+- Birincil Darboğazı Aşma:
+  [Zorlanılan alan için uygulanabilir, zaman kazandırıcı pratik çözüm]
+- TİTCK ve KVKK Hatırlatmaları:
+  [İlaç tanıtımı yasağı, hasta mahremiyeti ve genel etken madde bilgilendirmesi sınırları]
+- Sakin İletişim Refleksi:
+  [Olası olumsuz yorumlara karşı profesyonel ve sakin kalma taktiği]
+- Sürdürülebilir Tempo:
+  [Tükenmişliği önlemek için toplu çekim (batching) ve haftalık tempo önerisi]
 
-## 6. 7 ADIMLI KAPSAMLI UYGULAMA VE GELİŞİM YOL HARİTASI
+## 6. BAŞLAMAK İÇİN 7 ADIM
 
-Katılımcının hemen bugün uygulamaya başlayacağı 7 stratejik aksiyon adımı:
+Bugünden itibaren sırayla uygulayabileceğiniz 7 pratik görev:
 
 - Adım 1: [İlk 48 Saat Aksiyonu]
 - Adım 2: [1. Hafta Aksiyonu]
@@ -761,24 +755,24 @@ Katılımcının hemen bugün uygulamaya başlayacağı 7 stratejik aksiyon adı
 - Adım 6: [3. Hafta Aksiyonu]
 - Adım 7: [4. Hafta Aksiyonu]
 
-## 7. İLK 14 GÜN İÇİN MİNİ İÇERİK TAKVİMİ
+## 7. İLK 14 GÜN NE PAYLAŞABİLİRSİN?
 
-14 günlük uygulanabilir mini yayın planı (Katılımcının S2 konuları ve S3 formatına göre):
+14 günlük uygulanabilir yayın takvimi:
 
-- Gün 1: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 2: [İçerik Tipi] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 3: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 4: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 5: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 6: [İçerik Tipi] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 7: [İçerik Tipi] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 8: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 9: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 10: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 11: [İçerik Tipi] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 12: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 13: [İçerik Tipi] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
-- Gün 14: [İçerik Tipi] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Uyum Notu]
+- Gün 1: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 2: [Konu / Başlık] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 3: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 4: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 5: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 6: [Konu / Başlık] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 7: [Konu / Başlık] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 8: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 9: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 10: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 11: [Konu / Başlık] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 12: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 13: [Konu / Başlık] | Kanca: "[Kanca]" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
+- Gün 14: [Konu / Başlık] | Kanca: "—" | Format: [Format] | Amaç: [Amaç] | Uyum Notu: [Kısa Uyum Notu]
 
 KATILIMCININ 20 SORULUK ENVENTAR CEVAPLARI:
 ${formattedAnswers}`
